@@ -1,5 +1,6 @@
 import type ExcelJS from 'exceljs';
 import type {
+  AgeBreakdownItem,
   AlertLevel,
   DailyPoint,
   GroupEntry,
@@ -172,13 +173,19 @@ function readGroups(sheet: ExcelJS.Worksheet | undefined): GroupEntry[] {
   return entries;
 }
 
-function findHeaderRow(sheet: ExcelJS.Worksheet): number {
+function findHeaderRow(sheet: ExcelJS.Worksheet): { rowNumber: number; hasCutoff: boolean } {
   for (let rowNumber = 1; rowNumber <= Math.min(sheet.rowCount, 30); rowNumber += 1) {
     const values = sheet.getRow(rowNumber).values as ExcelJS.CellValue[];
     const normalized = values.map((value) => normalizeText(unwrapCell(value)));
-    if (normalized.includes('fecha corte') && normalized.includes('empleado')) return rowNumber;
+    const hasEmployee = normalized.some((col) => col.includes('empleado'));
+    const hasNitOrCompany = normalized.some((col) => col.includes('nit') || col.includes('empresa'));
+    const hasTotal = normalized.some((col) => col.includes('total') || col.includes('mercancia'));
+    if (hasEmployee && (hasNitOrCompany || hasTotal)) {
+      const hasCutoff = normalized.some((col) => col.includes('fecha corte') || col.includes('fecha_corte'));
+      return { rowNumber, hasCutoff };
+    }
   }
-  throw new Error('La hoja Base no contiene las columnas Fecha_Corte y Empleado.');
+  throw new Error(`La hoja ${sheet.name} no contiene las columnas necesarias (Empleado, NIT, Total).`);
 }
 
 function getColumnMap(sheet: ExcelJS.Worksheet, headerRow: number): Map<string, number> {
@@ -201,15 +208,53 @@ function makeStableKey(nit: string, document: string, order: string, fallback: s
   return pieces.length >= 2 ? pieces.join('|') : fallback;
 }
 
-export async function parseRemisionesWorkbook(buffer: ArrayBuffer): Promise<ParsedWorkbook> {
+export function readHistoricalDiario(sheet: ExcelJS.Worksheet | undefined): DailyPoint[] {
+  if (!sheet) return [];
+  const points: DailyPoint[] = [];
+  for (let r = 5; r <= sheet.rowCount; r += 1) {
+    const row = sheet.getRow(r);
+    const dateVal = toIsoDate(row.getCell(1).value);
+    const pending = toNumber(row.getCell(2).value);
+    const remissions = toNumber(row.getCell(3).value);
+    if (!dateVal || pending <= 0) continue;
+    points.push({
+      cutoff: dateVal,
+      pending,
+      remissions,
+      clients: Math.round(toNumber(row.getCell(4).value)),
+      newValue: toNumber(row.getCell(5).value),
+      newCount: Math.round(toNumber(row.getCell(6).value)),
+      previousBalance: toNumber(row.getCell(7).value),
+      withdrawn: toNumber(row.getCell(8).value),
+      withdrawnCount: 0,
+      netManagement: toNumber(row.getCell(9).value),
+      grossReduction: toNumber(row.getCell(10).value),
+      overdueValue: toNumber(row.getCell(11).value),
+      overdueCount: Math.round(toNumber(row.getCell(12).value)),
+    });
+  }
+  return points;
+}
+
+export async function parseRemisionesWorkbook(
+  buffer: ArrayBuffer,
+  options?: { fallbackCutoff?: string; lastModifiedDateTime?: string },
+): Promise<ParsedWorkbook> {
   const { default: ExcelJSRuntime } = await import('exceljs');
   const workbook = new ExcelJSRuntime.Workbook();
   await workbook.xlsx.load(buffer);
-  const baseSheet = workbook.getWorksheet('Base');
-  if (!baseSheet) throw new Error('No se encontró la hoja Base en el archivo.');
+
+  // Prioritize Base-SIS sheet if present and contains data, else Base
+  const sisSheet = workbook.getWorksheet('Base-SIS') || workbook.getWorksheet('base-sis');
+  const baseSheet = workbook.getWorksheet('Base') || workbook.getWorksheet('base');
+  const targetSheet = (sisSheet && sisSheet.rowCount > 1) ? sisSheet : baseSheet;
+  if (!targetSheet) {
+    throw new Error('No se encontró la hoja Base-SIS ni Base en el archivo.');
+  }
+
   const groups = readGroups(workbook.getWorksheet('Grupos'));
-  const headerRow = findHeaderRow(baseSheet);
-  const columns = getColumnMap(baseSheet, headerRow);
+  const { rowNumber: headerRow } = findHeaderRow(targetSheet);
+  const columns = getColumnMap(targetSheet, headerRow);
   const column = (...aliases: string[]) => {
     for (const alias of aliases) {
       const found = columns.get(normalizeText(alias));
@@ -217,6 +262,27 @@ export async function parseRemisionesWorkbook(buffer: ArrayBuffer): Promise<Pars
     }
     return 0;
   };
+
+  // Determine modification timestamp from options, workbook.modified, or current date
+  let fileDate: Date | null = null;
+  if (options?.lastModifiedDateTime) {
+    const parsed = new Date(options.lastModifiedDateTime);
+    if (!Number.isNaN(parsed.getTime())) fileDate = parsed;
+  }
+  if (!fileDate && workbook.modified instanceof Date && !Number.isNaN(workbook.modified.getTime())) {
+    fileDate = workbook.modified;
+  }
+  if (!fileDate && workbook.created instanceof Date && !Number.isNaN(workbook.created.getTime())) {
+    fileDate = workbook.created;
+  }
+  if (!fileDate) {
+    fileDate = new Date();
+  }
+
+  const defaultCutoffIso = fileDate.toISOString().slice(0, 10);
+  const cutoffDateTime = fileDate.toISOString();
+  const cutoffTimeDisplay = formatTimeOnly(fileDate);
+
   const indices = {
     cutoff: column('Fecha_Corte', 'Fecha Corte'),
     employee: column('Empleado'),
@@ -226,32 +292,39 @@ export async function parseRemisionesWorkbook(buffer: ArrayBuffer): Promise<Pars
     tax: column('Vr. IVA', 'IVA'),
     total: column('Vr. Total', 'Valor Total'),
     issuedAt: column('Emision', 'Emisión'),
-    age: column('Antiguedad_Calculada', 'Dias'),
+    age: column('Dias', 'Antiguedad_Calculada', 'Días'),
     document: column('Documento'),
     order: column('Pedido'),
     quantity: column('Cantidad'),
   };
+
   const records: Remision[] = [];
-  for (let rowNumber = headerRow + 1; rowNumber <= baseSheet.rowCount; rowNumber += 1) {
-    const row = baseSheet.getRow(rowNumber);
-    const cutoff = toIsoDate(row.getCell(indices.cutoff).value);
+  for (let rowNumber = headerRow + 1; rowNumber <= targetSheet.rowCount; rowNumber += 1) {
+    const row = targetSheet.getRow(rowNumber);
     const employee = textValue(row.getCell(indices.employee).value);
-    if (!cutoff || !employee) continue;
+    if (!employee) continue;
+
+    const rowCutoff = indices.cutoff ? toIsoDate(row.getCell(indices.cutoff).value) : '';
+    const cutoff = rowCutoff || defaultCutoffIso;
     const issuedAt = toIsoDate(row.getCell(indices.issuedAt).value);
     const total = toNumber(row.getCell(indices.total).value);
     const quantity = toNumber(row.getCell(indices.quantity).value);
-    const calculatedAge = diffDays(cutoff, issuedAt);
-    const sourceAge = toNumber(row.getCell(indices.age).value);
-    const age = issuedAt ? calculatedAge : Math.max(0, Math.round(sourceAge));
+    const rawAgeValue = indices.age ? unwrapCell(row.getCell(indices.age).value) : null;
+    const hasSourceAge = rawAgeValue != null && rawAgeValue !== '';
+    const calculatedAge = issuedAt ? diffDays(cutoff, issuedAt) : 0;
+    const age = hasSourceAge ? Math.max(0, Math.round(toNumber(rawAgeValue))) : calculatedAge;
     const nit = textValue(row.getCell(indices.nit).value);
     const document = textValue(row.getCell(indices.document).value);
     const order = textValue(row.getCell(indices.order).value);
     const group = matchGroup(employee, groups);
     const id = `${cutoff}-${rowNumber}-${document || order}`;
+
     records.push({
       id,
       stableKey: makeStableKey(nit, document, order, id),
       cutoff,
+      cutoffTime: cutoffTimeDisplay,
+      cutoffDateTime,
       employee,
       nit,
       company: textValue(row.getCell(indices.company).value),
@@ -270,38 +343,81 @@ export async function parseRemisionesWorkbook(buffer: ArrayBuffer): Promise<Pars
       matchedGroup: Boolean(group),
     });
   }
-  if (!records.length) throw new Error('La hoja Base no contiene registros de remisiones válidos.');
+
+  if (!records.length) {
+    throw new Error(`La hoja ${targetSheet.name} no contiene registros de remisiones válidos.`);
+  }
+
   const cutoffs = [...new Set(records.map((record) => record.cutoff))].sort();
   const unmatchedEmployees = [...new Set(records.filter((record) => !record.matchedGroup).map((record) => record.employee))]
     .sort((a, b) => a.localeCompare(b, 'es'));
+
   return {
     records,
     groups,
     sheetNames: workbook.worksheets.map((sheet) => sheet.name),
     cutoffs,
     unmatchedEmployees,
+    activeSheetName: targetSheet.name,
+    cutoffDateTime,
+    cutoffTimeDisplay,
   };
 }
 
 export function summarize(records: Remision[]): Summary {
   const pending = records.reduce((sum, record) => sum + record.total, 0);
+  const overdueRecords = records.filter((record) => record.age > 30);
+  const overdueValue = overdueRecords.reduce((sum, record) => sum + record.total, 0);
+  const maxAge = records.length ? Math.max(...records.map((record) => record.age)) : 0;
   return {
     pending,
     remissions: records.length,
     merchandise: records.reduce((sum, record) => sum + record.merchandise, 0),
     tax: records.reduce((sum, record) => sum + record.tax, 0),
     averageAge: records.length ? records.reduce((sum, record) => sum + record.age, 0) / records.length : 0,
-    overdueValue: records.filter((record) => record.age > 30).reduce((sum, record) => sum + record.total, 0),
-    overdueCount: records.filter((record) => record.age > 30).length,
+    overdueValue,
+    overdueCount: overdueRecords.length,
+    overduePercentage: pending > 0 ? (overdueValue / pending) * 100 : 0,
+    maxAge,
     zeroQuantity: records.filter((record) => record.quantity === 0).length,
     clients: new Set(records.map((record) => record.nit || normalizeText(record.company))).size,
   };
 }
 
-export function buildDailySeries(records: Remision[]): DailyPoint[] {
+export function buildAgeBreakdown(records: Remision[]): AgeBreakdownItem[] {
+  const totalPending = records.reduce((sum, record) => sum + record.total, 0) || 1;
+  const groups = aggregateBy(records, (record) => record.ageRange);
+  return AGE_ORDER.map((name) => {
+    const found = groups.find((group) => group.name === name) || { value: 0, count: 0, overdue: 0 };
+    const percent = (found.value / totalPending) * 100;
+    let tone: 'blue' | 'orange' | 'red' = 'blue';
+    let badge: string | undefined;
+    if (name === '31-60 días' || name === '>60 días') {
+      tone = 'red';
+      badge = 'Vencida >30d';
+    } else if (name === '16-30 días') {
+      tone = 'orange';
+      badge = 'Por vencer';
+    } else {
+      tone = 'blue';
+      badge = 'Al día';
+    }
+    return {
+      name,
+      value: found.value,
+      count: found.count,
+      overdue: found.overdue,
+      percent,
+      tone,
+      badge,
+    };
+  });
+}
+
+export function buildDailySeries(records: Remision[], historicalDiario: DailyPoint[] = []): DailyPoint[] {
   const cutoffs = [...new Set(records.map((record) => record.cutoff))].sort();
   let previous = new Map<string, Remision>();
-  return cutoffs.map((cutoff, index) => {
+  const calculatedPoints = cutoffs.map((cutoff, index) => {
     const currentRecords = records.filter((record) => record.cutoff === cutoff);
     const current = new Map(currentRecords.map((record) => [record.stableKey, record]));
     const newRecords = index === 0 ? currentRecords : currentRecords.filter((record) => !previous.has(record.stableKey));
@@ -328,6 +444,12 @@ export function buildDailySeries(records: Remision[]): DailyPoint[] {
     previous = current;
     return point;
   });
+
+  if (!historicalDiario.length) return calculatedPoints;
+  const map = new Map<string, DailyPoint>();
+  for (const p of historicalDiario) map.set(p.cutoff, p);
+  for (const p of calculatedPoints) map.set(p.cutoff, p);
+  return [...map.values()].sort((a, b) => a.cutoff.localeCompare(b.cutoff));
 }
 
 export function aggregateBy<T extends string>(
@@ -350,11 +472,50 @@ export function aggregateBy<T extends string>(
 
 export function formatCutoff(iso: string, options: Intl.DateTimeFormatOptions = {}): string {
   if (!iso) return '—';
-  return new Intl.DateTimeFormat('es-CO', {
-    timeZone: 'UTC',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    ...options,
-  }).format(new Date(`${iso}T00:00:00Z`));
+  try {
+    return new Intl.DateTimeFormat('es-CO', {
+      timeZone: 'UTC',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      ...options,
+    }).format(new Date(`${iso}T00:00:00Z`));
+  } catch {
+    return iso;
+  }
+}
+
+export function formatDateTime(isoOrDate: string | Date | undefined): string {
+  if (!isoOrDate) return '—';
+  const date = typeof isoOrDate === 'string' ? new Date(isoOrDate) : isoOrDate;
+  if (Number.isNaN(date.getTime())) return '—';
+  try {
+    return new Intl.DateTimeFormat('es-CO', {
+      timeZone: 'America/Bogota',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(date);
+  } catch {
+    return date.toLocaleString('es-CO');
+  }
+}
+
+export function formatTimeOnly(isoOrDate: string | Date | undefined): string {
+  if (!isoOrDate) return '—';
+  const date = typeof isoOrDate === 'string' ? new Date(isoOrDate) : isoOrDate;
+  if (Number.isNaN(date.getTime())) return '—';
+  try {
+    return new Intl.DateTimeFormat('es-CO', {
+      timeZone: 'America/Bogota',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(date);
+  } catch {
+    return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  }
 }

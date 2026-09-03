@@ -16,6 +16,8 @@ export interface Remision {
   id: string;
   stableKey: string;
   cutoff: string;
+  cutoffTime?: string;
+  cutoffDateTime?: string;
   employee: string;
   nit: string;
   company: string;
@@ -53,6 +55,9 @@ export interface ParsedWorkbook {
   sheetNames: string[];
   cutoffs: string[];
   unmatchedEmployees: string[];
+  activeSheetName?: string;
+  cutoffDateTime?: string;
+  cutoffTimeDisplay?: string;
 }
 
 export interface DailyPoint {
@@ -81,5 +86,17 @@ export interface Summary {
   overdueCount: number;
   zeroQuantity: number;
   clients: number;
+  overduePercentage?: number;
+  maxAge?: number;
+}
+
+export interface AgeBreakdownItem {
+  name: string;
+  value: number;
+  count: number;
+  overdue: number;
+  percent: number;
+  tone: 'blue' | 'orange' | 'red';
+  badge?: string;
 }
 

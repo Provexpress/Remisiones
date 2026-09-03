@@ -38,6 +38,13 @@ describe('normalización de datos', () => {
     expect(matchGroup('Dayana Marcela Chala', groups)?.director).toBe('Angélica Caballero');
     expect(matchGroup('Angie Tatiana Parra', groups)?.director).toBe('Óscar Beltrán');
   });
+
+  it('formatea hora y fecha adecuadamente', async () => {
+    const { formatDateTime, formatTimeOnly } = await import('./remisiones');
+    const date = '2026-09-03T21:04:00.000Z'; // 4:04 p.m. Colombia (UTC-5)
+    expect(formatTimeOnly(date)).toContain('4:04');
+    expect(formatDateTime(date)).toContain('2026');
+  });
 });
 
 describe('parser del libro', () => {
@@ -58,6 +65,33 @@ describe('parser del libro', () => {
     expect(parsed.records[0].director).toBe('Angélica Caballero');
     expect(parsed.records[0].age).toBe(33);
     expect(parsed.records[0].total).toBe(1190);
+  });
+
+  it('procesa una hoja Base-SIS sin columna Fecha_Corte usando la fecha/hora de modificación', async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.modified = new Date('2026-09-03T16:04:00.000Z');
+    const sis = workbook.addWorksheet('Base-SIS');
+    sis.addRow(['Empleado', 'NIT', 'Empresa', 'Vr. Mercancia', 'Vr. IVA', 'Vr. Total', 'Emision', 'Dias', 'Documento', 'Pedido', 'Cantidad']);
+    sis.addRow(['Dayana Marcela Chala', '9001', 'Cliente SIS', '1000', '190', '1190', '2026-09-02', 1, 'R99', 'P99', 0]);
+    sis.addRow(['Tatiana Parra', '9002', 'Cliente SIS 2', '2000', '380', '2380', '2026-07-15', 50, 'R100', 'P100', 5]);
+    const groups = workbook.addWorksheet('Grupos');
+    groups.addRow(['Grupo 2 — Directora: Angélica Caballero']);
+    groups.addRow(['Ejecutivo Comercial']);
+    groups.addRow(['Dayana Chala']);
+    const output = await workbook.xlsx.writeBuffer();
+    const parsed = await parseRemisionesWorkbook(output as ArrayBuffer, {
+      lastModifiedDateTime: '2026-09-03T21:04:00.000Z',
+    });
+    expect(parsed.activeSheetName).toBe('Base-SIS');
+    expect(parsed.records).toHaveLength(2);
+    expect(parsed.cutoffs).toEqual(['2026-09-03']);
+    expect(parsed.records[0].cutoff).toBe('2026-09-03');
+    expect(parsed.records[0].age).toBe(1);
+    expect(parsed.records[1].age).toBe(50);
+    expect(parsed.records[1].alert).toBe('Vencida >30 días');
+    const summary = summarize(parsed.records);
+    expect(summary.pending).toBe(3570);
+    expect(summary.overdueCount).toBe(1);
   });
 });
 

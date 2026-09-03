@@ -35,12 +35,12 @@ El archivo y los tokens permanecen en el navegador. No se incluyó `Remisiones.x
 
 La aplicación busca estas hojas:
 
-- `Base`: fuente histórica. La fila de encabezados debe contener `Fecha_Corte` y `Empleado`. También utiliza `NIT`, `Empresa`, `Vr. Mercancia`, `Vr. IVA`, `Vr. Total`, `Emision`, `Documento`, `Pedido` y `Cantidad`.
-- `Grupos`: bloques con el formato `Grupo N — Director(a): Nombre`, seguidos por los ejecutivos de ese grupo.
+- `Base-SIS`: Hoja principal y simplificada. El operador únicamente copia y pega la exportación directa de SIS sin requerir columna de fecha ni cálculos adicionales. Contiene las columnas `Empleado`, `NIT`, `Empresa`, `Vr. Mercancia`, `Vr. IVA`, `Vr. Total`, `Emision`, `Dias`, `Documento`, `Pedido` y `Cantidad`. El portal toma automáticamente la fecha y hora de modificación del Excel/SharePoint como corte.
+- `Base`: Fuente alternativa o histórica. Si contiene `Fecha_Corte`, se lee para reconstruir múltiples cortes.
+- `Grupos`: Bloques con el formato `Grupo N — Director(a): Nombre`, seguidos por los ejecutivos de ese grupo.
+- `Diario`: Resumen consolidado opcional de gestión diaria que alimenta el historial de entradas y retiros.
 
-Cada día se deben agregar a `Base` las remisiones abiertas del nuevo corte, conservando los registros de los cortes anteriores. El portal identifica una remisión entre días con `NIT + Documento + Pedido`, una llave estable que permite calcular entradas y retiros sin depender de fórmulas de Excel.
-
-El libro actual contiene únicamente el corte `2026-09-03`. La gráfica de tendencia empezará a mostrar evolución cuando `Base` tenga dos o más fechas de corte.
+El portal almacena además el historial diario en el almacenamiento local del navegador (`localStorage`), permitiendo conservar la evolución histórica de días anteriores incluso cuando el operador sobreescribe `Base-SIS` diariamente.
 
 ## Ejecución local
 
