@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const projectRoot = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
@@ -9,8 +12,8 @@ export default defineConfig({
     sourcemap: true,
     rolldownOptions: {
       input: {
-        app: resolve(import.meta.dirname, 'index.html'),
-        redirect: resolve(import.meta.dirname, 'redirect.html'),
+        app: resolve(projectRoot, 'index.html'),
+        redirect: resolve(projectRoot, 'redirect.html'),
       },
     },
   },
