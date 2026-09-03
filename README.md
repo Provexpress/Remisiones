@@ -2,6 +2,9 @@
 
 Aplicación web para revisar las remisiones pendientes por facturar de Provexpress. Lee `Remisiones.xlsx` directamente desde SharePoint después de autenticar al usuario con Microsoft 365, cruza la hoja `Base` con `Grupos` y recalcula todos los indicadores en el navegador.
 
+- Producción: https://remisiones-provexpress-projects.vercel.app
+- Repositorio: https://github.com/Provexpress/Remisiones
+
 ## Tecnologías
 
 - React 19 + TypeScript + Vite.
