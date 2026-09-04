@@ -293,6 +293,7 @@ function Dashboard({
   onLogout: () => void;
 }) {
   const [view, setView] = useState<View>('overview');
+  const [detailTab, setDetailTab] = useState<'open' | 'withdrawn'>('open');
   const [cutoff, setCutoff] = useState(data.cutoffs.at(-1) || '');
   const [from, setFrom] = useState(data.cutoffs.length > 30 ? data.cutoffs.at(-30)! : data.cutoffs[0]);
   const [to, setTo] = useState(data.cutoffs.at(-1) || '');
@@ -305,6 +306,12 @@ function Dashboard({
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const refreshRef = useRef(onRefresh);
+
+  useEffect(() => {
+    if (data.cutoffs.length && (!cutoff || !data.cutoffs.includes(cutoff))) {
+      setCutoff(data.cutoffs.at(-1)!);
+    }
+  }, [data.cutoffs, cutoff]);
 
   const matchesAgeFilter = (age: number, ageRange: string, filter: string): boolean => {
     if (filter === 'Todos') return true;
@@ -382,6 +389,36 @@ function Dashboard({
     [data.records, from, to, director, employee],
   );
   const daily = useMemo(() => buildDailySeries(periodRecords), [periodRecords]);
+  const currentDailyPoint = useMemo(
+    () => daily.find((d) => d.cutoff === cutoff) || daily.at(-1),
+    [daily, cutoff],
+  );
+
+  const previousCutoffRecords = useMemo(
+    () => data.records.filter((record) => record.cutoff === previousCutoff),
+    [data.records, previousCutoff],
+  );
+  const currentKeysSet = useMemo(
+    () => new Set(baseCutoffRecords.map((record) => record.stableKey)),
+    [baseCutoffRecords],
+  );
+  const previousKeysSet = useMemo(
+    () => new Set(previousCutoffRecords.map((record) => record.stableKey)),
+    [previousCutoffRecords],
+  );
+
+  const withdrawnRecords = useMemo(() => {
+    if (!previousCutoff) return [];
+    return previousCutoffRecords.filter((record) => {
+      if (currentKeysSet.has(record.stableKey)) return false;
+      if (director !== 'Todos' && record.director !== director) return false;
+      if (employee !== 'Todos' && record.employee !== employee) return false;
+      if (statusFilter !== 'Todos' && record.alert !== statusFilter) return false;
+      if (amountFilter !== 'Todos' && record.amountStatus !== amountFilter) return false;
+      if (!matchesAgeFilter(record.age, record.ageRange, ageFilter)) return false;
+      return true;
+    });
+  }, [previousCutoff, previousCutoffRecords, currentKeysSet, director, employee, statusFilter, amountFilter, ageFilter]);
 
   const ageBreakdownRecords = useMemo(
     () => baseCutoffRecords.filter((r) =>
@@ -412,9 +449,10 @@ function Dashboard({
   );
   const sellerData = useMemo(() => aggregateBy(sellerFilterRecords, (record) => record.employee).slice(0, 12), [sellerFilterRecords]);
 
+  const targetRecords = detailTab === 'withdrawn' ? withdrawnRecords : currentRecords;
   const detailRecords = useMemo(() => {
     const normalizedQuery = normalizeText(query);
-    return currentRecords
+    return targetRecords
       .filter((record) => !normalizedQuery || normalizeText([
         record.company,
         record.nit,
@@ -430,7 +468,7 @@ function Dashboard({
         if (sortBy === 'age-asc') return a.age - b.age || b.total - a.total;
         return b.age - a.age;
       });
-  }, [currentRecords, sortBy, query]);
+  }, [targetRecords, sortBy, query]);
 
   const pageSize = 20;
   const pageCount = Math.max(1, Math.ceil(detailRecords.length / pageSize));
@@ -889,21 +927,73 @@ function Dashboard({
             </section>
 
             <section className="daily-strip">
-              <div className="daily-strip-title"><CalendarRange size={20} /><div><strong>Gestión del corte</strong><span>Entradas y retiros frente al corte anterior</span></div></div>
-              <DailyStat label="Saldo anterior" value={currency.format(daily.at(-1)?.previousBalance || 0)} />
-              <DailyStat label="Nuevas" value={currency.format(daily.at(-1)?.newValue || 0)} tone="orange" />
-              <DailyStat label="Retirado" value={currency.format(daily.at(-1)?.withdrawn || 0)} tone="green" />
-              <DailyStat label="Reducción bruta" value={percent.format(daily.at(-1)?.grossReduction || 0)} tone="blue" />
-              <button className="button button-secondary" onClick={() => setView('detail')}>Ver detalle</button>
+              <div className="daily-strip-title">
+                <CalendarRange size={20} />
+                <div>
+                  <strong>Gestión del corte ({formatCutoff(cutoff)})</strong>
+                  <span>Entradas y retiros frente al corte anterior</span>
+                </div>
+              </div>
+              <DailyStat
+                label="Saldo anterior"
+                value={currency.format(currentDailyPoint?.previousBalance || 0)}
+              />
+              <DailyStat
+                label="Nuevas"
+                value={currency.format(currentDailyPoint?.newValue || 0)}
+                sub={currentDailyPoint?.newCount ? `${number.format(currentDailyPoint.newCount)} remisiones` : undefined}
+                tone="orange"
+                onClick={() => { setView('detail'); setDetailTab('open'); }}
+                clickable
+              />
+              <DailyStat
+                label="Retirado"
+                value={currency.format(currentDailyPoint?.withdrawn || 0)}
+                sub={currentDailyPoint?.withdrawnCount ? `${number.format(currentDailyPoint.withdrawnCount)} remisiones` : undefined}
+                tone="green"
+                onClick={() => { setView('detail'); setDetailTab('withdrawn'); }}
+                clickable={Boolean(currentDailyPoint?.withdrawnCount)}
+              />
+              <DailyStat
+                label="Reducción bruta"
+                value={percent.format(currentDailyPoint?.grossReduction || 0)}
+                tone="blue"
+              />
+              <button
+                className="button button-secondary"
+                onClick={() => { setView('detail'); setDetailTab('open'); }}
+              >
+                Ver detalle
+              </button>
             </section>
           </>
         ) : (
           <section className="detail-card">
             <div className="detail-header">
               <div>
-                <h2>Detalle de remisiones abiertas</h2>
+                <div className="detail-title-wrap">
+                  <h2>{detailTab === 'withdrawn' ? 'Remisiones retiradas (Cobradas / Facturadas)' : 'Detalle de remisiones abiertas'}</h2>
+                  {previousCutoff && (
+                    <div className="detail-tab-buttons">
+                      <button
+                        type="button"
+                        className={`detail-tab-btn ${detailTab === 'open' ? 'active' : ''}`}
+                        onClick={() => setDetailTab('open')}
+                      >
+                        Abiertas ({number.format(currentRecords.length)})
+                      </button>
+                      <button
+                        type="button"
+                        className={`detail-tab-btn withdrawn ${detailTab === 'withdrawn' ? 'active' : ''}`}
+                        onClick={() => setDetailTab('withdrawn')}
+                      >
+                        Retiradas ({number.format(withdrawnRecords.length)})
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <p>
-                  {number.format(detailRecords.length)} registros
+                  {number.format(detailRecords.length)} {detailTab === 'withdrawn' ? 'remisiones retiradas frente al corte anterior' : 'registros'}
                   {statusFilter !== 'Todos' ? ` · Estado: ${statusFilter}` : ''}
                   {ageFilter !== 'Todos' ? ` · Días: ${ageFilter}` : ''}
                   {amountFilter !== 'Todos' ? ` · Monto: ${amountFilter}` : ''}
@@ -999,6 +1089,8 @@ function Dashboard({
                     <DetailRow
                       key={record.id}
                       record={record}
+                      isWithdrawn={detailTab === 'withdrawn'}
+                      isNew={Boolean(detailTab === 'open' && previousCutoff && !previousKeysSet.has(record.stableKey))}
                       onSelectDirector={(dir) => setDirector((current) => current === dir ? 'Todos' : dir)}
                       onSelectEmployee={(emp) => setEmployee((current) => current === emp ? 'Todos' : emp)}
                       onSelectAge={(age) => setAgeFilter((current) => current === age ? 'Todos' : age)}
@@ -1212,12 +1304,39 @@ function ChartCard({ title, subtitle, children, className = '' }: { title: strin
   return <article className={`chart-card ${className}`}><header><div><h2>{title}</h2><p>{subtitle}</p></div></header>{children}</article>;
 }
 
-function DailyStat({ label, value, tone = '' }: { label: string; value: string; tone?: string }) {
-  return <div className={`daily-stat ${tone}`}><span>{label}</span><strong>{value}</strong></div>;
+function DailyStat({
+  label,
+  value,
+  sub,
+  tone = '',
+  onClick,
+  clickable = false,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: string;
+  onClick?: () => void;
+  clickable?: boolean;
+}) {
+  return (
+    <div
+      className={`daily-stat ${tone} ${clickable ? 'clickable' : ''}`}
+      onClick={onClick}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+    >
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {sub && <small style={{ fontSize: '9.5px', color: 'var(--muted)', marginTop: '2px', display: 'block' }}>{sub}</small>}
+    </div>
+  );
 }
 
 function DetailRow({
   record,
+  isWithdrawn = false,
+  isNew = false,
   onSelectDirector,
   onSelectEmployee,
   onSelectAge,
@@ -1226,6 +1345,8 @@ function DetailRow({
   onSelectCompany,
 }: {
   record: Remision;
+  isWithdrawn?: boolean;
+  isNew?: boolean;
   onSelectDirector?: (director: string) => void;
   onSelectEmployee?: (employee: string) => void;
   onSelectAge?: (age: string) => void;
@@ -1236,7 +1357,7 @@ function DetailRow({
   const isOverdue = record.age > 30;
   const isPriority = record.age > 15 && record.age <= 30;
   return (
-    <tr>
+    <tr className={isWithdrawn ? 'row-withdrawn' : ''}>
       <td>
         <button
           type="button"
@@ -1269,7 +1390,10 @@ function DetailRow({
         </button>
       </td>
       <td>
-        <strong className="cell-doc">{record.document || '—'}</strong>
+        <strong className="cell-doc">
+          {record.document || '—'}
+          {isNew && <span className="new-badge">Nueva</span>}
+        </strong>
       </td>
       <td>
         <span className="cell-order">{record.order || '—'}</span>
@@ -1302,18 +1426,23 @@ function DetailRow({
         </button>
       </td>
       <td>
-        <button
-          type="button"
-          className="cell-touch-btn"
-          onClick={() => onSelectStatus?.(record.alert)}
-          title={`Toca para filtrar por estado "${record.alert}"`}
-        >
-          <span className={`status-pill ${statusClass(record.alert)}`}>{record.alert}</span>
-        </button>
+        {isWithdrawn ? (
+          <span className="status-pill normal">Retirada / Facturada</span>
+        ) : (
+          <button
+            type="button"
+            className="cell-touch-btn"
+            onClick={() => onSelectStatus?.(record.alert)}
+            title={`Toca para filtrar por estado "${record.alert}"`}
+          >
+            <span className={`status-pill ${statusClass(record.alert)}`}>{record.alert}</span>
+          </button>
+        )}
       </td>
     </tr>
   );
 }
+
 
 
 function CurrencyTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value?: number; name?: string; color?: string }>; label?: string }) {

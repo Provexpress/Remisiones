@@ -199,7 +199,12 @@ function findHeaderRow(sheet: ExcelJS.Worksheet): { rowNumber: number; hasCutoff
     const hasNitOrCompany = normalized.some((col) => col.includes('nit') || col.includes('empresa'));
     const hasTotal = normalized.some((col) => col.includes('total') || col.includes('mercancia'));
     if (hasEmployee && (hasNitOrCompany || hasTotal)) {
-      const hasCutoff = normalized.some((col) => col.includes('fecha corte') || col.includes('fecha_corte'));
+      const hasCutoff = normalized.some((col) =>
+        col.includes('fecha corte') ||
+        col.includes('fecha_corte') ||
+        col.includes('fecha de corte') ||
+        col === 'corte'
+      );
       return { rowNumber, hasCutoff };
     }
   }
@@ -302,7 +307,16 @@ export async function parseRemisionesWorkbook(
   const cutoffTimeDisplay = formatTimeOnly(fileDate);
 
   const indices = {
-    cutoff: column('Fecha_Corte', 'Fecha Corte'),
+    cutoff: column(
+      'Fecha de corte',
+      'Fecha_de_corte',
+      'Fecha de Corte',
+      'Fecha_de_Corte',
+      'Fecha_Corte',
+      'Fecha Corte',
+      'Corte',
+      'Fecha',
+    ),
     employee: column('Empleado'),
     nit: column('NIT'),
     company: column('Empresa'),

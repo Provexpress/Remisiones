@@ -401,9 +401,77 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .daily-stat span { color: var(--muted); font-size: 10px; }
 .daily-stat strong { margin-top: 4px; font-size: 13px; white-space: nowrap; }
 .daily-stat.orange strong { color: var(--orange); }.daily-stat.green strong { color: var(--green); }.daily-stat.blue strong { color: var(--blue); }
+.daily-stat.clickable {
+  cursor: pointer;
+  border-radius: 9px;
+  padding: 4px 10px 4px 17px;
+  transition: background .15s ease, transform .1s ease;
+}
+.daily-stat.clickable:hover {
+  background: #f4f5f8;
+}
+.daily-stat.clickable:active {
+  transform: scale(0.98);
+}
 
 .detail-card { margin-top: 18px; border: 1px solid #e0e0e5; border-radius: 19px; background: #fff; box-shadow: var(--shadow); overflow: hidden; }
 .detail-header { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 20px 22px; border-bottom: 1px solid #e7e7eb; }
+.detail-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.detail-tab-buttons {
+  display: inline-flex;
+  background: #f0f0f4;
+  padding: 3px;
+  border-radius: 11px;
+  gap: 3px;
+}
+.detail-tab-btn {
+  border: 0;
+  background: transparent;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 650;
+  color: #636366;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.detail-tab-btn:hover {
+  color: #1d1d1f;
+}
+.detail-tab-btn.active {
+  background: #fff;
+  color: #0071e3;
+  font-weight: 750;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .08);
+}
+.detail-tab-btn.withdrawn.active {
+  color: #18733e;
+}
+
+.new-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 8px;
+  font-weight: 750;
+  text-transform: uppercase;
+  background: #fff3dc;
+  color: #b25900;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+.row-withdrawn {
+  background: #fcfdfd;
+}
+.row-withdrawn:hover {
+  background: #f4faf6 !important;
+}
+
 .detail-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .search-box { height: 40px; min-width: 240px; display: flex; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid #d9d9de; border-radius: 10px; background: #fff; color: #77777b; }
 .search-box input { min-width: 0; width: 100%; border: 0; outline: 0; color: #1d1d1f; font-size: 12px; }

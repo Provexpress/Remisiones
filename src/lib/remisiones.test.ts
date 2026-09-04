@@ -94,6 +94,46 @@ describe('parser del libro', () => {
     expect(summary.pending).toBe(3570);
     expect(summary.overdueCount).toBe(1);
   });
+
+  it('procesa una hoja Base-SIS con columna Fecha de corte y calcula retiros y nuevas entre dos cortes', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sis = workbook.addWorksheet('Base-SIS');
+    // Header with "Fecha de corte"
+    sis.addRow(['Fecha de corte', 'Empleado', 'NIT', 'Empresa', 'Vr. Mercancia', 'Vr. IVA', 'Vr. Total', 'Emision', 'Dias', 'Documento', 'Pedido', 'Cantidad']);
+    // Cutoff 1: 2026-09-03 (2 remisiones)
+    sis.addRow(['3/9/2026', 'Dayana Marcela Chala', '9001', 'Empresa 1', 1000, 190, 1190, '2026-09-01', 2, 'R1', 'P1', 1]);
+    sis.addRow(['3/9/2026', 'Dayana Marcela Chala', '9002', 'Empresa 2 (se retirará)', 2000, 380, 2380, '2026-08-15', 19, 'R2', 'P2', 1]);
+    // Cutoff 2: 2026-09-04 (R1 stays, R2 is withdrawn, R3 is new)
+    sis.addRow(['4/9/2026', 'Dayana Marcela Chala', '9001', 'Empresa 1', 1000, 190, 1190, '2026-09-01', 3, 'R1', 'P1', 1]);
+    sis.addRow(['4/9/2026', 'Dayana Marcela Chala', '9003', 'Empresa 3 (nueva)', 3000, 570, 3570, '2026-09-04', 0, 'R3', 'P3', 1]);
+
+    const groups = workbook.addWorksheet('Grupos');
+    groups.addRow(['Grupo 2 — Directora: Angélica Caballero']);
+    groups.addRow(['Ejecutivo Comercial']);
+    groups.addRow(['Dayana Chala']);
+
+    const output = await workbook.xlsx.writeBuffer();
+    const parsed = await parseRemisionesWorkbook(output as ArrayBuffer);
+    expect(parsed.cutoffs).toEqual(['2026-09-03', '2026-09-04']);
+    expect(parsed.records).toHaveLength(4);
+
+    const daily = buildDailySeries(parsed.records);
+    expect(daily).toHaveLength(2);
+
+    // Day 1
+    expect(daily[0].cutoff).toBe('2026-09-03');
+    expect(daily[0].pending).toBe(3570);
+
+    // Day 2
+    expect(daily[1].cutoff).toBe('2026-09-04');
+    expect(daily[1].previousBalance).toBe(3570);
+    expect(daily[1].pending).toBe(4760); // 1190 + 3570
+    expect(daily[1].newValue).toBe(3570); // R3
+    expect(daily[1].newCount).toBe(1);
+    expect(daily[1].withdrawn).toBe(2380); // R2 was withdrawn!
+    expect(daily[1].withdrawnCount).toBe(1);
+    expect(daily[1].grossReduction).toBeCloseTo(2380 / (3570 + 3570));
+  });
 });
 
 const corporateWorkbookPath = fileURLToPath(new URL('../../Remisiones.xlsx', import.meta.url));
