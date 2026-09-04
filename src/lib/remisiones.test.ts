@@ -87,8 +87,9 @@ describe('parser del libro', () => {
     expect(parsed.cutoffs).toEqual(['2026-09-03']);
     expect(parsed.records[0].cutoff).toBe('2026-09-03');
     expect(parsed.records[0].age).toBe(1);
+    expect(parsed.records[0].alert).toBe('Al día');
     expect(parsed.records[1].age).toBe(50);
-    expect(parsed.records[1].alert).toBe('Vencida >30 días');
+    expect(parsed.records[1].alert).toBe('Vencida');
     const summary = summarize(parsed.records);
     expect(summary.pending).toBe(3570);
     expect(summary.overdueCount).toBe(1);

@@ -2,7 +2,9 @@ import type ExcelJS from 'exceljs';
 import type {
   AgeBreakdownItem,
   AlertLevel,
+  AmountStatus,
   DailyPoint,
+  DaysStatus,
   GroupEntry,
   ParsedWorkbook,
   Remision,
@@ -93,12 +95,28 @@ export function getAgeRange(age: number): string {
   return '>60 días';
 }
 
-export function getAlert(total: number, quantity: number, age: number): AlertLevel {
-  if (total <= 1) return 'Revisar valor';
-  if (quantity === 0) return 'Cantidad en cero';
-  if (age > 30) return 'Vencida >30 días';
-  if (age > 15) return 'Prioritaria';
-  return 'Normal';
+export function getAmountStatus(total: number): AmountStatus {
+  if (total >= 5_000_000) return 'Alto valor (> $5M)';
+  if (total >= 1_000_000) return 'Valor medio ($1M - $5M)';
+  return 'Menor valor (< $1M)';
+}
+
+export function getDaysStatus(age: number): DaysStatus {
+  if (age > 60) return 'Crítica (>60 días)';
+  if (age > 30) return 'Vencida (31-60 días)';
+  if (age > 15) return 'Por vencer (16-30 días)';
+  return 'Al día (0-15 días)';
+}
+
+export function getAlert(total: number, age: number): AlertLevel {
+  const isHighValue = total >= 5_000_000;
+  if (age > 30) {
+    return isHighValue ? 'Vencida · Alto valor' : 'Vencida';
+  }
+  if (age > 15) {
+    return isHighValue ? 'Por vencer · Alto valor' : 'Por vencer';
+  }
+  return isHighValue ? 'Al día · Alto valor' : 'Al día';
 }
 
 function levenshtein(a: string, b: string): number {
@@ -337,7 +355,9 @@ export async function parseRemisionesWorkbook(
       order,
       quantity,
       ageRange: getAgeRange(age),
-      alert: getAlert(total, quantity, age),
+      amountStatus: getAmountStatus(total),
+      daysStatus: getDaysStatus(age),
+      alert: getAlert(total, age),
       director: group?.director ?? 'Sin asignar',
       group: group?.group ?? null,
       matchedGroup: Boolean(group),

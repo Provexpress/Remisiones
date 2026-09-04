@@ -30,18 +30,32 @@ export interface Remision {
   order: string;
   quantity: number;
   ageRange: string;
+  amountStatus: AmountStatus;
+  daysStatus: DaysStatus;
   alert: AlertLevel;
   director: string;
   group: number | null;
   matchedGroup: boolean;
 }
 
+export type AmountStatus =
+  | 'Alto valor (> $5M)'
+  | 'Valor medio ($1M - $5M)'
+  | 'Menor valor (< $1M)';
+
+export type DaysStatus =
+  | 'Crítica (>60 días)'
+  | 'Vencida (31-60 días)'
+  | 'Por vencer (16-30 días)'
+  | 'Al día (0-15 días)';
+
 export type AlertLevel =
-  | 'Revisar valor'
-  | 'Cantidad en cero'
-  | 'Vencida >30 días'
-  | 'Prioritaria'
-  | 'Normal';
+  | 'Vencida · Alto valor'
+  | 'Vencida'
+  | 'Por vencer · Alto valor'
+  | 'Por vencer'
+  | 'Al día · Alto valor'
+  | 'Al día';
 
 export interface GroupEntry {
   group: number;

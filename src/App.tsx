@@ -295,9 +295,10 @@ function Dashboard({
   const [to, setTo] = useState(data.cutoffs.at(-1) || '');
   const [director, setDirector] = useState('Todos');
   const [employee, setEmployee] = useState('Todos');
-  const [alert, setAlert] = useState('Todas');
+  const [statusFilter, setStatusFilter] = useState('Todos');
   const [ageFilter, setAgeFilter] = useState('Todos');
-  const [sortBy, setSortBy] = useState<'age-desc' | 'age-asc' | 'total-desc' | 'total-asc'>('age-desc');
+  const [amountFilter, setAmountFilter] = useState('Todos');
+  const [sortBy, setSortBy] = useState<'total-desc' | 'total-asc' | 'age-desc' | 'age-asc'>('total-desc');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const refreshRef = useRef(onRefresh);
@@ -338,10 +339,14 @@ function Dashboard({
   const detailRecords = useMemo(() => {
     const normalizedQuery = normalizeText(query);
     return currentRecords
-      .filter((record) => alert === 'Todas' || record.alert === alert)
+      .filter((record) => statusFilter === 'Todos' || record.alert === statusFilter)
+      .filter((record) => amountFilter === 'Todos' || record.amountStatus === amountFilter)
       .filter((record) => {
         if (ageFilter === 'Todos') return true;
-        if (ageFilter === '>30 días') return record.age > 30;
+        if (ageFilter === '>30 días' || ageFilter === 'Vencidas (>30 días)') return record.age > 30;
+        if (ageFilter === 'Por vencer (16-30 días)') return record.age > 15 && record.age <= 30;
+        if (ageFilter === 'Al día (0-15 días)') return record.age <= 15;
+        if (ageFilter === 'Críticas (>60 días)') return record.age > 60;
         return record.ageRange === ageFilter;
       })
       .filter((record) => !normalizedQuery || normalizeText([
@@ -353,19 +358,19 @@ function Dashboard({
         record.order,
       ].join(' ')).includes(normalizedQuery))
       .sort((a, b) => {
-        if (sortBy === 'age-desc') return b.age - a.age || b.total - a.total;
-        if (sortBy === 'age-asc') return a.age - b.age || b.total - a.total;
         if (sortBy === 'total-desc') return b.total - a.total || b.age - a.age;
         if (sortBy === 'total-asc') return a.total - b.total || b.age - a.age;
+        if (sortBy === 'age-desc') return b.age - a.age || b.total - a.total;
+        if (sortBy === 'age-asc') return a.age - b.age || b.total - a.total;
         return b.age - a.age;
       });
-  }, [currentRecords, alert, ageFilter, sortBy, query]);
+  }, [currentRecords, statusFilter, amountFilter, ageFilter, sortBy, query]);
 
   const pageSize = 20;
   const pageCount = Math.max(1, Math.ceil(detailRecords.length / pageSize));
   const visibleRows = detailRecords.slice((page - 1) * pageSize, page * pageSize);
 
-  useEffect(() => setPage(1), [query, alert, ageFilter, sortBy, cutoff, director, employee]);
+  useEffect(() => setPage(1), [query, statusFilter, amountFilter, ageFilter, sortBy, cutoff, director, employee]);
   useEffect(() => { refreshRef.current = onRefresh; }, [onRefresh]);
   useEffect(() => {
     if (source !== 'sharepoint') return undefined;
@@ -415,12 +420,12 @@ function Dashboard({
       'Pedido',
       'Emisión',
       'Días',
-      'Rango_Antigüedad',
+      'Estado_Días',
       'Mercancía',
       'IVA',
       'Total',
-      'Cantidad',
-      'Alerta',
+      'Estado_Monto',
+      'Estado',
     ];
     const rows = detailRecords.map((record) => [
       record.cutoff,
@@ -433,11 +438,11 @@ function Dashboard({
       record.order,
       record.issuedAt,
       record.age,
-      record.ageRange,
+      record.daysStatus,
       record.merchandise,
       record.tax,
       record.total,
-      record.quantity,
+      record.amountStatus,
       record.alert,
     ]);
     const csv = [headers, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\r\n');
@@ -523,14 +528,6 @@ function Dashboard({
           <label className="date-filter"><span>Hasta</span><input type="date" value={to} min={from} max={data.cutoffs.at(-1)} onChange={(event) => setTo(event.target.value)} /></label>
         </section>
 
-        {data.unmatchedEmployees.length > 0 && (
-          <div className="quality-notice">
-            <TriangleAlert size={18} />
-            <div><strong>{data.unmatchedEmployees.length} nombres sin grupo asignado</strong><span>Se muestran como “Sin asignar”. Completa la hoja Grupos para incorporarlos al equipo correcto.</span></div>
-            <button onClick={() => { setDirector('Sin asignar'); setView('detail'); }}>Revisar</button>
-          </div>
-        )}
-
         {view === 'overview' ? (
           <>
             <section className="metric-grid">
@@ -553,20 +550,6 @@ function Dashboard({
                 previous={previousSummary.clients}
               />
               <MetricCard
-                title="Saldo >30 días (Vencido)"
-                value={currency.format(currentSummary.overdueValue)}
-                sub={`${number.format(currentSummary.overdueCount)} remisiones · ${currentSummary.overduePercentage?.toFixed(1) || '0'}% del total`}
-                icon={<TriangleAlert />}
-                tone="red"
-                current={currentSummary.overdueValue}
-                previous={previousSummary.overdueValue}
-                onClick={() => {
-                  setAgeFilter('>30 días');
-                  setView('detail');
-                }}
-                clickable
-              />
-              <MetricCard
                 title="Antigüedad promedio"
                 value={`${currentSummary.averageAge.toFixed(1)} días`}
                 sub={`Máximo: ${currentSummary.maxAge || 0} días`}
@@ -576,26 +559,6 @@ function Dashboard({
                 previous={previousSummary.averageAge}
               />
             </section>
-
-            {currentSummary.zeroQuantity > 0 && (
-              <div className="alert-zero-strip">
-                <TriangleAlert size={16} />
-                <div className="alert-zero-info">
-                  <strong>{number.format(currentSummary.zeroQuantity)} remisiones con cantidad en cero</strong>
-                  <span>Documentos registrados sin unidades de mercancía que requieren revisión operativa.</span>
-                </div>
-                <button
-                  type="button"
-                  className="button button-secondary button-compact"
-                  onClick={() => {
-                    setAlert('Cantidad en cero');
-                    setView('detail');
-                  }}
-                >
-                  Ver remisiones en cero
-                </button>
-              </div>
-            )}
 
             <section className="chart-grid chart-grid-main">
               <ChartCard
@@ -695,8 +658,9 @@ function Dashboard({
                 <h2>Detalle de remisiones abiertas</h2>
                 <p>
                   {number.format(detailRecords.length)} registros
-                  {ageFilter !== 'Todos' ? ` · Rango: ${ageFilter}` : ''}
-                  {alert !== 'Todas' ? ` · Alerta: ${alert}` : ''}
+                  {statusFilter !== 'Todos' ? ` · Estado: ${statusFilter}` : ''}
+                  {ageFilter !== 'Todos' ? ` · Días: ${ageFilter}` : ''}
+                  {amountFilter !== 'Todos' ? ` · Monto: ${amountFilter}` : ''}
                   {director !== 'Todos' ? ` · Director: ${director}` : ''}
                   {employee !== 'Todos' ? ` · Comercial: ${employee}` : ''}
                   {` · ${formattedCutoffWithTime}`}
@@ -712,30 +676,56 @@ function Dashboard({
                   />
                 </label>
                 <SelectFilter
+                  label="Estado"
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  options={[
+                    'Todos',
+                    'Vencida · Alto valor',
+                    'Vencida',
+                    'Por vencer · Alto valor',
+                    'Por vencer',
+                    'Al día · Alto valor',
+                    'Al día',
+                  ]}
+                  compact
+                />
+                <SelectFilter
                   label="Días"
                   value={ageFilter}
                   onChange={setAgeFilter}
-                  options={['Todos', '>30 días', '0-2 días', '3-7 días', '8-15 días', '16-30 días', '31-60 días', '>60 días']}
+                  options={[
+                    'Todos',
+                    'Vencidas (>30 días)',
+                    'Por vencer (16-30 días)',
+                    'Al día (0-15 días)',
+                    'Críticas (>60 días)',
+                  ]}
+                  compact
+                />
+                <SelectFilter
+                  label="Monto"
+                  value={amountFilter}
+                  onChange={setAmountFilter}
+                  options={[
+                    'Todos',
+                    'Alto valor (> $5M)',
+                    'Valor medio ($1M - $5M)',
+                    'Menor valor (< $1M)',
+                  ]}
                   compact
                 />
                 <SelectFilter
                   label="Ordenar"
                   value={sortBy}
-                  onChange={(val) => setSortBy(val as 'age-desc' | 'age-asc' | 'total-desc' | 'total-asc')}
-                  options={['age-desc', 'age-asc', 'total-desc', 'total-asc']}
+                  onChange={(val) => setSortBy(val as 'total-desc' | 'total-asc' | 'age-desc' | 'age-asc')}
+                  options={['total-desc', 'total-asc', 'age-desc', 'age-asc']}
                   format={(val) => {
-                    if (val === 'age-desc') return 'Más días (Antiguas)';
-                    if (val === 'age-asc') return 'Menos días (Recientes)';
                     if (val === 'total-desc') return 'Mayor valor ($)';
-                    return 'Menor valor ($)';
+                    if (val === 'total-asc') return 'Menor valor ($)';
+                    if (val === 'age-desc') return 'Más días (Antiguas)';
+                    return 'Menos días (Recientes)';
                   }}
-                  compact
-                />
-                <SelectFilter
-                  label="Alerta"
-                  value={alert}
-                  onChange={setAlert}
-                  options={['Todas', 'Vencida >30 días', 'Prioritaria', 'Cantidad en cero', 'Revisar valor', 'Normal']}
                   compact
                 />
                 <button className="button button-secondary" onClick={exportCsv}>
@@ -986,11 +976,13 @@ function DetailRow({ record }: { record: Remision }) {
         <span className={`days-chip ${isOverdue ? 'danger' : isPriority ? 'warning' : 'ok'}`}>
           {record.age} d
         </span>
-        <small className="days-range-sub">{record.ageRange}</small>
+        <small className="days-range-sub">{record.daysStatus}</small>
       </td>
       <td className="numeric">
         <strong className="cell-total">{currency.format(record.total)}</strong>
-        <small className="cell-tax-breakdown">{currency.format(record.merchandise)} + IVA</small>
+        <span className={`amount-chip ${record.total >= 5_000_000 ? 'high' : 'standard'}`}>
+          {record.amountStatus}
+        </span>
       </td>
       <td>
         <span className={`status-pill ${statusClass(record.alert)}`}>{record.alert}</span>
@@ -1009,10 +1001,12 @@ function initials(name: string): string {
 }
 
 function statusClass(alert: Remision['alert']): string {
-  if (alert === 'Normal') return 'normal';
-  if (alert === 'Prioritaria') return 'priority';
-  if (alert === 'Vencida >30 días') return 'overdue';
-  return 'review';
+  if (alert === 'Vencida · Alto valor') return 'overdue-high';
+  if (alert === 'Vencida') return 'overdue';
+  if (alert === 'Por vencer · Alto valor') return 'priority-high';
+  if (alert === 'Por vencer') return 'priority';
+  if (alert === 'Al día · Alto valor') return 'normal-high';
+  return 'normal';
 }
 
 export default App;
