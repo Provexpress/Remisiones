@@ -504,13 +504,25 @@ export function aggregateBy<T extends string>(
     .sort((a, b) => b.value - a.value);
 }
 
-export function formatCutoff(iso: string, options: Intl.DateTimeFormatOptions = {}): string {
+export function formatCutoff(iso: string, options?: Intl.DateTimeFormatOptions): string {
   if (!iso) return '—';
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    if (!options) {
+      return `${match[3]}/${match[2]}/${match[1]}`;
+    }
+    if (options.day && options.month && !options.year) {
+      return `${match[3]}/${match[2]}`;
+    }
+    if (options.day && options.month && options.year) {
+      return `${match[3]}/${match[2]}/${match[1]}`;
+    }
+  }
   try {
     return new Intl.DateTimeFormat('es-CO', {
       timeZone: 'UTC',
       day: '2-digit',
-      month: 'short',
+      month: '2-digit',
       year: 'numeric',
       ...options,
     }).format(new Date(`${iso}T00:00:00Z`));
@@ -527,7 +539,7 @@ export function formatDateTime(isoOrDate: string | Date | undefined): string {
     return new Intl.DateTimeFormat('es-CO', {
       timeZone: 'America/Bogota',
       day: '2-digit',
-      month: 'short',
+      month: '2-digit',
       year: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
@@ -537,6 +549,7 @@ export function formatDateTime(isoOrDate: string | Date | undefined): string {
     return date.toLocaleString('es-CO');
   }
 }
+
 
 export function formatTimeOnly(isoOrDate: string | Date | undefined): string {
   if (!isoOrDate) return '—';

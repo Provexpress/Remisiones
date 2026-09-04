@@ -18,10 +18,12 @@ import {
   LogIn,
   LogOut,
   PackageCheck,
+  PlusCircle,
   RefreshCw,
   RotateCcw,
   Search,
   ShieldCheck,
+  TrendingUp,
   TriangleAlert,
   Upload,
   UsersRound,
@@ -293,7 +295,7 @@ function Dashboard({
   onLogout: () => void;
 }) {
   const [view, setView] = useState<View>('overview');
-  const [detailTab, setDetailTab] = useState<'open' | 'withdrawn'>('open');
+  const [detailTab, setDetailTab] = useState<'open' | 'withdrawn' | 'new'>('open');
   const [cutoff, setCutoff] = useState(data.cutoffs.at(-1) || '');
   const [from, setFrom] = useState(data.cutoffs.length > 30 ? data.cutoffs.at(-30)! : data.cutoffs[0]);
   const [to, setTo] = useState(data.cutoffs.at(-1) || '');
@@ -420,6 +422,61 @@ function Dashboard({
     });
   }, [previousCutoff, previousCutoffRecords, currentKeysSet, director, employee, statusFilter, amountFilter, ageFilter]);
 
+  const newRecords = useMemo(() => {
+    if (!previousCutoff) return [];
+    return currentRecords.filter((record) => !previousKeysSet.has(record.stableKey));
+  }, [currentRecords, previousCutoff, previousKeysSet]);
+
+  const managementWithdrawn = useMemo(() => {
+    if (!previousCutoff) return [];
+    return previousCutoffRecords.filter((record) => {
+      if (currentKeysSet.has(record.stableKey)) return false;
+      if (director !== 'Todos' && record.director !== director) return false;
+      if (statusFilter !== 'Todos' && record.alert !== statusFilter) return false;
+      if (amountFilter !== 'Todos' && record.amountStatus !== amountFilter) return false;
+      if (!matchesAgeFilter(record.age, record.ageRange, ageFilter)) return false;
+      return true;
+    });
+  }, [previousCutoff, previousCutoffRecords, currentKeysSet, director, statusFilter, amountFilter, ageFilter]);
+
+  const managementNew = useMemo(() => {
+    if (!previousCutoff) return [];
+    return baseCutoffRecords.filter((record) => {
+      if (previousKeysSet.has(record.stableKey)) return false;
+      if (director !== 'Todos' && record.director !== director) return false;
+      if (statusFilter !== 'Todos' && record.alert !== statusFilter) return false;
+      if (amountFilter !== 'Todos' && record.amountStatus !== amountFilter) return false;
+      if (!matchesAgeFilter(record.age, record.ageRange, ageFilter)) return false;
+      return true;
+    });
+  }, [baseCutoffRecords, previousCutoff, previousKeysSet, director, statusFilter, amountFilter, ageFilter]);
+
+  const closedBySeller = useMemo(() => {
+    const map = new Map<string, { name: string; director: string; total: number; count: number }>();
+    for (const r of managementWithdrawn) {
+      const cur = map.get(r.employee) || { name: r.employee, director: r.director, total: 0, count: 0 };
+      cur.total += r.total;
+      cur.count += 1;
+      map.set(r.employee, cur);
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total);
+  }, [managementWithdrawn]);
+
+  const newBySeller = useMemo(() => {
+    const map = new Map<string, { name: string; director: string; total: number; count: number }>();
+    for (const r of managementNew) {
+      const cur = map.get(r.employee) || { name: r.employee, director: r.director, total: 0, count: 0 };
+      cur.total += r.total;
+      cur.count += 1;
+      map.set(r.employee, cur);
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total);
+  }, [managementNew]);
+
+  const totalClosed = useMemo(() => managementWithdrawn.reduce((sum, r) => sum + r.total, 0), [managementWithdrawn]);
+  const totalNew = useMemo(() => managementNew.reduce((sum, r) => sum + r.total, 0), [managementNew]);
+  const netDifference = useMemo(() => totalNew - totalClosed, [totalNew, totalClosed]);
+
   const ageBreakdownRecords = useMemo(
     () => baseCutoffRecords.filter((r) =>
       (director === 'Todos' || r.director === director) &&
@@ -449,7 +506,11 @@ function Dashboard({
   );
   const sellerData = useMemo(() => aggregateBy(sellerFilterRecords, (record) => record.employee).slice(0, 12), [sellerFilterRecords]);
 
-  const targetRecords = detailTab === 'withdrawn' ? withdrawnRecords : currentRecords;
+  const targetRecords = useMemo(() => {
+    if (detailTab === 'withdrawn') return withdrawnRecords;
+    if (detailTab === 'new') return newRecords;
+    return currentRecords;
+  }, [detailTab, withdrawnRecords, newRecords, currentRecords]);
   const detailRecords = useMemo(() => {
     const normalizedQuery = normalizeText(query);
     return targetRecords
@@ -791,7 +852,7 @@ function Dashboard({
                     <CartesianGrid stroke="#e8e8ed" vertical={false} />
                     <XAxis
                       dataKey="cutoff"
-                      tickFormatter={(value) => formatCutoff(value, { day: '2-digit', month: 'short', year: undefined })}
+                      tickFormatter={(value) => formatCutoff(value, { day: '2-digit', month: '2-digit', year: undefined })}
                       tickLine={false}
                       axisLine={false}
                     />
@@ -926,45 +987,269 @@ function Dashboard({
               </ChartCard>
             </section>
 
-            <section className="daily-strip">
-              <div className="daily-strip-title">
-                <CalendarRange size={20} />
-                <div>
-                  <strong>Gestión del corte ({formatCutoff(cutoff)})</strong>
-                  <span>Entradas y retiros frente al corte anterior</span>
+            <section className="management-overview-card">
+              <div className="management-card-header">
+                <div className="management-card-title">
+                  <div className="management-icon-badge">
+                    <TrendingUp size={22} />
+                  </div>
+                  <div>
+                    <div className="management-eyebrow">Balance comercial del corte</div>
+                    <h2>Análisis de gestión: Remisiones cerradas vs. Nuevas remisiones</h2>
+                    <p>
+                      {previousCutoff ? (
+                        <>
+                          Comparando corte actual <strong>{formatCutoff(cutoff)}</strong> frente a <strong>{formatCutoff(previousCutoff)}</strong>
+                          {director !== 'Todos' ? ` · Dirección: ${director}` : ''}
+                          {employee !== 'Todos' ? ` · Comercial: ${employee}` : ''}
+                        </>
+                      ) : (
+                        'Se requiere al menos un corte previo en Base-SIS para calcular el balance de entradas y salidas'
+                      )}
+                    </p>
+                  </div>
                 </div>
+                {previousCutoff && (
+                  <div className="management-header-actions">
+                    <button
+                      type="button"
+                      className="button button-outline-green"
+                      onClick={() => { setView('detail'); setDetailTab('withdrawn'); }}
+                      title="Ver detalle de remisiones cobradas o facturadas"
+                    >
+                      <CheckCircle2 size={15} />
+                      Ver cerradas ({number.format(managementWithdrawn.length)})
+                    </button>
+                    <button
+                      type="button"
+                      className="button button-outline-orange"
+                      onClick={() => { setView('detail'); setDetailTab('new'); }}
+                      title="Ver detalle de nuevas remisiones abiertas"
+                    >
+                      <PlusCircle size={15} />
+                      Ver nuevas ({number.format(managementNew.length)})
+                    </button>
+                  </div>
+                )}
               </div>
-              <DailyStat
-                label="Saldo anterior"
-                value={currency.format(currentDailyPoint?.previousBalance || 0)}
-              />
-              <DailyStat
-                label="Nuevas"
-                value={currency.format(currentDailyPoint?.newValue || 0)}
-                sub={currentDailyPoint?.newCount ? `${number.format(currentDailyPoint.newCount)} remisiones` : undefined}
-                tone="orange"
-                onClick={() => { setView('detail'); setDetailTab('open'); }}
-                clickable
-              />
-              <DailyStat
-                label="Retirado"
-                value={currency.format(currentDailyPoint?.withdrawn || 0)}
-                sub={currentDailyPoint?.withdrawnCount ? `${number.format(currentDailyPoint.withdrawnCount)} remisiones` : undefined}
-                tone="green"
-                onClick={() => { setView('detail'); setDetailTab('withdrawn'); }}
-                clickable={Boolean(currentDailyPoint?.withdrawnCount)}
-              />
-              <DailyStat
-                label="Reducción bruta"
-                value={percent.format(currentDailyPoint?.grossReduction || 0)}
-                tone="blue"
-              />
-              <button
-                className="button button-secondary"
-                onClick={() => { setView('detail'); setDetailTab('open'); }}
-              >
-                Ver detalle
-              </button>
+
+              {previousCutoff ? (
+                <>
+                  <div className="management-kpis-grid">
+                    <div
+                      className="mgmt-kpi-item success"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => { setView('detail'); setDetailTab('withdrawn'); }}
+                      title="Toca para ver el detalle de remisiones retiradas"
+                    >
+                      <div className="mgmt-kpi-top">
+                        <span className="mgmt-kpi-label">Remisiones cerradas / cobradas</span>
+                        <span className="mgmt-kpi-badge green">Retiradas</span>
+                      </div>
+                      <strong className="mgmt-kpi-value text-green">{currency.format(totalClosed)}</strong>
+                      <div className="mgmt-kpi-foot">
+                        <ArrowDownRight size={15} />
+                        <span><strong>{number.format(managementWithdrawn.length)}</strong> remisiones salieron de cartera</span>
+                      </div>
+                    </div>
+
+                    <div
+                      className="mgmt-kpi-item warning"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => { setView('detail'); setDetailTab('new'); }}
+                      title="Toca para ver el detalle de nuevas remisiones abiertas"
+                    >
+                      <div className="mgmt-kpi-top">
+                        <span className="mgmt-kpi-label">Nuevas remisiones abiertas</span>
+                        <span className="mgmt-kpi-badge orange">Ingresadas</span>
+                      </div>
+                      <strong className="mgmt-kpi-value text-orange">{currency.format(totalNew)}</strong>
+                      <div className="mgmt-kpi-foot">
+                        <ArrowUpRight size={15} />
+                        <span><strong>{number.format(managementNew.length)}</strong> remisiones nuevas en este corte</span>
+                      </div>
+                    </div>
+
+                    <div className={`mgmt-kpi-item ${netDifference <= 0 ? 'favorable' : 'neutral'}`}>
+                      <div className="mgmt-kpi-top">
+                        <span className="mgmt-kpi-label">Variación neta de cartera</span>
+                        <span className={`mgmt-kpi-badge ${netDifference <= 0 ? 'blue' : 'gray'}`}>
+                          {netDifference <= 0 ? 'Favorable' : 'Incremento'}
+                        </span>
+                      </div>
+                      <strong className="mgmt-kpi-value">
+                        {netDifference <= 0 ? '-' : '+'}{currency.format(Math.abs(netDifference))}
+                      </strong>
+                      <div className="mgmt-kpi-foot">
+                        <span>
+                          {netDifference <= 0
+                            ? `Desahogo neto en el corte (${percent.format(currentDailyPoint?.grossReduction || 0)} reducción bruta)`
+                            : 'Crecimiento de cartera frente al corte previo'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mgmt-kpi-item subtle">
+                      <div className="mgmt-kpi-top">
+                        <span className="mgmt-kpi-label">Saldo corte anterior</span>
+                        <span className="mgmt-kpi-badge muted">{formatCutoff(previousCutoff)}</span>
+                      </div>
+                      <strong className="mgmt-kpi-value">{currency.format(previousSummary.pending)}</strong>
+                      <div className="mgmt-kpi-foot">
+                        <span>Base de partida con <strong>{number.format(previousSummary.remissions)}</strong> remisiones</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="management-sellers-columns">
+                    {/* Comerciales que cerraron remisiones */}
+                    <div className="mgmt-sellers-card closed-card">
+                      <div className="mgmt-sellers-header">
+                        <div>
+                          <div className="mgmt-sellers-tag green">
+                            <CheckCircle2 size={13} /> Cobro y Cierre
+                          </div>
+                          <h3>Comerciales que cerraron remisiones</h3>
+                          <p>
+                            {closedBySeller.length > 0
+                              ? `${closedBySeller.length} comercial${closedBySeller.length === 1 ? '' : 'es'} lograron cobrar o retirar saldo`
+                              : 'No hay retiros registrados para los filtros seleccionados'}
+                          </p>
+                        </div>
+                        {employee !== 'Todos' && (
+                          <button
+                            type="button"
+                            className="mgmt-reset-filter-btn"
+                            onClick={() => setEmployee('Todos')}
+                            title="Quitar filtro de comercial"
+                          >
+                            Ver todos
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="mgmt-sellers-list">
+                        {closedBySeller.length === 0 ? (
+                          <div className="mgmt-empty-msg">
+                            <span>No se registraron remisiones cerradas para estos filtros.</span>
+                          </div>
+                        ) : (
+                          closedBySeller.map((seller, idx) => {
+                            const isSelected = employee === seller.name;
+                            const isDimmed = employee !== 'Todos' && !isSelected;
+                            const maxTotal = closedBySeller[0]?.total || 1;
+                            const pct = Math.round((seller.total / maxTotal) * 100);
+                            return (
+                              <div
+                                key={seller.name}
+                                className={`mgmt-seller-row green-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
+                                onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
+                                role="button"
+                                tabIndex={0}
+                                title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
+                              >
+                                <span className="mgmt-seller-rank">{idx + 1}</span>
+                                <div className="mgmt-seller-info">
+                                  <div className="mgmt-seller-top">
+                                    <strong className="mgmt-seller-name">{seller.name}</strong>
+                                    <span className="mgmt-seller-count green">{seller.count} remisi{seller.count === 1 ? 'ón' : 'ones'} cerradas</span>
+                                  </div>
+                                  <div className="mgmt-seller-bar-track">
+                                    <div className="mgmt-seller-bar-fill green" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <div className="mgmt-seller-sub">
+                                    <small>{seller.director}</small>
+                                    <strong className="mgmt-seller-amount green">{currency.format(seller.total)}</strong>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Comerciales con nuevas remisiones */}
+                    <div className="mgmt-sellers-card new-card">
+                      <div className="mgmt-sellers-header">
+                        <div>
+                          <div className="mgmt-sellers-tag orange">
+                            <PlusCircle size={13} /> Nuevas Aperturas
+                          </div>
+                          <h3>Comerciales con nuevas remisiones</h3>
+                          <p>
+                            {newBySeller.length > 0
+                              ? `${newBySeller.length} comercial${newBySeller.length === 1 ? '' : 'es'} abrieron nuevas remisiones`
+                              : 'No hay nuevas aperturas registradas para los filtros seleccionados'}
+                          </p>
+                        </div>
+                        {employee !== 'Todos' && (
+                          <button
+                            type="button"
+                            className="mgmt-reset-filter-btn"
+                            onClick={() => setEmployee('Todos')}
+                            title="Quitar filtro de comercial"
+                          >
+                            Ver todos
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="mgmt-sellers-list">
+                        {newBySeller.length === 0 ? (
+                          <div className="mgmt-empty-msg">
+                            <span>No se registraron nuevas remisiones para estos filtros.</span>
+                          </div>
+                        ) : (
+                          newBySeller.map((seller, idx) => {
+                            const isSelected = employee === seller.name;
+                            const isDimmed = employee !== 'Todos' && !isSelected;
+                            const maxTotal = newBySeller[0]?.total || 1;
+                            const pct = Math.round((seller.total / maxTotal) * 100);
+                            return (
+                              <div
+                                key={seller.name}
+                                className={`mgmt-seller-row orange-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
+                                onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
+                                role="button"
+                                tabIndex={0}
+                                title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
+                              >
+                                <span className="mgmt-seller-rank">{idx + 1}</span>
+                                <div className="mgmt-seller-info">
+                                  <div className="mgmt-seller-top">
+                                    <strong className="mgmt-seller-name">{seller.name}</strong>
+                                    <span className="mgmt-seller-count orange">{seller.count} remisi{seller.count === 1 ? 'ón nueva' : 'ones nuevas'}</span>
+                                  </div>
+                                  <div className="mgmt-seller-bar-track">
+                                    <div className="mgmt-seller-bar-fill orange" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <div className="mgmt-seller-sub">
+                                    <small>{seller.director}</small>
+                                    <strong className="mgmt-seller-amount orange">{currency.format(seller.total)}</strong>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="management-empty-banner">
+                  <FileSpreadsheet size={30} />
+                  <div>
+                    <strong>Comparación disponible al registrar el segundo corte</strong>
+                    <p>
+                      Para ver qué comerciales cerraron remisiones y quiénes abrieron nuevas, pega la información del nuevo corte en la hoja <strong>Base-SIS</strong> (en la columna <strong>Fecha de corte</strong>). El sistema comparará automáticamente ambos cortes y calculará la trazabilidad completa.
+                    </p>
+                  </div>
+                </div>
+              )}
             </section>
           </>
         ) : (
@@ -972,7 +1257,13 @@ function Dashboard({
             <div className="detail-header">
               <div>
                 <div className="detail-title-wrap">
-                  <h2>{detailTab === 'withdrawn' ? 'Remisiones retiradas (Cobradas / Facturadas)' : 'Detalle de remisiones abiertas'}</h2>
+                  <h2>
+                    {detailTab === 'withdrawn'
+                      ? 'Remisiones retiradas (Cobradas / Facturadas)'
+                      : detailTab === 'new'
+                        ? 'Nuevas remisiones abiertas (Ingresadas en este corte)'
+                        : 'Detalle de remisiones abiertas'}
+                  </h2>
                   {previousCutoff && (
                     <div className="detail-tab-buttons">
                       <button
@@ -981,6 +1272,13 @@ function Dashboard({
                         onClick={() => setDetailTab('open')}
                       >
                         Abiertas ({number.format(currentRecords.length)})
+                      </button>
+                      <button
+                        type="button"
+                        className={`detail-tab-btn new ${detailTab === 'new' ? 'active' : ''}`}
+                        onClick={() => setDetailTab('new')}
+                      >
+                        Nuevas ({number.format(newRecords.length)})
                       </button>
                       <button
                         type="button"
@@ -993,7 +1291,12 @@ function Dashboard({
                   )}
                 </div>
                 <p>
-                  {number.format(detailRecords.length)} {detailTab === 'withdrawn' ? 'remisiones retiradas frente al corte anterior' : 'registros'}
+                  {number.format(detailRecords.length)}{' '}
+                  {detailTab === 'withdrawn'
+                    ? 'remisiones retiradas frente al corte anterior'
+                    : detailTab === 'new'
+                      ? 'remisiones nuevas abiertas en este corte'
+                      : 'registros'}
                   {statusFilter !== 'Todos' ? ` · Estado: ${statusFilter}` : ''}
                   {ageFilter !== 'Todos' ? ` · Días: ${ageFilter}` : ''}
                   {amountFilter !== 'Todos' ? ` · Monto: ${amountFilter}` : ''}
@@ -1090,7 +1393,7 @@ function Dashboard({
                       key={record.id}
                       record={record}
                       isWithdrawn={detailTab === 'withdrawn'}
-                      isNew={Boolean(detailTab === 'open' && previousCutoff && !previousKeysSet.has(record.stableKey))}
+                      isNew={Boolean((detailTab === 'open' || detailTab === 'new') && previousCutoff && !previousKeysSet.has(record.stableKey))}
                       onSelectDirector={(dir) => setDirector((current) => current === dir ? 'Todos' : dir)}
                       onSelectEmployee={(emp) => setEmployee((current) => current === emp ? 'Todos' : emp)}
                       onSelectAge={(age) => setAgeFilter((current) => current === age ? 'Todos' : age)}

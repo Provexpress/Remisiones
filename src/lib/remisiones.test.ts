@@ -39,11 +39,14 @@ describe('normalización de datos', () => {
     expect(matchGroup('Angie Tatiana Parra', groups)?.director).toBe('Óscar Beltrán');
   });
 
-  it('formatea hora y fecha adecuadamente', async () => {
-    const { formatDateTime, formatTimeOnly } = await import('./remisiones');
+  it('formatea hora y fecha adecuadamente en formato colombiano dd/mm/aaaa', async () => {
+    const { formatCutoff, formatDateTime, formatTimeOnly } = await import('./remisiones');
     const date = '2026-09-03T21:04:00.000Z'; // 4:04 p.m. Colombia (UTC-5)
     expect(formatTimeOnly(date)).toContain('4:04');
-    expect(formatDateTime(date)).toContain('2026');
+    expect(formatDateTime(date)).toContain('03/09/2026');
+    expect(formatCutoff('2026-09-04')).toBe('04/09/2026');
+    expect(formatCutoff('2026-09-04', { day: '2-digit', month: '2-digit', year: undefined })).toBe('04/09');
+    expect(formatCutoff('2026-09-04', { day: '2-digit', month: 'short', year: undefined })).toBe('04/09');
   });
 });
 
