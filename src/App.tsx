@@ -918,17 +918,17 @@ function Dashboard({
                   </div>
                 </div>
 
-                {/* 4. Balance Neto */}
-                <div className={`mgmt-kpi-item ${netDifference <= 0 ? 'favorable' : 'neutral'}`}>
+                {/* 4. Balance del Día: ¿Subió o bajó la cartera? */}
+                <div className={`mgmt-kpi-item ${netDifference <= 0 ? 'success' : 'warning'}`}>
                   <div className="mgmt-kpi-top">
-                    <span className="mgmt-kpi-label">Variación Neta de Cartera</span>
-                    <span className={`mgmt-kpi-badge ${netDifference <= 0 ? 'blue' : 'gray'}`}>
-                      {previousCutoff ? (netDifference <= 0 ? 'Favorable' : 'Incremento') : 'Base inicial'}
+                    <span className="mgmt-kpi-label">¿Subió o bajó la cartera hoy?</span>
+                    <span className={`mgmt-kpi-badge ${netDifference <= 0 ? 'green' : 'orange'}`}>
+                      {previousCutoff ? (netDifference <= 0 ? 'Bajó cartera (Favorable)' : 'Subió cartera') : 'Base inicial'}
                     </span>
                   </div>
-                  <strong className="mgmt-kpi-value">
+                  <strong className={`mgmt-kpi-value ${netDifference <= 0 ? 'text-green' : 'text-orange'}`}>
                     {previousCutoff ? (
-                      `${netDifference <= 0 ? '-' : '+'}${currency.format(Math.abs(netDifference))}`
+                      `${netDifference <= 0 ? '▼ -' : '▲ +'}${currency.format(Math.abs(netDifference))}`
                     ) : (
                       '—'
                     )}
@@ -937,8 +937,8 @@ function Dashboard({
                     <span>
                       {previousCutoff ? (
                         netDifference <= 0
-                          ? `Desahogo neto (${percent.format(currentDailyPoint?.grossReduction || 0)} reducción bruta)`
-                          : 'Crecimiento de saldo frente al día anterior'
+                          ? `Favorable: se facturaron -${compactCurrency.format(totalClosed)} y solo entraron +${compactCurrency.format(totalNew)}`
+                          : `Subió: entraron +${compactCurrency.format(totalNew)} en nuevas y solo se facturaron -${compactCurrency.format(totalClosed)}`
                       ) : (
                         `Saldo inicial con ${number.format(currentSummary.remissions)} remisiones`
                       )}
@@ -960,7 +960,7 @@ function Dashboard({
                   </div>
                   {previousCutoff && (
                     <span className={`mgmt-flow-badge ${netDifference <= 0 ? 'favorable' : 'neutral'}`}>
-                      {netDifference <= 0 ? 'Flujo Favorable (Desahogo)' : 'Incremento de Cartera'}
+                      {netDifference <= 0 ? '▼ Favorable: La cartera bajó hoy' : '▲ Atención: La cartera subió hoy'}
                     </span>
                   )}
                 </div>
@@ -1151,21 +1151,25 @@ function Dashboard({
                         </td>
                       </tr>
 
-                      {/* 4. Balance Neto del Día */}
+                      {/* 4. Balance del Día (Entradas vs Salidas) */}
                       {previousCutoff && (
                         <tr className={`flow-row net ${netDifference <= 0 ? 'favorable' : 'neutral'}`}>
                           <td>
                             <div className="flow-cell-concept">
-                              <span className={`flow-indicator-dot ${netDifference <= 0 ? 'blue' : 'gray'}`} />
+                              <span className={`flow-indicator-dot ${netDifference <= 0 ? 'green' : 'orange'}`} />
                               <div>
-                                <strong>Balance Neto del Día (Flujo)</strong>
-                                <small>{netDifference <= 0 ? 'Reducción favorable de saldo en cartera' : 'Crecimiento neto de cartera'}</small>
+                                <strong>Balance del Día (Entradas vs Salidas)</strong>
+                                <small>
+                                  {netDifference <= 0
+                                    ? 'Favorable: se facturó más de lo que ingresó (la cartera disminuyó)'
+                                    : 'Atención: ingresaron más remisiones nuevas de las que se facturaron (la cartera aumentó)'}
+                                </small>
                               </div>
                             </div>
                           </td>
                           <td className="numeric">
                             <strong className={netCount <= 0 ? 'text-green' : 'text-orange'}>
-                              {netCount > 0 ? `+${netCount}` : netCount} rem.
+                              {netCount <= 0 ? `▼ ${netCount}` : `▲ +${netCount}`} rem.
                             </strong>
                           </td>
                           <td className="numeric text-muted">
@@ -1176,16 +1180,16 @@ function Dashboard({
                           </td>
                           <td className="numeric">
                             <strong className={netDifference <= 0 ? 'text-green' : 'text-orange'}>
-                              {netDifference <= 0 ? '-' : '+'}{currency.format(Math.abs(netDifference))}
+                              {netDifference <= 0 ? '▼ -' : '▲ +'}{currency.format(Math.abs(netDifference))}
                             </strong>
                           </td>
                           <td className="numeric">
                             <span className={`delta-chip ${netDifference <= 0 ? 'green' : 'orange'}`}>
-                              {netDifference <= 0 ? 'Desahogo' : 'Crecimiento'}
+                              {netDifference <= 0 ? '▼ Bajó Cartera' : '▲ Subió Cartera'}
                             </span>
                           </td>
                           <td className="text-center">
-                            <small className="text-muted">Neto: Entradas - Salidas</small>
+                            <small className="text-muted">{netDifference <= 0 ? 'Favorable' : 'Por gestionar'}</small>
                           </td>
                         </tr>
                       )}
@@ -1852,7 +1856,8 @@ function EvolutionValueTooltip({
         <>
           <span>
             <i style={{ background: delta <= 0 ? '#2fbd68' : '#ff9f0a' }} />
-            Variación: <b>{delta > 0 ? '+' : ''}{currency.format(delta)} ({delta > 0 ? '+' : ''}{percent.format(pct)})</b>
+            {delta <= 0 ? '▼ Bajó frente a ayer: ' : '▲ Subió frente a ayer: '}
+            <b>{delta <= 0 ? '-' : '+'}{currency.format(Math.abs(delta))} ({delta <= 0 ? '-' : '+'}{percent.format(Math.abs(pct))})</b>
           </span>
           {point.newValue > 0 && (
             <span style={{ color: '#c2410c' }}>
@@ -1896,7 +1901,8 @@ function EvolutionDocsTooltip({
         <>
           <span>
             <i style={{ background: delta <= 0 ? '#2fbd68' : '#ff9f0a' }} />
-            Variación: <b>{delta > 0 ? '+' : ''}{number.format(delta)} rem. ({delta > 0 ? '+' : ''}{percent.format(pct)})</b>
+            {delta <= 0 ? '▼ Bajaron frente a ayer: ' : '▲ Subieron frente a ayer: '}
+            <b>{delta <= 0 ? '-' : '+'}{number.format(Math.abs(delta))} rem. ({delta <= 0 ? '-' : '+'}{percent.format(Math.abs(pct))})</b>
           </span>
           {point.newCount > 0 && (
             <span style={{ color: '#c2410c' }}>
@@ -1983,7 +1989,7 @@ function DailyEvolutionSideBySide({
             </div>
             {daily.length > 1 && (
               <span className={`evolution-badge ${totalValueDelta <= 0 ? 'green' : 'orange'}`}>
-                {totalValueDelta <= 0 ? '' : '+'}{percent.format(totalValuePct)}
+                {totalValueDelta <= 0 ? '▼ Bajó ' : '▲ Subió '}{percent.format(Math.abs(totalValuePct))}
               </span>
             )}
           </div>
@@ -2050,7 +2056,7 @@ function DailyEvolutionSideBySide({
 
         <div className="evolution-table-container">
           <div className="evolution-table-title">
-            <span>Tabla de variación diaria en pesos:</span>
+            <span>Tabla de evolución día a día (¿Cuánto sube o baja la cartera?):</span>
             <small>Toca una fila para enfocar ese día</small>
           </div>
           <div className="evolution-table-wrap">
@@ -2059,8 +2065,8 @@ function DailyEvolutionSideBySide({
                 <tr>
                   <th>Fecha</th>
                   <th className="numeric">Saldo Pendiente</th>
-                  <th className="numeric">Variación ($)</th>
-                  <th className="numeric">Variación (%)</th>
+                  <th className="numeric">¿Subió o bajó? ($)</th>
+                  <th className="numeric">Cambio (%)</th>
                 </tr>
               </thead>
               <tbody>
@@ -2094,7 +2100,7 @@ function DailyEvolutionSideBySide({
                         ) : (
                           <>
                             <span className={isDown ? 'text-green' : isUp ? 'text-orange' : 'text-muted'}>
-                              {isUp ? '+' : ''}{currency.format(delta)}
+                              {isDown ? '▼ -' : isUp ? '▲ +' : ''}{currency.format(Math.abs(delta))}
                             </span>
                             {hasFlow && (
                               <small className="evolution-sub-delta">
@@ -2109,7 +2115,7 @@ function DailyEvolutionSideBySide({
                           <span className="text-muted">—</span>
                         ) : (
                           <span className={`delta-chip ${isDown ? 'green' : isUp ? 'orange' : 'gray'}`}>
-                            {isUp ? '+' : ''}{percent.format(pct)}
+                            {isDown ? '▼ -' : isUp ? '▲ +' : ''}{percent.format(Math.abs(pct))}
                           </span>
                         )}
                       </td>
@@ -2169,7 +2175,7 @@ function DailyEvolutionSideBySide({
             </div>
             {daily.length > 1 && (
               <span className={`evolution-badge ${totalDocsDelta <= 0 ? 'green' : 'orange'}`}>
-                {totalDocsDelta <= 0 ? '' : '+'}{percent.format(totalDocsPct)}
+                {totalDocsDelta <= 0 ? '▼ Bajaron ' : '▲ Subieron '}{percent.format(Math.abs(totalDocsPct))}
               </span>
             )}
           </div>
@@ -2236,7 +2242,7 @@ function DailyEvolutionSideBySide({
 
         <div className="evolution-table-container">
           <div className="evolution-table-title">
-            <span>Tabla de variación documental:</span>
+            <span>Tabla de evolución documental (¿Subió o bajó el número de remisiones?):</span>
             <small>Toca una fila para enfocar ese día</small>
           </div>
           <div className="evolution-table-wrap">
@@ -2245,8 +2251,8 @@ function DailyEvolutionSideBySide({
                 <tr>
                   <th>Fecha</th>
                   <th className="numeric"># Remisiones</th>
-                  <th className="numeric">Variación (#)</th>
-                  <th className="numeric">Variación (%)</th>
+                  <th className="numeric">¿Subió o bajó? (# rem.)</th>
+                  <th className="numeric">Cambio (%)</th>
                 </tr>
               </thead>
               <tbody>
@@ -2280,7 +2286,7 @@ function DailyEvolutionSideBySide({
                         ) : (
                           <>
                             <span className={isDown ? 'text-green' : isUp ? 'text-orange' : 'text-muted'}>
-                              {isUp ? '+' : ''}{number.format(delta)} rem.
+                              {isDown ? '▼ -' : isUp ? '▲ +' : ''}{number.format(Math.abs(delta))} rem.
                             </span>
                             {hasFlow && (
                               <small className="evolution-sub-delta">
@@ -2295,7 +2301,7 @@ function DailyEvolutionSideBySide({
                           <span className="text-muted">—</span>
                         ) : (
                           <span className={`delta-chip ${isDown ? 'green' : isUp ? 'orange' : 'gray'}`}>
-                            {isUp ? '+' : ''}{percent.format(pct)}
+                            {isDown ? '▼ -' : isUp ? '▲ +' : ''}{percent.format(Math.abs(pct))}
                           </span>
                         )}
                       </td>
