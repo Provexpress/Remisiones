@@ -57,7 +57,7 @@ import {
   parseRemisionesWorkbook,
   summarize,
 } from './lib/remisiones';
-import type { AgeBreakdownItem, DataSource, FileMetadata, ParsedWorkbook, Remision, Summary, UserProfile } from './types';
+import type { AgeBreakdownItem, DailyPoint, DataSource, FileMetadata, ParsedWorkbook, Remision, Summary, UserProfile } from './types';
 
 type Phase = 'welcome' | 'loading' | 'ready' | 'error';
 type View = 'overview' | 'detail';
@@ -297,7 +297,7 @@ function Dashboard({
   const [view, setView] = useState<View>('overview');
   const [detailTab, setDetailTab] = useState<'open' | 'withdrawn' | 'new'>('open');
   const [cutoff, setCutoff] = useState(data.cutoffs.at(-1) || '');
-  const [from, setFrom] = useState(data.cutoffs.length > 30 ? data.cutoffs.at(-30)! : data.cutoffs[0]);
+  const [from, setFrom] = useState(data.cutoffs[0] || '');
   const [to, setTo] = useState(data.cutoffs.at(-1) || '');
   const [director, setDirector] = useState('Todos');
   const [employee, setEmployee] = useState('Todos');
@@ -317,12 +317,24 @@ function Dashboard({
 
   const matchesAgeFilter = (age: number, ageRange: string, filter: string): boolean => {
     if (filter === 'Todos') return true;
-    if (filter === '>30 días' || filter === 'Vencidas (>30 días)') return age > 30;
-    if (filter === 'Por vencer (16-30 días)' || filter === '16-30 días') return age > 15 && age <= 30;
-    if (filter === 'Al día (0-15 días)' || filter === '0-15 días') return age <= 15;
-    if (filter === 'Críticas (>60 días)' || filter === 'Crítica (>60 días)' || filter === '>60 días') return age > 60;
-    if (filter === 'Vencida (31-60 días)' || filter === '31-60 días') return age > 30 && age <= 60;
+    if (filter === '>30 días' || filter === 'Crítico (>30 días)' || filter === 'Crítico' || filter === 'Vencidas (>30 días)') return age > 30;
+    if (filter === 'Gestión comercial (16-30 días)' || filter === 'Gestión comercial' || filter === 'Por vencer (16-30 días)' || filter === '16-30 días') return age > 15 && age <= 30;
+    if (filter === 'Al día (0-15 días)' || filter === 'Al día' || filter === '0-15 días') return age <= 15;
+    if (filter === 'Crítico (>60 días)' || filter === 'Críticas (>60 días)' || filter === '>60 días') return age > 60;
+    if (filter === 'Crítico (31-60 días)' || filter === 'Vencida (31-60 días)' || filter === '31-60 días') return age > 30 && age <= 60;
     return ageRange === filter;
+  };
+
+  const matchesAmountFilter = (amountStatus: string, filter: string): boolean => {
+    if (filter === 'Todos') return true;
+    if (filter === 'Alto valor (> $5M)') return amountStatus === 'Alto valor (> $5M)';
+    if (filter === 'Cuantía media ($1M - $5M)' || filter === 'Valor medio ($1M - $5M)') {
+      return amountStatus === 'Cuantía media ($1M - $5M)' || amountStatus === 'Valor medio ($1M - $5M)';
+    }
+    if (filter === 'Menor cuantía (< $1M)' || filter === 'Menor valor (< $1M)') {
+      return amountStatus === 'Menor cuantía (< $1M)' || amountStatus === 'Menor valor (< $1M)';
+    }
+    return amountStatus === filter;
   };
 
   const resetAllFilters = () => {
@@ -363,7 +375,7 @@ function Dashboard({
       if (director !== 'Todos' && record.director !== director) return false;
       if (employee !== 'Todos' && record.employee !== employee) return false;
       if (statusFilter !== 'Todos' && record.alert !== statusFilter) return false;
-      if (amountFilter !== 'Todos' && record.amountStatus !== amountFilter) return false;
+      if (!matchesAmountFilter(record.amountStatus, amountFilter)) return false;
       if (!matchesAgeFilter(record.age, record.ageRange, ageFilter)) return false;
       return true;
     });
@@ -377,7 +389,7 @@ function Dashboard({
       (director === 'Todos' || record.director === director) &&
       (employee === 'Todos' || record.employee === employee) &&
       (statusFilter === 'Todos' || record.alert === statusFilter) &&
-      (amountFilter === 'Todos' || record.amountStatus === amountFilter) &&
+      matchesAmountFilter(record.amountStatus, amountFilter) &&
       matchesAgeFilter(record.age, record.ageRange, ageFilter)
     )),
     [data.records, previousCutoff, director, employee, statusFilter, amountFilter, ageFilter],
@@ -416,7 +428,7 @@ function Dashboard({
       if (director !== 'Todos' && record.director !== director) return false;
       if (employee !== 'Todos' && record.employee !== employee) return false;
       if (statusFilter !== 'Todos' && record.alert !== statusFilter) return false;
-      if (amountFilter !== 'Todos' && record.amountStatus !== amountFilter) return false;
+      if (!matchesAmountFilter(record.amountStatus, amountFilter)) return false;
       if (!matchesAgeFilter(record.age, record.ageRange, ageFilter)) return false;
       return true;
     });
@@ -433,7 +445,7 @@ function Dashboard({
       if (currentKeysSet.has(record.stableKey)) return false;
       if (director !== 'Todos' && record.director !== director) return false;
       if (statusFilter !== 'Todos' && record.alert !== statusFilter) return false;
-      if (amountFilter !== 'Todos' && record.amountStatus !== amountFilter) return false;
+      if (!matchesAmountFilter(record.amountStatus, amountFilter)) return false;
       if (!matchesAgeFilter(record.age, record.ageRange, ageFilter)) return false;
       return true;
     });
@@ -445,7 +457,7 @@ function Dashboard({
       if (previousKeysSet.has(record.stableKey)) return false;
       if (director !== 'Todos' && record.director !== director) return false;
       if (statusFilter !== 'Todos' && record.alert !== statusFilter) return false;
-      if (amountFilter !== 'Todos' && record.amountStatus !== amountFilter) return false;
+      if (!matchesAmountFilter(record.amountStatus, amountFilter)) return false;
       if (!matchesAgeFilter(record.age, record.ageRange, ageFilter)) return false;
       return true;
     });
@@ -482,7 +494,7 @@ function Dashboard({
       (director === 'Todos' || r.director === director) &&
       (employee === 'Todos' || r.employee === employee) &&
       (statusFilter === 'Todos' || r.alert === statusFilter) &&
-      (amountFilter === 'Todos' || r.amountStatus === amountFilter)),
+      matchesAmountFilter(r.amountStatus, amountFilter)),
     [baseCutoffRecords, director, employee, statusFilter, amountFilter],
   );
   const ageBreakdown = useMemo(() => buildAgeBreakdown(ageBreakdownRecords), [ageBreakdownRecords]);
@@ -490,7 +502,7 @@ function Dashboard({
   const directorFilterRecords = useMemo(
     () => baseCutoffRecords.filter((r) =>
       (statusFilter === 'Todos' || r.alert === statusFilter) &&
-      (amountFilter === 'Todos' || r.amountStatus === amountFilter) &&
+      matchesAmountFilter(r.amountStatus, amountFilter) &&
       matchesAgeFilter(r.age, r.ageRange, ageFilter)),
     [baseCutoffRecords, statusFilter, amountFilter, ageFilter],
   );
@@ -500,7 +512,7 @@ function Dashboard({
     () => baseCutoffRecords.filter((r) =>
       (director === 'Todos' || r.director === director) &&
       (statusFilter === 'Todos' || r.alert === statusFilter) &&
-      (amountFilter === 'Todos' || r.amountStatus === amountFilter) &&
+      matchesAmountFilter(r.amountStatus, amountFilter) &&
       matchesAgeFilter(r.age, r.ageRange, ageFilter)),
     [baseCutoffRecords, director, statusFilter, amountFilter, ageFilter],
   );
@@ -780,94 +792,312 @@ function Dashboard({
 
         {view === 'overview' ? (
           <>
-            <section className="metric-grid">
-              <MetricCard
-                title="Pendiente total"
-                value={currency.format(currentSummary.pending)}
-                sub={
-                  hasActiveFilters
-                    ? `${number.format(currentSummary.remissions)} remisiones · Toca para ver todo`
-                    : `${number.format(currentSummary.remissions)} remisiones abiertas`
-                }
-                icon={<CircleDollarSign />}
-                tone="blue"
-                current={currentSummary.pending}
-                previous={previousSummary.pending}
-                onClick={hasActiveFilters ? resetAllFilters : undefined}
-                clickable={hasActiveFilters}
-              />
-              <MetricCard
-                title="Clientes con saldo"
-                value={number.format(currentSummary.clients)}
-                sub={`${number.format(currentSummary.remissions)} remisiones pendientes`}
-                icon={<Boxes />}
-                tone="purple"
-                current={currentSummary.clients}
-                previous={previousSummary.clients}
-              />
-              <MetricCard
-                title="Antigüedad promedio"
-                value={`${currentSummary.averageAge.toFixed(1)} días`}
-                sub={
-                  ageFilter === '>30 días'
-                    ? 'Filtro >30d activo · Toca para ver todos'
-                    : `Máximo: ${currentSummary.maxAge || 0} días · Toca para filtrar >30d`
-                }
-                icon={<CalendarRange />}
-                tone="orange"
-                current={currentSummary.averageAge}
-                previous={previousSummary.averageAge}
-                onClick={() => setAgeFilter((current) => current === '>30 días' ? 'Todos' : '>30 días')}
-                clickable
-              />
+            {/* 1. MÓDULO DE GESTIÓN OPERATIVA (ENTRADAS VS SALIDAS DEL DÍA) */}
+            <section className="management-overview-card">
+              <div className="management-card-header">
+                <div className="management-card-title">
+                  <div className="management-icon-badge">
+                    <TrendingUp size={22} />
+                  </div>
+                  <div>
+                    <div className="management-eyebrow">
+                      Proceso de Gestión · {formattedCutoffWithTime}
+                    </div>
+                    <h2>Gestión Operativa: Cartera, Ingresos y Facturación</h2>
+                    <p>
+                      {previousCutoff ? (
+                        <>
+                          Evaluación de flujo frente al corte previo del <strong>{formatCutoff(previousCutoff)}</strong>
+                          {director !== 'Todos' ? ` · Dirección: ${director}` : ''}
+                          {employee !== 'Todos' ? ` · Comercial: ${employee}` : ''}
+                        </>
+                      ) : (
+                        'Estado actual consolidado del primer corte registrado'
+                      )}
+                    </p>
+                  </div>
+                </div>
+                {previousCutoff && (
+                  <div className="management-header-actions">
+                    <button
+                      type="button"
+                      className="button button-outline-green"
+                      onClick={() => { setView('detail'); setDetailTab('withdrawn'); }}
+                      title="Ver detalle de remisiones facturadas o cobradas"
+                    >
+                      <CheckCircle2 size={15} />
+                      Ver facturadas ({number.format(managementWithdrawn.length)})
+                    </button>
+                    <button
+                      type="button"
+                      className="button button-outline-orange"
+                      onClick={() => { setView('detail'); setDetailTab('new'); }}
+                      title="Ver detalle de nuevas remisiones abiertas"
+                    >
+                      <PlusCircle size={15} />
+                      Ver nuevas ({number.format(managementNew.length)})
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="management-kpis-grid">
+                {/* 1. Cartera General */}
+                <div
+                  className="mgmt-kpi-item"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { setView('detail'); setDetailTab('open'); }}
+                  title="Toca para ver el detalle de todas las remisiones abiertas"
+                >
+                  <div className="mgmt-kpi-top">
+                    <span className="mgmt-kpi-label">Cartera General (Saldo Activo)</span>
+                    <span className="mgmt-kpi-badge blue">Corte Actual</span>
+                  </div>
+                  <strong className="mgmt-kpi-value">{currency.format(currentSummary.pending)}</strong>
+                  <div className="mgmt-kpi-foot">
+                    <CircleDollarSign size={15} />
+                    <span><strong>{number.format(currentSummary.remissions)}</strong> remisiones · <strong>{number.format(currentSummary.clients)}</strong> clientes</span>
+                  </div>
+                </div>
+
+                {/* 2. Ingreso de Nuevas */}
+                <div
+                  className="mgmt-kpi-item warning"
+                  role={previousCutoff ? "button" : undefined}
+                  tabIndex={previousCutoff ? 0 : undefined}
+                  onClick={previousCutoff ? () => { setView('detail'); setDetailTab('new'); } : undefined}
+                  title="Toca para ver el detalle de nuevas remisiones abiertas"
+                >
+                  <div className="mgmt-kpi-top">
+                    <span className="mgmt-kpi-label">Nuevas Remisiones (Ingresos)</span>
+                    <span className="mgmt-kpi-badge orange">Entradas</span>
+                  </div>
+                  <strong className="mgmt-kpi-value text-orange">
+                    {previousCutoff ? `+${currency.format(totalNew)}` : currency.format(currentSummary.pending)}
+                  </strong>
+                  <div className="mgmt-kpi-foot">
+                    <ArrowUpRight size={15} />
+                    <span>
+                      {previousCutoff
+                        ? <span><strong>{number.format(managementNew.length)}</strong> remisiones nuevas en este corte</span>
+                        : 'Punto de partida de cartera'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Facturadas / Retiradas */}
+                <div
+                  className="mgmt-kpi-item success"
+                  role={previousCutoff ? "button" : undefined}
+                  tabIndex={previousCutoff ? 0 : undefined}
+                  onClick={previousCutoff ? () => { setView('detail'); setDetailTab('withdrawn'); } : undefined}
+                  title="Toca para ver el detalle de remisiones facturadas o cobradas"
+                >
+                  <div className="mgmt-kpi-top">
+                    <span className="mgmt-kpi-label">Remisiones Facturadas (Salidas)</span>
+                    <span className="mgmt-kpi-badge green">Retiradas</span>
+                  </div>
+                  <strong className="mgmt-kpi-value text-green">
+                    {previousCutoff ? `-${currency.format(totalClosed)}` : '$ 0'}
+                  </strong>
+                  <div className="mgmt-kpi-foot">
+                    <ArrowDownRight size={15} />
+                    <span>
+                      {previousCutoff
+                        ? <span><strong>{number.format(managementWithdrawn.length)}</strong> remisiones salieron de cartera</span>
+                        : 'Disponible a partir del 2do corte'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4. Balance Neto */}
+                <div className={`mgmt-kpi-item ${netDifference <= 0 ? 'favorable' : 'neutral'}`}>
+                  <div className="mgmt-kpi-top">
+                    <span className="mgmt-kpi-label">Variación Neta de Cartera</span>
+                    <span className={`mgmt-kpi-badge ${netDifference <= 0 ? 'blue' : 'gray'}`}>
+                      {previousCutoff ? (netDifference <= 0 ? 'Favorable' : 'Incremento') : 'Base inicial'}
+                    </span>
+                  </div>
+                  <strong className="mgmt-kpi-value">
+                    {previousCutoff ? (
+                      `${netDifference <= 0 ? '-' : '+'}${currency.format(Math.abs(netDifference))}`
+                    ) : (
+                      '—'
+                    )}
+                  </strong>
+                  <div className="mgmt-kpi-foot">
+                    <span>
+                      {previousCutoff ? (
+                        netDifference <= 0
+                          ? `Desahogo neto (${percent.format(currentDailyPoint?.grossReduction || 0)} reducción bruta)`
+                          : 'Crecimiento de saldo frente al corte previo'
+                      ) : (
+                        `Saldo inicial con ${number.format(currentSummary.remissions)} remisiones`
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {previousCutoff ? (
+                <div className="management-sellers-columns">
+                  {/* Comerciales que cerraron remisiones */}
+                  <div className="mgmt-sellers-card closed-card">
+                    <div className="mgmt-sellers-header">
+                      <div>
+                        <div className="mgmt-sellers-tag green">
+                          <CheckCircle2 size={13} /> Facturación y Cierre
+                        </div>
+                        <h3>Comerciales que cerraron remisiones</h3>
+                        <p>
+                          {closedBySeller.length > 0
+                            ? `${closedBySeller.length} comercial${closedBySeller.length === 1 ? '' : 'es'} lograron facturar o retirar saldo`
+                            : 'No hay retiros registrados para los filtros seleccionados'}
+                        </p>
+                      </div>
+                      {employee !== 'Todos' && (
+                        <button
+                          type="button"
+                          className="mgmt-reset-filter-btn"
+                          onClick={() => setEmployee('Todos')}
+                          title="Quitar filtro de comercial"
+                        >
+                          Ver todos
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="mgmt-sellers-list">
+                      {closedBySeller.length === 0 ? (
+                        <div className="mgmt-empty-msg">
+                          <span>No se registraron remisiones facturadas para estos filtros.</span>
+                        </div>
+                      ) : (
+                        closedBySeller.map((seller, idx) => {
+                          const isSelected = employee === seller.name;
+                          const isDimmed = employee !== 'Todos' && !isSelected;
+                          const maxTotal = closedBySeller[0]?.total || 1;
+                          const pct = Math.round((seller.total / maxTotal) * 100);
+                          return (
+                            <div
+                              key={seller.name}
+                              className={`mgmt-seller-row green-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
+                              onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
+                              role="button"
+                              tabIndex={0}
+                              title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
+                            >
+                              <span className="mgmt-seller-rank">{idx + 1}</span>
+                              <div className="mgmt-seller-info">
+                                <div className="mgmt-seller-top">
+                                  <strong className="mgmt-seller-name">{seller.name}</strong>
+                                  <span className="mgmt-seller-count green">{seller.count} remisi{seller.count === 1 ? 'ón facturada' : 'ones facturadas'}</span>
+                                </div>
+                                <div className="mgmt-seller-bar-track">
+                                  <div className="mgmt-seller-bar-fill green" style={{ width: `${pct}%` }} />
+                                </div>
+                                <div className="mgmt-seller-sub">
+                                  <small>{seller.director}</small>
+                                  <strong className="mgmt-seller-amount green">{currency.format(seller.total)}</strong>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Comerciales con nuevas remisiones */}
+                  <div className="mgmt-sellers-card new-card">
+                    <div className="mgmt-sellers-header">
+                      <div>
+                        <div className="mgmt-sellers-tag orange">
+                          <PlusCircle size={13} /> Nuevos Ingresos
+                        </div>
+                        <h3>Comerciales con nuevas remisiones</h3>
+                        <p>
+                          {newBySeller.length > 0
+                            ? `${newBySeller.length} comercial${newBySeller.length === 1 ? '' : 'es'} abrieron nuevas remisiones`
+                            : 'No hay nuevas aperturas registradas para los filtros seleccionados'}
+                        </p>
+                      </div>
+                      {employee !== 'Todos' && (
+                        <button
+                          type="button"
+                          className="mgmt-reset-filter-btn"
+                          onClick={() => setEmployee('Todos')}
+                          title="Quitar filtro de comercial"
+                        >
+                          Ver todos
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="mgmt-sellers-list">
+                      {newBySeller.length === 0 ? (
+                        <div className="mgmt-empty-msg">
+                          <span>No se registraron nuevas remisiones para estos filtros.</span>
+                        </div>
+                      ) : (
+                        newBySeller.map((seller, idx) => {
+                          const isSelected = employee === seller.name;
+                          const isDimmed = employee !== 'Todos' && !isSelected;
+                          const maxTotal = newBySeller[0]?.total || 1;
+                          const pct = Math.round((seller.total / maxTotal) * 100);
+                          return (
+                            <div
+                              key={seller.name}
+                              className={`mgmt-seller-row orange-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
+                              onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
+                              role="button"
+                              tabIndex={0}
+                              title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
+                            >
+                              <span className="mgmt-seller-rank">{idx + 1}</span>
+                              <div className="mgmt-seller-info">
+                                <div className="mgmt-seller-top">
+                                  <strong className="mgmt-seller-name">{seller.name}</strong>
+                                  <span className="mgmt-seller-count orange">{seller.count} remisi{seller.count === 1 ? 'ón nueva' : 'ones nuevas'}</span>
+                                </div>
+                                <div className="mgmt-seller-bar-track">
+                                  <div className="mgmt-seller-bar-fill orange" style={{ width: `${pct}%` }} />
+                                </div>
+                                <div className="mgmt-seller-sub">
+                                  <small>{seller.director}</small>
+                                  <strong className="mgmt-seller-amount orange">{currency.format(seller.total)}</strong>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="management-empty-banner">
+                  <FileSpreadsheet size={30} />
+                  <div>
+                    <strong>Comparación disponible al registrar el segundo corte</strong>
+                    <p>
+                      Para ver qué comerciales cerraron remisiones y quiénes abrieron nuevas, pega la información del nuevo corte en la hoja <strong>Base-SIS</strong> (en la columna <strong>Fecha de corte</strong>). El sistema comparará automáticamente ambos cortes y calculará la trazabilidad completa.
+                    </p>
+                  </div>
+                </div>
+              )}
             </section>
 
-            <section className="chart-grid chart-grid-main">
-              <ChartCard
-                className="chart-wide"
-                title="Evolución del pendiente"
-                subtitle={
-                  daily.length > 1
-                    ? `${formatCutoff(from)} — ${formatCutoff(to)} · Toca cualquier punto para cambiar la fecha`
-                    : 'Corte diario consolidado · Se construirá la curva histórica con cada corte'
-                }
-              >
-                <ResponsiveContainer width="100%" height={320}>
-                  <AreaChart
-                    data={daily}
-                    margin={{ top: 18, right: 8, left: 0, bottom: 0 }}
-                    onClick={(state: any) => {
-                      const payloadCutoff = state?.activePayload?.[0]?.payload?.cutoff;
-                      if (payloadCutoff && payloadCutoff !== cutoff) {
-                        setCutoff(String(payloadCutoff));
-                      }
-                    }}
-                  >
-                    <defs>
-                      <linearGradient id="pendingFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#0071e3" stopOpacity={0.28} />
-                        <stop offset="100%" stopColor="#0071e3" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="#e8e8ed" vertical={false} />
-                    <XAxis
-                      dataKey="cutoff"
-                      tickFormatter={(value) => formatCutoff(value, { day: '2-digit', month: '2-digit', year: undefined })}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis tickFormatter={(value) => compactCurrency.format(value)} tickLine={false} axisLine={false} width={74} />
-                    <Tooltip content={<CurrencyTooltip />} />
-                    <Area type="monotone" dataKey="pending" name="Pendiente" stroke="#0071e3" strokeWidth={3} fill="url(#pendingFill)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-                <div className="chart-footer-stats">
-                  <span><i className="dot blue" />Último saldo <strong>{compactCurrency.format(daily.at(-1)?.pending || 0)}</strong></span>
-                  <span><i className="dot green" />Retirado en periodo <strong>{compactCurrency.format(daily.reduce((sum, point) => sum + point.withdrawn, 0))}</strong></span>
-                  <span><i className="dot orange" />Nuevas en periodo <strong>{compactCurrency.format(daily.slice(1).reduce((sum, point) => sum + point.newValue, 0))}</strong></span>
-                </div>
-              </ChartCard>
+            {/* 2. EVOLUCIÓN HISTÓRICA LADO A LADO: VALOR ($) Y # DOCUMENTOS */}
+            <DailyEvolutionSideBySide
+              daily={daily}
+              currentCutoff={cutoff}
+              onSelectCutoff={setCutoff}
+            />
 
+            {/* 3. SALUD DE CARTERA Y CONCENTRACIÓN */}
+            <section className="chart-grid chart-grid-main">
               <AgeCompositionCard
                 ageData={ageBreakdown}
                 totalPending={currentSummary.pending}
@@ -876,9 +1106,7 @@ function Dashboard({
                   setAgeFilter((current) => current === range ? 'Todos' : range);
                 }}
               />
-            </section>
 
-            <section className="chart-grid">
               <ChartCard
                 title="Pendiente por dirección"
                 subtitle={director !== 'Todos' ? `Filtrado por: ${director} · Toca para quitar` : "Toca una dirección para filtrar todo el tablero"}
@@ -939,8 +1167,12 @@ function Dashboard({
                   </div>
                 </div>
               </ChartCard>
+            </section>
+
+            <section className="chart-grid">
               <ChartCard
-                title="Ejecutivos con mayor pendiente"
+                className="chart-wide"
+                title="Ejecutivos comerciales con mayor saldo pendiente"
                 subtitle={employee !== 'Todos' ? `Filtrado por: ${employee} · Toca para quitar` : "Toca una barra para filtrar por comercial"}
               >
                 <ResponsiveContainer width="100%" height={300}>
@@ -985,271 +1217,6 @@ function Dashboard({
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
-            </section>
-
-            <section className="management-overview-card">
-              <div className="management-card-header">
-                <div className="management-card-title">
-                  <div className="management-icon-badge">
-                    <TrendingUp size={22} />
-                  </div>
-                  <div>
-                    <div className="management-eyebrow">Balance comercial del corte</div>
-                    <h2>Análisis de gestión: Remisiones cerradas vs. Nuevas remisiones</h2>
-                    <p>
-                      {previousCutoff ? (
-                        <>
-                          Comparando corte actual <strong>{formatCutoff(cutoff)}</strong> frente a <strong>{formatCutoff(previousCutoff)}</strong>
-                          {director !== 'Todos' ? ` · Dirección: ${director}` : ''}
-                          {employee !== 'Todos' ? ` · Comercial: ${employee}` : ''}
-                        </>
-                      ) : (
-                        'Se requiere al menos un corte previo en Base-SIS para calcular el balance de entradas y salidas'
-                      )}
-                    </p>
-                  </div>
-                </div>
-                {previousCutoff && (
-                  <div className="management-header-actions">
-                    <button
-                      type="button"
-                      className="button button-outline-green"
-                      onClick={() => { setView('detail'); setDetailTab('withdrawn'); }}
-                      title="Ver detalle de remisiones cobradas o facturadas"
-                    >
-                      <CheckCircle2 size={15} />
-                      Ver cerradas ({number.format(managementWithdrawn.length)})
-                    </button>
-                    <button
-                      type="button"
-                      className="button button-outline-orange"
-                      onClick={() => { setView('detail'); setDetailTab('new'); }}
-                      title="Ver detalle de nuevas remisiones abiertas"
-                    >
-                      <PlusCircle size={15} />
-                      Ver nuevas ({number.format(managementNew.length)})
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {previousCutoff ? (
-                <>
-                  <div className="management-kpis-grid">
-                    <div
-                      className="mgmt-kpi-item success"
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => { setView('detail'); setDetailTab('withdrawn'); }}
-                      title="Toca para ver el detalle de remisiones retiradas"
-                    >
-                      <div className="mgmt-kpi-top">
-                        <span className="mgmt-kpi-label">Remisiones cerradas / cobradas</span>
-                        <span className="mgmt-kpi-badge green">Retiradas</span>
-                      </div>
-                      <strong className="mgmt-kpi-value text-green">{currency.format(totalClosed)}</strong>
-                      <div className="mgmt-kpi-foot">
-                        <ArrowDownRight size={15} />
-                        <span><strong>{number.format(managementWithdrawn.length)}</strong> remisiones salieron de cartera</span>
-                      </div>
-                    </div>
-
-                    <div
-                      className="mgmt-kpi-item warning"
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => { setView('detail'); setDetailTab('new'); }}
-                      title="Toca para ver el detalle de nuevas remisiones abiertas"
-                    >
-                      <div className="mgmt-kpi-top">
-                        <span className="mgmt-kpi-label">Nuevas remisiones abiertas</span>
-                        <span className="mgmt-kpi-badge orange">Ingresadas</span>
-                      </div>
-                      <strong className="mgmt-kpi-value text-orange">{currency.format(totalNew)}</strong>
-                      <div className="mgmt-kpi-foot">
-                        <ArrowUpRight size={15} />
-                        <span><strong>{number.format(managementNew.length)}</strong> remisiones nuevas en este corte</span>
-                      </div>
-                    </div>
-
-                    <div className={`mgmt-kpi-item ${netDifference <= 0 ? 'favorable' : 'neutral'}`}>
-                      <div className="mgmt-kpi-top">
-                        <span className="mgmt-kpi-label">Variación neta de cartera</span>
-                        <span className={`mgmt-kpi-badge ${netDifference <= 0 ? 'blue' : 'gray'}`}>
-                          {netDifference <= 0 ? 'Favorable' : 'Incremento'}
-                        </span>
-                      </div>
-                      <strong className="mgmt-kpi-value">
-                        {netDifference <= 0 ? '-' : '+'}{currency.format(Math.abs(netDifference))}
-                      </strong>
-                      <div className="mgmt-kpi-foot">
-                        <span>
-                          {netDifference <= 0
-                            ? `Desahogo neto en el corte (${percent.format(currentDailyPoint?.grossReduction || 0)} reducción bruta)`
-                            : 'Crecimiento de cartera frente al corte previo'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mgmt-kpi-item subtle">
-                      <div className="mgmt-kpi-top">
-                        <span className="mgmt-kpi-label">Saldo corte anterior</span>
-                        <span className="mgmt-kpi-badge muted">{formatCutoff(previousCutoff)}</span>
-                      </div>
-                      <strong className="mgmt-kpi-value">{currency.format(previousSummary.pending)}</strong>
-                      <div className="mgmt-kpi-foot">
-                        <span>Base de partida con <strong>{number.format(previousSummary.remissions)}</strong> remisiones</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="management-sellers-columns">
-                    {/* Comerciales que cerraron remisiones */}
-                    <div className="mgmt-sellers-card closed-card">
-                      <div className="mgmt-sellers-header">
-                        <div>
-                          <div className="mgmt-sellers-tag green">
-                            <CheckCircle2 size={13} /> Cobro y Cierre
-                          </div>
-                          <h3>Comerciales que cerraron remisiones</h3>
-                          <p>
-                            {closedBySeller.length > 0
-                              ? `${closedBySeller.length} comercial${closedBySeller.length === 1 ? '' : 'es'} lograron cobrar o retirar saldo`
-                              : 'No hay retiros registrados para los filtros seleccionados'}
-                          </p>
-                        </div>
-                        {employee !== 'Todos' && (
-                          <button
-                            type="button"
-                            className="mgmt-reset-filter-btn"
-                            onClick={() => setEmployee('Todos')}
-                            title="Quitar filtro de comercial"
-                          >
-                            Ver todos
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="mgmt-sellers-list">
-                        {closedBySeller.length === 0 ? (
-                          <div className="mgmt-empty-msg">
-                            <span>No se registraron remisiones cerradas para estos filtros.</span>
-                          </div>
-                        ) : (
-                          closedBySeller.map((seller, idx) => {
-                            const isSelected = employee === seller.name;
-                            const isDimmed = employee !== 'Todos' && !isSelected;
-                            const maxTotal = closedBySeller[0]?.total || 1;
-                            const pct = Math.round((seller.total / maxTotal) * 100);
-                            return (
-                              <div
-                                key={seller.name}
-                                className={`mgmt-seller-row green-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
-                                onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
-                                role="button"
-                                tabIndex={0}
-                                title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
-                              >
-                                <span className="mgmt-seller-rank">{idx + 1}</span>
-                                <div className="mgmt-seller-info">
-                                  <div className="mgmt-seller-top">
-                                    <strong className="mgmt-seller-name">{seller.name}</strong>
-                                    <span className="mgmt-seller-count green">{seller.count} remisi{seller.count === 1 ? 'ón' : 'ones'} cerradas</span>
-                                  </div>
-                                  <div className="mgmt-seller-bar-track">
-                                    <div className="mgmt-seller-bar-fill green" style={{ width: `${pct}%` }} />
-                                  </div>
-                                  <div className="mgmt-seller-sub">
-                                    <small>{seller.director}</small>
-                                    <strong className="mgmt-seller-amount green">{currency.format(seller.total)}</strong>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Comerciales con nuevas remisiones */}
-                    <div className="mgmt-sellers-card new-card">
-                      <div className="mgmt-sellers-header">
-                        <div>
-                          <div className="mgmt-sellers-tag orange">
-                            <PlusCircle size={13} /> Nuevas Aperturas
-                          </div>
-                          <h3>Comerciales con nuevas remisiones</h3>
-                          <p>
-                            {newBySeller.length > 0
-                              ? `${newBySeller.length} comercial${newBySeller.length === 1 ? '' : 'es'} abrieron nuevas remisiones`
-                              : 'No hay nuevas aperturas registradas para los filtros seleccionados'}
-                          </p>
-                        </div>
-                        {employee !== 'Todos' && (
-                          <button
-                            type="button"
-                            className="mgmt-reset-filter-btn"
-                            onClick={() => setEmployee('Todos')}
-                            title="Quitar filtro de comercial"
-                          >
-                            Ver todos
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="mgmt-sellers-list">
-                        {newBySeller.length === 0 ? (
-                          <div className="mgmt-empty-msg">
-                            <span>No se registraron nuevas remisiones para estos filtros.</span>
-                          </div>
-                        ) : (
-                          newBySeller.map((seller, idx) => {
-                            const isSelected = employee === seller.name;
-                            const isDimmed = employee !== 'Todos' && !isSelected;
-                            const maxTotal = newBySeller[0]?.total || 1;
-                            const pct = Math.round((seller.total / maxTotal) * 100);
-                            return (
-                              <div
-                                key={seller.name}
-                                className={`mgmt-seller-row orange-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
-                                onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
-                                role="button"
-                                tabIndex={0}
-                                title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
-                              >
-                                <span className="mgmt-seller-rank">{idx + 1}</span>
-                                <div className="mgmt-seller-info">
-                                  <div className="mgmt-seller-top">
-                                    <strong className="mgmt-seller-name">{seller.name}</strong>
-                                    <span className="mgmt-seller-count orange">{seller.count} remisi{seller.count === 1 ? 'ón nueva' : 'ones nuevas'}</span>
-                                  </div>
-                                  <div className="mgmt-seller-bar-track">
-                                    <div className="mgmt-seller-bar-fill orange" style={{ width: `${pct}%` }} />
-                                  </div>
-                                  <div className="mgmt-seller-sub">
-                                    <small>{seller.director}</small>
-                                    <strong className="mgmt-seller-amount orange">{currency.format(seller.total)}</strong>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="management-empty-banner">
-                  <FileSpreadsheet size={30} />
-                  <div>
-                    <strong>Comparación disponible al registrar el segundo corte</strong>
-                    <p>
-                      Para ver qué comerciales cerraron remisiones y quiénes abrieron nuevas, pega la información del nuevo corte en la hoja <strong>Base-SIS</strong> (en la columna <strong>Fecha de corte</strong>). El sistema comparará automáticamente ambos cortes y calculará la trazabilidad completa.
-                    </p>
-                  </div>
-                </div>
-              )}
             </section>
           </>
         ) : (
@@ -1320,10 +1287,10 @@ function Dashboard({
                   onChange={setStatusFilter}
                   options={[
                     'Todos',
-                    'Vencida · Alto valor',
-                    'Vencida',
-                    'Por vencer · Alto valor',
-                    'Por vencer',
+                    'Crítico · Alto valor',
+                    'Crítico',
+                    'Gestión comercial · Alto valor',
+                    'Gestión comercial',
                     'Al día · Alto valor',
                     'Al día',
                   ]}
@@ -1335,10 +1302,10 @@ function Dashboard({
                   onChange={setAgeFilter}
                   options={[
                     'Todos',
-                    'Vencidas (>30 días)',
-                    'Por vencer (16-30 días)',
                     'Al día (0-15 días)',
-                    'Críticas (>60 días)',
+                    'Gestión comercial (16-30 días)',
+                    'Crítico (>30 días)',
+                    'Crítico (>60 días)',
                   ]}
                   compact
                 />
@@ -1349,8 +1316,8 @@ function Dashboard({
                   options={[
                     'Todos',
                     'Alto valor (> $5M)',
-                    'Valor medio ($1M - $5M)',
-                    'Menor valor (< $1M)',
+                    'Cuantía media ($1M - $5M)',
+                    'Menor cuantía (< $1M)',
                   ]}
                   compact
                 />
@@ -1535,7 +1502,11 @@ function AgeCompositionCard({
   const overdueCount = overdueItems.reduce((sum, item) => sum + item.count, 0);
   const overduePercent = totalPending > 0 ? (overdueTotal / totalPending) * 100 : 0;
   const maxVal = Math.max(...ageData.map((d) => d.value), 1);
-  const isOverdueActive = activeRange === '>30 días' || activeRange === 'Vencidas (>30 días)';
+  const isOverdueActive =
+    activeRange === '>30 días' ||
+    activeRange === 'Crítico (>30 días)' ||
+    activeRange === 'Crítico' ||
+    activeRange === 'Vencidas (>30 días)';
 
   return (
     <article className="chart-card age-composition-card">
@@ -1552,11 +1523,11 @@ function AgeCompositionCard({
           type="button"
           className={`overdue-highlight-chip ${isOverdueActive ? 'active' : ''}`}
           onClick={() => onSelectRange('>30 días')}
-          title={isOverdueActive ? 'Toca para quitar filtro de vencidas' : 'Toca para filtrar remisiones vencidas (>30 días)'}
+          title={isOverdueActive ? 'Toca para quitar filtro de crítico' : 'Toca para filtrar remisiones críticas (>30 días)'}
         >
           <TriangleAlert size={16} />
           <div>
-            <strong>Vencido &gt;30d: {currency.format(overdueTotal)}</strong>
+            <strong>Crítico &gt;30d: {currency.format(overdueTotal)}</strong>
             <small>{overdueCount} remisiones · {overduePercent.toFixed(1)}%</small>
           </div>
         </button>
@@ -1596,10 +1567,282 @@ function AgeCompositionCard({
 
       <div className="age-card-footer">
         <span className="legend-item blue"><i /> Al día (0 a 15 días)</span>
-        <span className="legend-item orange"><i /> Por vencer (16 a 30 días)</span>
-        <span className="legend-item red"><i /> Vencido crítico (&gt;30 días)</span>
+        <span className="legend-item orange"><i /> Gestión comercial (16 a 30 días)</span>
+        <span className="legend-item red"><i /> Crítico (&gt;30 días)</span>
       </div>
     </article>
+  );
+}
+
+function DailyEvolutionSideBySide({
+  daily,
+  currentCutoff,
+  onSelectCutoff,
+}: {
+  daily: DailyPoint[];
+  currentCutoff: string;
+  onSelectCutoff: (cutoff: string) => void;
+}) {
+  const initialPoint = daily[0];
+  const latestPoint = daily.at(-1);
+  const totalValueDelta = initialPoint && latestPoint ? latestPoint.pending - initialPoint.pending : 0;
+  const totalValuePct = initialPoint && initialPoint.pending > 0 ? totalValueDelta / initialPoint.pending : 0;
+  const totalDocsDelta = initialPoint && latestPoint ? latestPoint.remissions - initialPoint.remissions : 0;
+  const totalDocsPct = initialPoint && initialPoint.remissions > 0 ? totalDocsDelta / initialPoint.remissions : 0;
+
+  return (
+    <section className="evolution-grid" aria-label="Evolución histórica lado a lado">
+      {/* Panel 1: Evolución por Valor ($) */}
+      <article className="chart-card evolution-card">
+        <header className="evolution-header">
+          <div>
+            <div className="evolution-tag blue">
+              <CircleDollarSign size={13} />
+              <span>Comportamiento de Saldo</span>
+            </div>
+            <h2>Evolución del Valor en Cartera ($)</h2>
+            <p>
+              {daily.length > 1
+                ? `Seguimiento cronológico desde ${formatCutoff(daily[0].cutoff)} hasta ${formatCutoff(daily.at(-1)!.cutoff)}`
+                : 'Curva y tabla de variación diaria en pesos a lo largo de los cortes'}
+            </p>
+          </div>
+          <div className="evolution-kpi-summary">
+            <div>
+              <span className="evolution-kpi-label">Saldo Inicial</span>
+              <strong className="evolution-kpi-val">{compactCurrency.format(initialPoint?.pending || 0)}</strong>
+            </div>
+            <div className="evolution-kpi-arrow">→</div>
+            <div>
+              <span className="evolution-kpi-label">Saldo Actual</span>
+              <strong className="evolution-kpi-val">{compactCurrency.format(latestPoint?.pending || 0)}</strong>
+            </div>
+            {daily.length > 1 && (
+              <span className={`evolution-badge ${totalValueDelta <= 0 ? 'green' : 'orange'}`}>
+                {totalValueDelta <= 0 ? '' : '+'}{percent.format(totalValuePct)}
+              </span>
+            )}
+          </div>
+        </header>
+
+        <div className="evolution-chart-wrap">
+          <ResponsiveContainer width="100%" height={190}>
+            <AreaChart data={daily} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="valGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#0071e3" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="#0071e3" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="#ededf0" vertical={false} />
+              <XAxis
+                dataKey="cutoff"
+                tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                tickFormatter={(val) => compactCurrency.format(val)}
+                tickLine={false}
+                axisLine={false}
+                width={70}
+              />
+              <Tooltip content={<CurrencyTooltip />} />
+              <Area type="monotone" dataKey="pending" name="Saldo" stroke="#0071e3" strokeWidth={2.5} fill="url(#valGrad)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="evolution-table-container">
+          <div className="evolution-table-title">
+            <span>Tabla de variación diaria en pesos:</span>
+            <small>Toca una fila para enfocar el corte</small>
+          </div>
+          <div className="evolution-table-wrap">
+            <table className="evolution-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th className="numeric">Saldo Pendiente</th>
+                  <th className="numeric">Variación ($)</th>
+                  <th className="numeric">Variación (%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {daily.map((pt, idx) => {
+                  const isSelected = pt.cutoff === currentCutoff;
+                  const isInitial = idx === 0;
+                  const delta = pt.pendingDelta ?? 0;
+                  const pct = pt.pendingDeltaPct ?? 0;
+                  const isDown = delta < 0;
+                  const isUp = delta > 0;
+                  return (
+                    <tr
+                      key={pt.cutoff}
+                      className={`evolution-row ${isSelected ? 'selected' : ''}`}
+                      onClick={() => onSelectCutoff(pt.cutoff)}
+                      role="button"
+                      tabIndex={0}
+                      title={`Toca para ver corte del ${formatCutoff(pt.cutoff)}`}
+                    >
+                      <td>
+                        <strong>{formatCutoff(pt.cutoff)}</strong>
+                        {isSelected && <span className="active-dot-pill">Activo</span>}
+                      </td>
+                      <td className="numeric">
+                        <strong>{currency.format(pt.pending)}</strong>
+                      </td>
+                      <td className="numeric">
+                        {isInitial ? (
+                          <span className="text-muted">Punto inicial</span>
+                        ) : (
+                          <span className={isDown ? 'text-green' : isUp ? 'text-orange' : 'text-muted'}>
+                            {isUp ? '+' : ''}{currency.format(delta)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="numeric">
+                        {isInitial ? (
+                          <span className="text-muted">—</span>
+                        ) : (
+                          <span className={`delta-chip ${isDown ? 'green' : isUp ? 'orange' : 'gray'}`}>
+                            {isUp ? '+' : ''}{percent.format(pct)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      {/* Panel 2: Evolución por Documentos (# Remisiones) */}
+      <article className="chart-card evolution-card">
+        <header className="evolution-header">
+          <div>
+            <div className="evolution-tag purple">
+              <Boxes size={13} />
+              <span>Volumen Documental</span>
+            </div>
+            <h2>Evolución de Remisiones (# Docs)</h2>
+            <p>
+              {daily.length > 1
+                ? `Conteo de documentos desde ${formatCutoff(daily[0].cutoff)} hasta ${formatCutoff(daily.at(-1)!.cutoff)}`
+                : 'Conteo y fluctuación diaria del número de remisiones abiertas'}
+            </p>
+          </div>
+          <div className="evolution-kpi-summary">
+            <div>
+              <span className="evolution-kpi-label">Docs Inicio</span>
+              <strong className="evolution-kpi-val">{number.format(initialPoint?.remissions || 0)} rem.</strong>
+            </div>
+            <div className="evolution-kpi-arrow">→</div>
+            <div>
+              <span className="evolution-kpi-label">Docs Hoy</span>
+              <strong className="evolution-kpi-val">{number.format(latestPoint?.remissions || 0)} rem.</strong>
+            </div>
+            {daily.length > 1 && (
+              <span className={`evolution-badge ${totalDocsDelta <= 0 ? 'green' : 'orange'}`}>
+                {totalDocsDelta <= 0 ? '' : '+'}{percent.format(totalDocsPct)}
+              </span>
+            )}
+          </div>
+        </header>
+
+        <div className="evolution-chart-wrap">
+          <ResponsiveContainer width="100%" height={190}>
+            <BarChart data={daily} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="#ededf0" vertical={false} />
+              <XAxis
+                dataKey="cutoff"
+                tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                tickFormatter={(val) => number.format(val)}
+                tickLine={false}
+                axisLine={false}
+                width={50}
+              />
+              <Tooltip
+                formatter={(val) => [`${number.format(Number(val))} remisiones`, 'Documentos']}
+                labelFormatter={(label) => formatCutoff(String(label))}
+              />
+              <Bar dataKey="remissions" name="Remisiones" fill="#8957d8" radius={[5, 5, 0, 0]} maxBarSize={36} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="evolution-table-container">
+          <div className="evolution-table-title">
+            <span>Tabla de variación documental:</span>
+            <small>Toca una fila para enfocar el corte</small>
+          </div>
+          <div className="evolution-table-wrap">
+            <table className="evolution-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th className="numeric"># Remisiones</th>
+                  <th className="numeric">Variación (#)</th>
+                  <th className="numeric">Variación (%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {daily.map((pt, idx) => {
+                  const isSelected = pt.cutoff === currentCutoff;
+                  const isInitial = idx === 0;
+                  const delta = pt.remissionsDelta ?? 0;
+                  const pct = pt.remissionsDeltaPct ?? 0;
+                  const isDown = delta < 0;
+                  const isUp = delta > 0;
+                  return (
+                    <tr
+                      key={pt.cutoff}
+                      className={`evolution-row ${isSelected ? 'selected' : ''}`}
+                      onClick={() => onSelectCutoff(pt.cutoff)}
+                      role="button"
+                      tabIndex={0}
+                      title={`Toca para ver corte del ${formatCutoff(pt.cutoff)}`}
+                    >
+                      <td>
+                        <strong>{formatCutoff(pt.cutoff)}</strong>
+                        {isSelected && <span className="active-dot-pill">Activo</span>}
+                      </td>
+                      <td className="numeric">
+                        <strong>{number.format(pt.remissions)} rem.</strong>
+                      </td>
+                      <td className="numeric">
+                        {isInitial ? (
+                          <span className="text-muted">Punto inicial</span>
+                        ) : (
+                          <span className={isDown ? 'text-green' : isUp ? 'text-orange' : 'text-muted'}>
+                            {isUp ? '+' : ''}{number.format(delta)} rem.
+                          </span>
+                        )}
+                      </td>
+                      <td className="numeric">
+                        {isInitial ? (
+                          <span className="text-muted">—</span>
+                        ) : (
+                          <span className={`delta-chip ${isDown ? 'green' : isUp ? 'orange' : 'gray'}`}>
+                            {isUp ? '+' : ''}{percent.format(pct)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+    </section>
   );
 }
 
@@ -1723,14 +1966,14 @@ function DetailRow({
           title={`Toca para filtrar por monto "${record.amountStatus}"`}
         >
           <strong className="cell-total">{currency.format(record.total)}</strong>
-          <span className={`amount-chip ${record.total >= 5_000_000 ? 'high' : 'standard'}`}>
+          <span className={`amount-chip ${record.total >= 5_000_000 ? 'high' : record.total >= 1_000_000 ? 'medium' : 'low'}`}>
             {record.amountStatus}
           </span>
         </button>
       </td>
       <td>
         {isWithdrawn ? (
-          <span className="status-pill normal">Retirada / Facturada</span>
+          <span className="status-pill normal">Facturada / Retirada</span>
         ) : (
           <button
             type="button"
@@ -1758,10 +2001,10 @@ function initials(name: string): string {
 }
 
 function statusClass(alert: Remision['alert']): string {
-  if (alert === 'Vencida · Alto valor') return 'overdue-high';
-  if (alert === 'Vencida') return 'overdue';
-  if (alert === 'Por vencer · Alto valor') return 'priority-high';
-  if (alert === 'Por vencer') return 'priority';
+  if (alert === 'Crítico · Alto valor' || (alert as string) === 'Vencida · Alto valor') return 'critical-high';
+  if (alert === 'Crítico' || (alert as string) === 'Vencida') return 'critical';
+  if (alert === 'Gestión comercial · Alto valor' || (alert as string) === 'Por vencer · Alto valor') return 'commercial-high';
+  if (alert === 'Gestión comercial' || (alert as string) === 'Por vencer') return 'commercial';
   if (alert === 'Al día · Alto valor') return 'normal-high';
   return 'normal';
 }

@@ -40,20 +40,20 @@ export interface Remision {
 
 export type AmountStatus =
   | 'Alto valor (> $5M)'
-  | 'Valor medio ($1M - $5M)'
-  | 'Menor valor (< $1M)';
+  | 'Cuantía media ($1M - $5M)'
+  | 'Menor cuantía (< $1M)';
 
 export type DaysStatus =
-  | 'Crítica (>60 días)'
-  | 'Vencida (31-60 días)'
-  | 'Por vencer (16-30 días)'
+  | 'Crítico (>60 días)'
+  | 'Crítico (31-60 días)'
+  | 'Gestión comercial (16-30 días)'
   | 'Al día (0-15 días)';
 
 export type AlertLevel =
-  | 'Vencida · Alto valor'
-  | 'Vencida'
-  | 'Por vencer · Alto valor'
-  | 'Por vencer'
+  | 'Crítico · Alto valor'
+  | 'Crítico'
+  | 'Gestión comercial · Alto valor'
+  | 'Gestión comercial'
   | 'Al día · Alto valor'
   | 'Al día';
 
@@ -88,6 +88,10 @@ export interface DailyPoint {
   grossReduction: number;
   overdueValue: number;
   overdueCount: number;
+  pendingDelta?: number;
+  pendingDeltaPct?: number;
+  remissionsDelta?: number;
+  remissionsDeltaPct?: number;
 }
 
 export interface Summary {

@@ -106,10 +106,32 @@ describe('parser del libro', () => {
     expect(parsed.records[0].age).toBe(1);
     expect(parsed.records[0].alert).toBe('Al día');
     expect(parsed.records[1].age).toBe(50);
-    expect(parsed.records[1].alert).toBe('Vencida');
+    expect(parsed.records[1].alert).toBe('Crítico');
     const summary = summarize(parsed.records);
     expect(summary.pending).toBe(3570);
     expect(summary.overdueCount).toBe(1);
+  });
+
+  it('clasifica estados de monto y tiempo con la nueva nomenclatura', async () => {
+    const { getAmountStatus, getDaysStatus, getAlert } = await import('./remisiones');
+    // Monto
+    expect(getAmountStatus(500_000)).toBe('Menor cuantía (< $1M)');
+    expect(getAmountStatus(2_500_000)).toBe('Cuantía media ($1M - $5M)');
+    expect(getAmountStatus(7_000_000)).toBe('Alto valor (> $5M)');
+
+    // Tiempo
+    expect(getDaysStatus(10)).toBe('Al día (0-15 días)');
+    expect(getDaysStatus(20)).toBe('Gestión comercial (16-30 días)');
+    expect(getDaysStatus(35)).toBe('Crítico (31-60 días)');
+    expect(getDaysStatus(70)).toBe('Crítico (>60 días)');
+
+    // Alertas combinadas
+    expect(getAlert(500_000, 5)).toBe('Al día');
+    expect(getAlert(6_000_000, 5)).toBe('Al día · Alto valor');
+    expect(getAlert(500_000, 20)).toBe('Gestión comercial');
+    expect(getAlert(6_000_000, 20)).toBe('Gestión comercial · Alto valor');
+    expect(getAlert(500_000, 45)).toBe('Crítico');
+    expect(getAlert(6_000_000, 45)).toBe('Crítico · Alto valor');
   });
 
   it('procesa una hoja Base-SIS con columna Fecha de corte y calcula retiros y nuevas entre dos cortes', async () => {
@@ -150,6 +172,10 @@ describe('parser del libro', () => {
     expect(daily[1].withdrawn).toBe(2380); // R2 was withdrawn!
     expect(daily[1].withdrawnCount).toBe(1);
     expect(daily[1].grossReduction).toBeCloseTo(2380 / (3570 + 3570));
+    expect(daily[1].pendingDelta).toBe(1190);
+    expect(daily[1].pendingDeltaPct).toBeCloseTo(1190 / 3570);
+    expect(daily[1].remissionsDelta).toBe(0);
+    expect(daily[1].remissionsDeltaPct).toBe(0);
   });
 });
 

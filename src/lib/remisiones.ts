@@ -146,24 +146,24 @@ export function getAgeRange(age: number): string {
 
 export function getAmountStatus(total: number): AmountStatus {
   if (total >= 5_000_000) return 'Alto valor (> $5M)';
-  if (total >= 1_000_000) return 'Valor medio ($1M - $5M)';
-  return 'Menor valor (< $1M)';
+  if (total >= 1_000_000) return 'Cuantía media ($1M - $5M)';
+  return 'Menor cuantía (< $1M)';
 }
 
 export function getDaysStatus(age: number): DaysStatus {
-  if (age > 60) return 'Crítica (>60 días)';
-  if (age > 30) return 'Vencida (31-60 días)';
-  if (age > 15) return 'Por vencer (16-30 días)';
+  if (age > 60) return 'Crítico (>60 días)';
+  if (age > 30) return 'Crítico (31-60 días)';
+  if (age > 15) return 'Gestión comercial (16-30 días)';
   return 'Al día (0-15 días)';
 }
 
 export function getAlert(total: number, age: number): AlertLevel {
   const isHighValue = total >= 5_000_000;
   if (age > 30) {
-    return isHighValue ? 'Vencida · Alto valor' : 'Vencida';
+    return isHighValue ? 'Crítico · Alto valor' : 'Crítico';
   }
   if (age > 15) {
-    return isHighValue ? 'Por vencer · Alto valor' : 'Por vencer';
+    return isHighValue ? 'Gestión comercial · Alto valor' : 'Gestión comercial';
   }
   return isHighValue ? 'Al día · Alto valor' : 'Al día';
 }
@@ -479,10 +479,10 @@ export function buildAgeBreakdown(records: Remision[]): AgeBreakdownItem[] {
     let badge: string | undefined;
     if (name === '31-60 días' || name === '>60 días') {
       tone = 'red';
-      badge = 'Vencida >30d';
+      badge = 'Crítico >30d';
     } else if (name === '16-30 días') {
       tone = 'orange';
-      badge = 'Por vencer';
+      badge = 'Gestión comercial';
     } else {
       tone = 'blue';
       badge = 'Al día';
@@ -530,11 +530,40 @@ export function buildDailySeries(records: Remision[], historicalDiario: DailyPoi
     return point;
   });
 
-  if (!historicalDiario.length) return calculatedPoints;
-  const map = new Map<string, DailyPoint>();
-  for (const p of historicalDiario) map.set(p.cutoff, p);
-  for (const p of calculatedPoints) map.set(p.cutoff, p);
-  return [...map.values()].sort((a, b) => a.cutoff.localeCompare(b.cutoff));
+  const basePoints: DailyPoint[] = [];
+  if (historicalDiario.length) {
+    const map = new Map<string, DailyPoint>();
+    for (const p of historicalDiario) map.set(p.cutoff, p);
+    for (const p of calculatedPoints) map.set(p.cutoff, p);
+    basePoints.push(...[...map.values()].sort((a, b) => a.cutoff.localeCompare(b.cutoff)));
+  } else {
+    basePoints.push(...calculatedPoints);
+  }
+
+  // Calculate day-over-day deltas for value ($ and %) and documents (# and %)
+  return basePoints.map((pt, idx) => {
+    if (idx === 0) {
+      return {
+        ...pt,
+        pendingDelta: 0,
+        pendingDeltaPct: 0,
+        remissionsDelta: 0,
+        remissionsDeltaPct: 0,
+      };
+    }
+    const prev = basePoints[idx - 1];
+    const pendingDelta = pt.pending - prev.pending;
+    const pendingDeltaPct = prev.pending > 0 ? pendingDelta / prev.pending : 0;
+    const remissionsDelta = pt.remissions - prev.remissions;
+    const remissionsDeltaPct = prev.remissions > 0 ? remissionsDelta / prev.remissions : 0;
+    return {
+      ...pt,
+      pendingDelta,
+      pendingDeltaPct,
+      remissionsDelta,
+      remissionsDeltaPct,
+    };
+  });
 }
 
 export function aggregateBy<T extends string>(
