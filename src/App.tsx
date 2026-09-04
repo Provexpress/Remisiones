@@ -966,7 +966,7 @@ function Dashboard({
                 </div>
               </div>
 
-              {/* TABLA 1: SEGUIMIENTO CRONOLÓGICO DÍA A DÍA DE TODA LA OPERACIÓN */}
+              {/* SEGUIMIENTO CRONOLÓGICO DÍA A DÍA */}
               <div className="management-daily-history-card">
                 <div className="management-table-header">
                   <div>
@@ -976,118 +976,100 @@ function Dashboard({
                     </div>
                     <h3>Tabla de Gestión: Seguimiento Cronológico Día a Día</h3>
                     <small>
-                      Seguimiento de toda la operación desde el 03/09/2026 al día de hoy: saldo general, documentos totales, ingresos de nuevas remisiones (+), salidas por facturación (-) y si el saldo subió o bajó en cada jornada.
+                      Desde el 03/09/2026 al día de hoy — cuántas remisiones entraron, cuántas salieron y si el saldo subió o bajó cada jornada.
                     </small>
                   </div>
-                  <small className="evolution-table-hint">
-                    Toca cualquier fila para enfocar ese día en el tablero
-                  </small>
+                  <div className="mgmt-legend-row">
+                    <span className="mgmt-legend-item favorable-legend">▼ Saldo bajó (Favorable)</span>
+                    <span className="mgmt-legend-item alert-legend">▲ Saldo subió</span>
+                    <span className="mgmt-legend-item new-legend">⬆ Entraron</span>
+                    <span className="mgmt-legend-item out-legend">⬇ Salieron</span>
+                  </div>
                 </div>
 
-                <div className="evolution-consolidated-table-wrap">
-                  <table className="evolution-consolidated-table">
-                    <thead>
-                      <tr>
-                        <th>Fecha de Corte</th>
-                        <th className="numeric">Saldo Total Abierto ($)</th>
-                        <th className="numeric"># Remisiones</th>
-                        <th className="numeric">Nuevas del Día (+)</th>
-                        <th className="numeric">Facturadas del Día (-)</th>
-                        <th className="numeric">¿Subió o bajó el saldo?</th>
-                        <th className="text-center">Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {daily.map((pt, idx) => {
-                        const isSelected = pt.cutoff === cutoff;
-                        const isInitial = idx === 0;
-                        const isLatest = idx === daily.length - 1 && daily.length > 1;
-
-                        const deltaVal = pt.pendingDelta ?? 0;
-                        const pctVal = pt.pendingDeltaPct ?? 0;
-                        const isValDown = deltaVal < 0;
-                        const isValUp = deltaVal > 0;
-
-                        return (
-                          <tr
-                            key={pt.cutoff}
-                            className={`evolution-consolidated-row ${isSelected ? 'selected' : ''}`}
-                            onClick={() => setCutoff(pt.cutoff)}
-                            role="button"
-                            tabIndex={0}
-                            title={`Toca para ver los datos del día ${formatCutoff(pt.cutoff)}`}
-                          >
-                            <td>
-                              <div className="evolution-date-cell">
-                                <strong>{formatCutoff(pt.cutoff)}</strong>
-                                {isInitial && <span className="evolution-chip initial">Base 03/09</span>}
-                                {isSelected && <span className="evolution-chip active">Activo</span>}
-                                {isLatest && !isSelected && <span className="evolution-chip latest">Hoy</span>}
+                <div className="mgmt-day-cards-list">
+                  {daily.map((pt, idx) => {
+                    const isSelected = pt.cutoff === cutoff;
+                    const isInitial = idx === 0;
+                    const isLatest = idx === daily.length - 1 && daily.length > 1;
+                    const deltaVal = pt.pendingDelta ?? 0;
+                    const pctVal = pt.pendingDeltaPct ?? 0;
+                    const isValDown = deltaVal < 0;
+                    const isValUp = deltaVal > 0;
+                    const tone = isInitial ? 'base' : isValDown ? 'favorable' : isValUp ? 'alert' : 'neutral';
+                    return (
+                      <div
+                        key={pt.cutoff}
+                        className={`mgmt-day-card tone-${tone} ${isSelected ? 'selected' : ''}`}
+                        onClick={() => setCutoff(pt.cutoff)}
+                        role="button"
+                        tabIndex={0}
+                        title={`Ver datos del ${formatCutoff(pt.cutoff)}`}
+                      >
+                        <div className="mgmt-day-card-date">
+                          <strong>{formatCutoff(pt.cutoff)}</strong>
+                          <div className="mgmt-day-chips">
+                            {isInitial && <span className="evolution-chip initial">Base</span>}
+                            {isSelected && <span className="evolution-chip active">Activo</span>}
+                            {isLatest && !isSelected && <span className="evolution-chip latest">Hoy</span>}
+                          </div>
+                        </div>
+                        <div className="mgmt-day-card-saldo">
+                          <small className="mgmt-day-card-sublabel">Saldo total</small>
+                          <strong className="mgmt-day-card-money">{currency.format(pt.pending)}</strong>
+                          <small className="text-muted">{number.format(pt.remissions)} rem.</small>
+                        </div>
+                        <div className="mgmt-day-card-flow new">
+                          <small className="mgmt-day-card-sublabel">⬆ Entraron</small>
+                          {isInitial ? (
+                            <span className="text-muted" style={{ fontSize: '11px' }}>Punto inicial</span>
+                          ) : pt.newCount > 0 ? (
+                            <>
+                              <strong className="mgmt-flow-new">+{number.format(pt.newCount)} rem.</strong>
+                              <small style={{ color: '#c2410c', fontSize: '10px', fontWeight: 650 }}>+{compactCurrency.format(pt.newValue)}</small>
+                            </>
+                          ) : (
+                            <span className="text-muted" style={{ fontSize: '11px' }}>Sin nuevas</span>
+                          )}
+                        </div>
+                        <div className="mgmt-day-card-flow out">
+                          <small className="mgmt-day-card-sublabel">⬇ Salieron</small>
+                          {isInitial ? (
+                            <span className="text-muted" style={{ fontSize: '11px' }}>—</span>
+                          ) : pt.withdrawnCount > 0 ? (
+                            <>
+                              <strong className="mgmt-flow-out">-{number.format(pt.withdrawnCount)} rem.</strong>
+                              <small style={{ color: '#15803d', fontSize: '10px', fontWeight: 650 }}>-{compactCurrency.format(pt.withdrawn)}</small>
+                            </>
+                          ) : (
+                            <span className="text-muted" style={{ fontSize: '11px' }}>Sin salidas</span>
+                          )}
+                        </div>
+                        <div className={`mgmt-day-card-balance tone-${tone}`}>
+                          {isInitial ? (
+                            <>
+                              <span className="mgmt-balance-icon neutral-icon">📋</span>
+                              <span className="mgmt-balance-label">Apertura base</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className={`mgmt-balance-icon ${isValDown ? 'down-icon' : isValUp ? 'up-icon' : 'neutral-icon'}`}>
+                                {isValDown ? '▼' : isValUp ? '▲' : '—'}
+                              </span>
+                              <div className="mgmt-balance-body">
+                                <strong className="mgmt-balance-amount">
+                                  {isValDown ? '-' : isValUp ? '+' : ''}{currency.format(Math.abs(deltaVal))}
+                                </strong>
+                                <small className="mgmt-balance-pct">
+                                  {isValDown ? 'Bajó ' : isValUp ? 'Subió ' : ''}{percent.format(Math.abs(pctVal))}
+                                </small>
                               </div>
-                            </td>
-                            <td className="numeric">
-                              <strong className="evolution-pending-val">{currency.format(pt.pending)}</strong>
-                            </td>
-                            <td className="numeric">
-                              <strong className="evolution-docs-val">{number.format(pt.remissions)} rem.</strong>
-                            </td>
-                            <td className="numeric">
-                              {isInitial ? (
-                                <span className="evolution-base-cell">Punto inicial base</span>
-                              ) : pt.newCount > 0 ? (
-                                <div className="evolution-delta-cell">
-                                  <span className="delta-chip orange">+{number.format(pt.newCount)} rem.</span>
-                                  <small className="text-orange">+{compactCurrency.format(pt.newValue)}</small>
-                                </div>
-                              ) : (
-                                <span className="text-muted">0 nuevas ($0)</span>
-                              )}
-                            </td>
-                            <td className="numeric">
-                              {isInitial ? (
-                                <span className="evolution-base-cell">—</span>
-                              ) : pt.withdrawnCount > 0 ? (
-                                <div className="evolution-delta-cell">
-                                  <span className="delta-chip green">-{number.format(pt.withdrawnCount)} rem.</span>
-                                  <small className="text-green">-{compactCurrency.format(pt.withdrawn)}</small>
-                                </div>
-                              ) : (
-                                <span className="text-muted">0 facturadas ($0)</span>
-                              )}
-                            </td>
-                            <td className="numeric">
-                              {isInitial ? (
-                                <span className="evolution-base-cell">Apertura base</span>
-                              ) : (
-                                <div className="evolution-delta-cell">
-                                  <span className={`delta-chip ${isValDown ? 'green' : isValUp ? 'orange' : 'gray'}`}>
-                                    {isValDown ? '▼ Disminuyó ' : isValUp ? '▲ Aumentó ' : ''}
-                                    {currency.format(Math.abs(deltaVal))}
-                                  </span>
-                                  <small className={`evolution-delta-pct ${isValDown ? 'text-green' : isValUp ? 'text-orange' : 'text-muted'}`}>
-                                    {isValDown ? '-' : isValUp ? '+' : ''}{percent.format(Math.abs(pctVal))}
-                                  </small>
-                                </div>
-                              )}
-                            </td>
-                            <td className="text-center">
-                              <button
-                                type="button"
-                                className={`evolution-action-btn ${isSelected ? 'active' : ''}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setCutoff(pt.cutoff);
-                                }}
-                                title={`Enfocar el día ${formatCutoff(pt.cutoff)} en el tablero`}
-                              >
-                                {isSelected ? 'Día activo' : 'Ver día →'}
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -2507,117 +2489,100 @@ function InitialCohortEvolutionSection({
           </small>
         </header>
 
-        <div className="evolution-consolidated-table-wrap">
-          <table className="evolution-consolidated-table">
-            <thead>
-              <tr>
-                <th>Fecha de Corte</th>
-                <th className="numeric">Base Inicial Entregada</th>
-                <th className="numeric">Saldo Restante Base ($)</th>
-                <th className="numeric">¿Cuánto dinero bajó de las iniciales?</th>
-                <th className="numeric">Documentos Restantes</th>
-                <th className="numeric">Documentos Salidos</th>
-                <th>% Desmonte / Recuperación</th>
-                <th className="text-center">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cohort.map((pt, idx) => {
-                const isSelected = pt.cutoff === currentCutoff;
-                const isInitial = idx === 0;
-                const isLatest = idx === cohort.length - 1 && cohort.length > 1;
+        <div className="cohort-timeline-list">
+          {cohort.map((pt, idx) => {
+            const isSelected = pt.cutoff === currentCutoff;
+            const isInitial = idx === 0;
+            const isLatest = idx === cohort.length - 1 && cohort.length > 1;
+            const progressPct = Math.min(100, Math.max(0, pt.recoveryPct * 100));
+            return (
+              <div
+                key={pt.cutoff}
+                className={`cohort-day-card ${isInitial ? 'is-base' : ''} ${isSelected ? 'selected' : ''}`}
+                onClick={() => onSelectCutoff(pt.cutoff)}
+                role="button"
+                tabIndex={0}
+                title={`Ver datos del ${formatCutoff(pt.cutoff)}`}
+              >
+                {/* Columna izquierda: fecha y chips */}
+                <div className="cohort-day-left">
+                  <strong className="cohort-day-date">{formatCutoff(pt.cutoff)}</strong>
+                  <div className="cohort-day-chips">
+                    {isInitial && <span className="evolution-chip initial">Base inicial</span>}
+                    {isSelected && <span className="evolution-chip active">Activo</span>}
+                    {isLatest && !isSelected && <span className="evolution-chip latest">Hoy</span>}
+                    {!isInitial && pt.withdrawnCount === 0 && <span className="evolution-chip" style={{ background: '#f2f2f7', color: '#636366' }}>Sin cambios</span>}
+                  </div>
+                </div>
 
-                return (
-                  <tr
-                    key={pt.cutoff}
-                    className={`evolution-consolidated-row ${isSelected ? 'selected' : ''}`}
-                    onClick={() => onSelectCutoff(pt.cutoff)}
-                    role="button"
-                    tabIndex={0}
-                    title={`Toca para ver los datos del día ${formatCutoff(pt.cutoff)}`}
-                  >
-                    <td>
-                      <div className="evolution-date-cell">
-                        <strong>{formatCutoff(pt.cutoff)}</strong>
-                        {isInitial && <span className="evolution-chip initial">Base {formatCutoff(pt.cutoff)}</span>}
-                        {isSelected && <span className="evolution-chip active">Activo</span>}
-                        {isLatest && !isSelected && <span className="evolution-chip latest">Hoy</span>}
+                {/* Columna central A: qué bajó (el dato estrella) */}
+                {isInitial ? (
+                  <div className="cohort-day-base-block">
+                    <div className="cohort-base-row">
+                      <div className="cohort-base-kpi">
+                        <small className="cohort-base-label">Base inicial en dinero</small>
+                        <strong className="cohort-base-value blue">{currency.format(pt.initialPending)}</strong>
                       </div>
-                    </td>
-                    <td className="numeric">
-                      <span className="text-muted">{currency.format(pt.initialPending)}</span>
-                      <small className="evolution-delta-pct text-muted">({number.format(pt.initialCount)} rem.)</small>
-                    </td>
-                    <td className="numeric">
-                      <strong className="evolution-pending-val">{currency.format(pt.stillOpenPending)}</strong>
-                    </td>
-                    <td className="numeric">
-                      {isInitial ? (
-                        <span className="evolution-base-cell">Punto inicial base ($ 0)</span>
-                      ) : pt.withdrawnPending > 0 ? (
-                        <div className="evolution-delta-cell">
-                          <span className="delta-chip green">
-                            ▼ -{currency.format(pt.withdrawnPending)}
-                          </span>
-                          <small className="evolution-delta-pct text-green">
-                            -{percent.format(pt.recoveryPct)} facturado
-                          </small>
-                        </div>
-                      ) : (
-                        <span className="text-muted">$ 0</span>
-                      )}
-                    </td>
-                    <td className="numeric">
-                      <strong className="evolution-docs-val">{number.format(pt.stillOpenCount)} rem.</strong>
-                    </td>
-                    <td className="numeric">
-                      {isInitial ? (
-                        <span className="evolution-base-cell">0 salidos</span>
-                      ) : pt.withdrawnCount > 0 ? (
-                        <div className="evolution-delta-cell">
-                          <span className="delta-chip green">
-                            ▼ -{number.format(pt.withdrawnCount)} rem.
-                          </span>
-                          <small className="evolution-delta-pct text-green">
-                            -{percent.format(pt.withdrawnCount / pt.initialCount)}
-                          </small>
-                        </div>
-                      ) : (
-                        <span className="text-muted">0 rem.</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="mgmt-seller-info" style={{ minWidth: '130px' }}>
-                        <div className="mgmt-seller-bar-track">
-                          <div
-                            className="mgmt-seller-bar-fill green"
-                            style={{ width: `${Math.min(100, Math.max(0, pt.recoveryPct * 100)).toFixed(1)}%` }}
-                          />
-                        </div>
-                        <div className="mgmt-seller-sub">
-                          <small className="text-muted">{percent.format(pt.stillOpenPct)} abierta</small>
-                          <strong className="mgmt-seller-amount green">{percent.format(pt.recoveryPct)}</strong>
-                        </div>
+                      <div className="cohort-base-sep" />
+                      <div className="cohort-base-kpi">
+                        <small className="cohort-base-label">Base inicial en documentos</small>
+                        <strong className="cohort-base-value blue">{number.format(pt.initialCount)} rem.</strong>
                       </div>
-                    </td>
-                    <td className="text-center">
-                      <button
-                        type="button"
-                        className={`evolution-action-btn ${isSelected ? 'active' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectCutoff(pt.cutoff);
-                        }}
-                        title={`Enfocar el día ${formatCutoff(pt.cutoff)} en el tablero`}
-                      >
-                        {isSelected ? 'Día activo' : 'Ver día →'}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </div>
+                    <small className="cohort-base-hint">📋 Punto de partida — desde aquí se mide el desmonte</small>
+                  </div>
+                ) : (
+                  <>
+                    <div className="cohort-day-delta-money">
+                      <small className="cohort-day-sublabel">▼ Bajó en dinero</small>
+                      <strong className={`cohort-day-delta-val ${pt.withdrawnPending > 0 ? 'green' : 'muted'}`}>
+                        {pt.withdrawnPending > 0 ? `-${currency.format(pt.withdrawnPending)}` : '$ 0'}
+                      </strong>
+                      <small className="cohort-day-delta-sub">
+                        {pt.withdrawnPending > 0
+                          ? `${percent.format(pt.recoveryPct)} de la base`
+                          : 'Sin desmonte aún'}
+                      </small>
+                    </div>
+
+                    <div className="cohort-day-delta-docs">
+                      <small className="cohort-day-sublabel">▼ Salieron docs</small>
+                      <strong className={`cohort-day-delta-val ${pt.withdrawnCount > 0 ? 'green' : 'muted'}`}>
+                        {pt.withdrawnCount > 0 ? `-${number.format(pt.withdrawnCount)} rem.` : '0 rem.'}
+                      </strong>
+                      <small className="cohort-day-delta-sub">
+                        {pt.withdrawnCount > 0
+                          ? `de las ${number.format(pt.initialCount)} iniciales`
+                          : 'Sin salidas aún'}
+                      </small>
+                    </div>
+
+                    {/* Barra de progreso del desmonte */}
+                    <div className="cohort-day-progress-block">
+                      <div className="cohort-day-progress-track">
+                        <div
+                          className="cohort-day-progress-fill"
+                          style={{ width: `${progressPct.toFixed(1)}%` }}
+                          title={`${progressPct.toFixed(1)}% del valor de la base ha bajado`}
+                        />
+                      </div>
+                      <div className="cohort-day-progress-labels">
+                        <small className="text-green">{percent.format(pt.recoveryPct)} bajado</small>
+                        <small className="text-muted">{percent.format(pt.stillOpenPct)} abierto</small>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Columna derecha: saldo restante */}
+                <div className="cohort-day-right">
+                  <small className="cohort-day-sublabel">Saldo restante base</small>
+                  <strong className="cohort-day-remaining">{compactCurrency.format(pt.stillOpenPending)}</strong>
+                  <small className="text-muted">{number.format(pt.stillOpenCount)} rem. abiertas</small>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {!isMultipleDays && (
@@ -2626,7 +2591,7 @@ function InitialCohortEvolutionSection({
             <div>
               <strong>Línea base entregada el {formatCutoff(initialPoint.cutoff)} registrada con éxito</strong>
               <p>
-                La base arrancó con <strong>{currency.format(initialPoint.initialPending)}</strong> y <strong>{number.format(initialPoint.initialCount)} remisiones abiertas</strong>. Al mantener actualizada la hoja <strong>Base-SIS</strong> diariamente agregando las fechas posteriores, esta tabla medirá exclusivamente cuántas de estas remisiones entregadas ya se facturaron, cuánto dinero ha bajado de esa entrega inicial y el avance del desmonte.
+                La base arrancó con <strong>{currency.format(initialPoint.initialPending)}</strong> y <strong>{number.format(initialPoint.initialCount)} remisiones abiertas</strong>. Al mantener actualizada la hoja <strong>Base-SIS</strong> diariamente, esta sección mostrará exclusivamente cuántas de estas remisiones ya se facturaron y cuánto dinero ha bajado de esa entrega inicial.
               </p>
             </div>
           </div>
