@@ -1474,28 +1474,13 @@ th.numeric, td.numeric { text-align: right; }
 .legend-badge .bar-indicator {
   width: 12px;
   height: 12px;
-  background: #0071e3;
   border-radius: 3px;
 }
-
-.legend-badge .line-indicator {
-  width: 14px;
-  height: 4px;
-  background: #7928ca;
-  border-radius: 2px;
-  position: relative;
+.legend-badge .bar-indicator.blue {
+  background: #0071e3;
 }
-.legend-badge .line-indicator::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: 1.5px solid #7928ca;
+.legend-badge .bar-indicator.purple {
+  background: #7928ca;
 }
 
 .evolution-footer-hint {

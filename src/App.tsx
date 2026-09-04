@@ -1938,15 +1938,15 @@ function InitialCohortEvolutionSection({
                   type="button"
                   className={chartMode === 'both' ? 'active' : ''}
                   onClick={() => setChartMode('both')}
-                  title="Ver gráfico conjunto con doble eje: Dinero ($) y Remisiones (#)"
+                  title="Ver ambas barras agrupadas: Dinero ($) y Remisiones (#)"
                 >
-                  Ambos ($ y #)
+                  Ambas Barras ($ y #)
                 </button>
                 <button
                   type="button"
                   className={chartMode === 'money' ? 'active' : ''}
                   onClick={() => setChartMode('money')}
-                  title="Ver solo reducción en Dinero ($)"
+                  title="Ver solo barra de Dinero ($)"
                 >
                   Solo Dinero ($)
                 </button>
@@ -1954,7 +1954,7 @@ function InitialCohortEvolutionSection({
                   type="button"
                   className={chartMode === 'docs' ? 'active' : ''}
                   onClick={() => setChartMode('docs')}
-                  title="Ver solo reducción en Remisiones (#)"
+                  title="Ver solo barra de Remisiones (#)"
                 >
                   Solo Docs (#)
                 </button>
@@ -1962,7 +1962,7 @@ function InitialCohortEvolutionSection({
             </div>
             <h2>Evolución del Desmonte: Dinero ($) y Remisiones (#)</h2>
             <p>
-              Comportamiento conjunto del saldo pendiente en dinero y la cantidad de remisiones restantes de la base entregada el {formatCutoff(initialPoint.cutoff)}.
+              Barras agrupadas de saldo pendiente en dinero y remisiones restantes de la base entregada el {formatCutoff(initialPoint.cutoff)}.
             </p>
           </div>
 
@@ -1999,10 +1999,11 @@ function InitialCohortEvolutionSection({
 
         <div className="evolution-chart-wrap">
           <ResponsiveContainer width="100%" height={290}>
-            <ComposedChart
+            <BarChart
               data={cohort}
-              margin={{ top: 26, right: 30, left: 10, bottom: 4 }}
-              barCategoryGap="25%"
+              margin={{ top: 28, right: 32, left: 10, bottom: 4 }}
+              barGap={6}
+              barCategoryGap="24%"
             >
               <CartesianGrid stroke="#ededf0" vertical={false} strokeDasharray="3 3" />
               <XAxis
@@ -2047,18 +2048,18 @@ function InitialCohortEvolutionSection({
                   dataKey="stillOpenPending"
                   name="Saldo en Dinero ($)"
                   radius={[6, 6, 0, 0]}
-                  maxBarSize={50}
+                  maxBarSize={44}
                   cursor="pointer"
                 >
                   <LabelList
                     dataKey="stillOpenPending"
                     position="top"
                     formatter={(val: any) => compactCurrency.format(Number(val))}
-                    style={{ fontSize: '11px', fontWeight: 700, fill: '#0071e3' }}
+                    style={{ fontSize: '10.5px', fontWeight: 700, fill: '#0071e3' }}
                   />
                   {cohort.map((entry) => (
                     <Cell
-                      key={entry.cutoff}
+                      key={`money-${entry.cutoff}`}
                       fill={entry.cutoff === currentCutoff ? '#0071e3' : '#8ac2ff'}
                       onClick={() => onSelectCutoff(entry.cutoff)}
                     />
@@ -2066,52 +2067,31 @@ function InitialCohortEvolutionSection({
                 </Bar>
               )}
 
-              {chartMode === 'docs' && (
+              {(chartMode === 'both' || chartMode === 'docs') && (
                 <Bar
                   yAxisId="docsAxis"
                   dataKey="stillOpenCount"
                   name="Remisiones Restantes (# Docs)"
                   radius={[6, 6, 0, 0]}
-                  maxBarSize={50}
+                  maxBarSize={44}
                   cursor="pointer"
                 >
                   <LabelList
                     dataKey="stillOpenCount"
                     position="top"
                     formatter={(val: any) => `${number.format(Number(val))} rem.`}
-                    style={{ fontSize: '11px', fontWeight: 750, fill: '#7928ca' }}
+                    style={{ fontSize: '10.5px', fontWeight: 750, fill: '#7928ca' }}
                   />
                   {cohort.map((entry) => (
                     <Cell
-                      key={entry.cutoff}
+                      key={`docs-${entry.cutoff}`}
                       fill={entry.cutoff === currentCutoff ? '#7928ca' : '#cbb2f5'}
                       onClick={() => onSelectCutoff(entry.cutoff)}
                     />
                   ))}
                 </Bar>
               )}
-
-              {chartMode === 'both' && (
-                <Line
-                  yAxisId="docsAxis"
-                  type="monotone"
-                  dataKey="stillOpenCount"
-                  name="Remisiones Restantes (# Docs)"
-                  stroke="#7928ca"
-                  strokeWidth={3}
-                  dot={{ r: 5, fill: '#7928ca', stroke: '#ffffff', strokeWidth: 2.5 }}
-                  activeDot={{ r: 7, fill: '#7928ca', stroke: '#ffffff', strokeWidth: 2.5 }}
-                >
-                  <LabelList
-                    dataKey="stillOpenCount"
-                    position="bottom"
-                    offset={12}
-                    formatter={(val: any) => `${number.format(Number(val))} rem.`}
-                    style={{ fontSize: '11px', fontWeight: 750, fill: '#5e2cb8' }}
-                  />
-                </Line>
-              )}
-            </ComposedChart>
+            </BarChart>
           </ResponsiveContainer>
         </div>
 
@@ -2119,19 +2099,19 @@ function InitialCohortEvolutionSection({
           <div className="evolution-footer-legend">
             {(chartMode === 'both' || chartMode === 'money') && (
               <span className="legend-badge blue">
-                <span className="legend-indicator bar-indicator" />
-                <b>Saldo en Dinero ($)</b>: Barras azules (Eje Izquierdo)
+                <span className="legend-indicator bar-indicator blue" />
+                <b>Saldo en Dinero ($)</b>: Barra azul (Eje Izquierdo)
               </span>
             )}
             {(chartMode === 'both' || chartMode === 'docs') && (
               <span className="legend-badge purple">
-                <span className="legend-indicator line-indicator" />
-                <b>Remisiones Restantes (#)</b>: {chartMode === 'both' ? 'Línea morada (Eje Derecho)' : 'Barras moradas'}
+                <span className="legend-indicator bar-indicator purple" />
+                <b>Remisiones Restantes (#)</b>: Barra morada (Eje Derecho)
               </span>
             )}
           </div>
           <div className="evolution-footer-hint">
-            <span>💡 Haz clic en cualquier barra o punto para enfocar ese corte en los 4 módulos inferiores</span>
+            <span>💡 Haz clic en cualquier barra para enfocar ese corte en los 4 módulos inferiores</span>
           </div>
         </div>
       </article>
