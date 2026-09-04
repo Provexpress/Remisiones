@@ -144,6 +144,94 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .hero-time-tag { color: var(--blue); font-weight: 600; }
 .hero-time-tag b { color: #1d1d1f; font-weight: 700; }
 
+/* Active Filters Bar ("al tacto") */
+.active-filters-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px 16px;
+  background: #fbfbfd;
+  border: 1px solid #dcdce2;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  flex-wrap: wrap;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.active-filters-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1d1d1f;
+  flex-shrink: 0;
+}
+.active-filters-title svg {
+  color: var(--blue);
+}
+.active-pills-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+.filter-pill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: #eaf4ff;
+  border: 1px solid #c7e1ff;
+  color: #005bb5;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.filter-pill-chip b {
+  font-weight: 700;
+  color: #004085;
+}
+.filter-pill-chip:hover {
+  background: #dbebff;
+  border-color: #a3ccff;
+  transform: translateY(-1px);
+}
+.filter-pill-chip svg {
+  color: #005bb5;
+  opacity: 0.7;
+}
+.filter-pill-chip:hover svg {
+  opacity: 1;
+}
+.clear-all-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: #f0f0f3;
+  border: 1px solid #dcdce0;
+  color: #555558;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-left: auto;
+}
+.clear-all-pill:hover {
+  background: #e4e4e8;
+  color: #1d1d1f;
+  border-color: #cacacf;
+}
+
 .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }
 .metric-card { min-width: 0; padding: 20px; border: 1px solid #e0e0e5; border-radius: 19px; background: var(--surface); box-shadow: var(--shadow); }
 .metric-card.clickable { cursor: pointer; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
@@ -185,6 +273,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   text-align: left;
 }
 .overdue-highlight-chip:hover { transform: translateY(-1px); background: #ffe4e2; }
+.overdue-highlight-chip.active {
+  background: #ffe0dd;
+  border-color: #ff3b30;
+  box-shadow: 0 0 0 2px rgba(255, 59, 48, 0.25);
+}
 .overdue-highlight-chip div { display: flex; flex-direction: column; line-height: 1.15; }
 .overdue-highlight-chip strong { font-size: 11px; font-weight: 750; }
 .overdue-highlight-chip small { font-size: 9.5px; opacity: .85; }
@@ -197,10 +290,18 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   gap: 12px;
   padding: 6px 10px;
   border-radius: 10px;
-  transition: background .15s ease;
+  transition: background .15s ease, opacity .15s ease, outline .15s ease;
   cursor: pointer;
 }
 .age-bar-row:hover { background: #f4f5f8; }
+.age-bar-row.active {
+  background: #eaf4ff;
+  outline: 1.5px solid #0071e3;
+  box-shadow: 0 2px 8px rgba(0, 113, 227, 0.12);
+}
+.age-bar-row.dimmed {
+  opacity: 0.38;
+}
 .age-bar-label { display: flex; flex-direction: column; gap: 2px; }
 .age-bar-label strong { font-size: 11.5px; color: #1d1d1f; font-weight: 650; }
 .age-pill {
@@ -275,8 +376,17 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .dot.blue { background: var(--blue); }.dot.green { background: var(--green); }.dot.orange { background: #ff9f0a; }
 .donut-layout { min-height: 290px; display: flex; align-items: center; gap: 4px; }
 .legend-list { width: 52%; display: flex; flex-direction: column; gap: 3px; }
-.legend-list button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; padding: 8px 7px; border: 0; border-radius: 9px; background: transparent; text-align: left; }
+.legend-list button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; padding: 8px 7px; border: 1px solid transparent; border-radius: 9px; background: transparent; text-align: left; cursor: pointer; transition: background .15s ease, border-color .15s ease; }
 .legend-list button:hover { background: #f3f3f5; }
+.legend-list button.active {
+  background: #eaf4ff;
+  border-color: #0071e3;
+  box-shadow: 0 1px 4px rgba(0, 113, 227, 0.12);
+}
+.legend-list button.active span {
+  color: #005bb5;
+  font-weight: 700;
+}
 .legend-list button span { min-width: 0; display: flex; flex-direction: column; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .legend-list small { margin-top: 2px; color: var(--muted); font-size: 9px; font-weight: 400; }
 .legend-list strong { font-size: 10px; }
@@ -342,6 +452,38 @@ th.numeric, td.numeric { text-align: right; }
 .status-pill.priority-high { color: #b25900; background: #ffeacc; font-weight: 750; }
 .status-pill.overdue { color: #a52320; background: #fff0ef; }
 .status-pill.overdue-high { color: #921513; background: #ffd9d7; font-weight: 800; border: 1px solid #ffb3b0; }
+
+/* Touch-friendly cell buttons for detail table */
+.cell-touch-btn {
+  background: transparent;
+  border: 0;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  border-radius: 6px;
+  transition: background .15s ease, opacity .15s ease, transform .1s ease;
+  max-width: 100%;
+}
+.cell-touch-btn:hover {
+  background: rgba(0, 113, 227, 0.08);
+}
+.cell-touch-btn:active {
+  transform: scale(0.97);
+}
+.cell-touch-btn.text-left {
+  text-align: left;
+  align-items: flex-start;
+}
+.cell-touch-btn.text-right {
+  text-align: right;
+  align-items: flex-end;
+  margin-left: auto;
+}
+
 .empty-state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 42px; color: var(--muted); font-size: 12px; }
 .pagination { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 0 20px; color: var(--muted); font-size: 10px; }
 .pagination > div { display: flex; align-items: center; gap: 10px; }

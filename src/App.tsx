@@ -12,17 +12,20 @@ import {
   Download,
   FileSpreadsheet,
   LayoutDashboard,
+  Filter,
   ListChecks,
   LoaderCircle,
   LogIn,
   LogOut,
   PackageCheck,
   RefreshCw,
+  RotateCcw,
   Search,
   ShieldCheck,
   TriangleAlert,
   Upload,
   UsersRound,
+  X,
 } from 'lucide-react';
 import {
   Area,
@@ -303,6 +306,35 @@ function Dashboard({
   const [page, setPage] = useState(1);
   const refreshRef = useRef(onRefresh);
 
+  const matchesAgeFilter = (age: number, ageRange: string, filter: string): boolean => {
+    if (filter === 'Todos') return true;
+    if (filter === '>30 días' || filter === 'Vencidas (>30 días)') return age > 30;
+    if (filter === 'Por vencer (16-30 días)' || filter === '16-30 días') return age > 15 && age <= 30;
+    if (filter === 'Al día (0-15 días)' || filter === '0-15 días') return age <= 15;
+    if (filter === 'Críticas (>60 días)' || filter === 'Crítica (>60 días)' || filter === '>60 días') return age > 60;
+    if (filter === 'Vencida (31-60 días)' || filter === '31-60 días') return age > 30 && age <= 60;
+    return ageRange === filter;
+  };
+
+  const resetAllFilters = () => {
+    setDirector('Todos');
+    setEmployee('Todos');
+    setStatusFilter('Todos');
+    setAgeFilter('Todos');
+    setAmountFilter('Todos');
+    setQuery('');
+  };
+
+  const activeFiltersCount =
+    (director !== 'Todos' ? 1 : 0) +
+    (employee !== 'Todos' ? 1 : 0) +
+    (statusFilter !== 'Todos' ? 1 : 0) +
+    (ageFilter !== 'Todos' ? 1 : 0) +
+    (amountFilter !== 'Todos' ? 1 : 0) +
+    (query ? 1 : 0);
+
+  const hasActiveFilters = activeFiltersCount > 0;
+
   const directors = useMemo(
     () => [...new Set(data.records.map((record) => record.director))].sort((a, b) => a.localeCompare(b, 'es')),
     [data.records],
@@ -311,44 +343,78 @@ function Dashboard({
     const scoped = director === 'Todos' ? data.records : data.records.filter((record) => record.director === director);
     return [...new Set(scoped.map((record) => record.employee))].sort((a, b) => a.localeCompare(b, 'es'));
   }, [data.records, director]);
-  const scopedRecords = useMemo(
-    () => data.records.filter((record) =>
-      (director === 'Todos' || record.director === director) &&
-      (employee === 'Todos' || record.employee === employee)),
-    [data.records, director, employee],
+
+  const baseCutoffRecords = useMemo(
+    () => data.records.filter((record) => record.cutoff === cutoff),
+    [data.records, cutoff],
   );
-  const currentRecords = useMemo(
-    () => scopedRecords.filter((record) => record.cutoff === cutoff),
-    [scopedRecords, cutoff],
-  );
+
+  const currentRecords = useMemo(() => {
+    return baseCutoffRecords.filter((record) => {
+      if (director !== 'Todos' && record.director !== director) return false;
+      if (employee !== 'Todos' && record.employee !== employee) return false;
+      if (statusFilter !== 'Todos' && record.alert !== statusFilter) return false;
+      if (amountFilter !== 'Todos' && record.amountStatus !== amountFilter) return false;
+      if (!matchesAgeFilter(record.age, record.ageRange, ageFilter)) return false;
+      return true;
+    });
+  }, [baseCutoffRecords, director, employee, statusFilter, amountFilter, ageFilter]);
+
   const currentSummary = useMemo(() => summarize(currentRecords), [currentRecords]);
   const previousCutoff = data.cutoffs.filter((date) => date < cutoff).at(-1) || '';
   const previousSummary = useMemo(
-    () => summarize(scopedRecords.filter((record) => record.cutoff === previousCutoff)),
-    [scopedRecords, previousCutoff],
+    () => summarize(data.records.filter((record) =>
+      record.cutoff === previousCutoff &&
+      (director === 'Todos' || record.director === director) &&
+      (employee === 'Todos' || record.employee === employee) &&
+      (statusFilter === 'Todos' || record.alert === statusFilter) &&
+      (amountFilter === 'Todos' || record.amountStatus === amountFilter) &&
+      matchesAgeFilter(record.age, record.ageRange, ageFilter)
+    )),
+    [data.records, previousCutoff, director, employee, statusFilter, amountFilter, ageFilter],
   );
+
   const periodRecords = useMemo(
-    () => scopedRecords.filter((record) => record.cutoff >= from && record.cutoff <= to),
-    [scopedRecords, from, to],
+    () => data.records.filter((record) =>
+      record.cutoff >= from && record.cutoff <= to &&
+      (director === 'Todos' || record.director === director) &&
+      (employee === 'Todos' || record.employee === employee)),
+    [data.records, from, to, director, employee],
   );
   const daily = useMemo(() => buildDailySeries(periodRecords), [periodRecords]);
-  const ageBreakdown = useMemo(() => buildAgeBreakdown(currentRecords), [currentRecords]);
-  const directorData = useMemo(() => aggregateBy(currentRecords, (record) => record.director), [currentRecords]);
-  const sellerData = useMemo(() => aggregateBy(currentRecords, (record) => record.employee).slice(0, 12), [currentRecords]);
+
+  const ageBreakdownRecords = useMemo(
+    () => baseCutoffRecords.filter((r) =>
+      (director === 'Todos' || r.director === director) &&
+      (employee === 'Todos' || r.employee === employee) &&
+      (statusFilter === 'Todos' || r.alert === statusFilter) &&
+      (amountFilter === 'Todos' || r.amountStatus === amountFilter)),
+    [baseCutoffRecords, director, employee, statusFilter, amountFilter],
+  );
+  const ageBreakdown = useMemo(() => buildAgeBreakdown(ageBreakdownRecords), [ageBreakdownRecords]);
+
+  const directorFilterRecords = useMemo(
+    () => baseCutoffRecords.filter((r) =>
+      (statusFilter === 'Todos' || r.alert === statusFilter) &&
+      (amountFilter === 'Todos' || r.amountStatus === amountFilter) &&
+      matchesAgeFilter(r.age, r.ageRange, ageFilter)),
+    [baseCutoffRecords, statusFilter, amountFilter, ageFilter],
+  );
+  const directorData = useMemo(() => aggregateBy(directorFilterRecords, (record) => record.director), [directorFilterRecords]);
+
+  const sellerFilterRecords = useMemo(
+    () => baseCutoffRecords.filter((r) =>
+      (director === 'Todos' || r.director === director) &&
+      (statusFilter === 'Todos' || r.alert === statusFilter) &&
+      (amountFilter === 'Todos' || r.amountStatus === amountFilter) &&
+      matchesAgeFilter(r.age, r.ageRange, ageFilter)),
+    [baseCutoffRecords, director, statusFilter, amountFilter, ageFilter],
+  );
+  const sellerData = useMemo(() => aggregateBy(sellerFilterRecords, (record) => record.employee).slice(0, 12), [sellerFilterRecords]);
 
   const detailRecords = useMemo(() => {
     const normalizedQuery = normalizeText(query);
     return currentRecords
-      .filter((record) => statusFilter === 'Todos' || record.alert === statusFilter)
-      .filter((record) => amountFilter === 'Todos' || record.amountStatus === amountFilter)
-      .filter((record) => {
-        if (ageFilter === 'Todos') return true;
-        if (ageFilter === '>30 días' || ageFilter === 'Vencidas (>30 días)') return record.age > 30;
-        if (ageFilter === 'Por vencer (16-30 días)') return record.age > 15 && record.age <= 30;
-        if (ageFilter === 'Al día (0-15 días)') return record.age <= 15;
-        if (ageFilter === 'Críticas (>60 días)') return record.age > 60;
-        return record.ageRange === ageFilter;
-      })
       .filter((record) => !normalizedQuery || normalizeText([
         record.company,
         record.nit,
@@ -364,7 +430,7 @@ function Dashboard({
         if (sortBy === 'age-asc') return a.age - b.age || b.total - a.total;
         return b.age - a.age;
       });
-  }, [currentRecords, statusFilter, amountFilter, ageFilter, sortBy, query]);
+  }, [currentRecords, sortBy, query]);
 
   const pageSize = 20;
   const pageCount = Math.max(1, Math.ceil(detailRecords.length / pageSize));
@@ -528,17 +594,108 @@ function Dashboard({
           <label className="date-filter"><span>Hasta</span><input type="date" value={to} min={from} max={data.cutoffs.at(-1)} onChange={(event) => setTo(event.target.value)} /></label>
         </section>
 
+        {hasActiveFilters && (
+          <section className="active-filters-bar" aria-label="Filtros aplicados">
+            <div className="active-filters-title">
+              <Filter size={14} />
+              <span>Filtros activos ({activeFiltersCount}):</span>
+            </div>
+            <div className="active-pills-wrap">
+              {director !== 'Todos' && (
+                <button
+                  type="button"
+                  className="filter-pill-chip"
+                  onClick={() => setDirector('Todos')}
+                  title="Toca para quitar filtro de director"
+                >
+                  <span>Director: <b>{director}</b></span>
+                  <X size={13} />
+                </button>
+              )}
+              {employee !== 'Todos' && (
+                <button
+                  type="button"
+                  className="filter-pill-chip"
+                  onClick={() => setEmployee('Todos')}
+                  title="Toca para quitar filtro de comercial"
+                >
+                  <span>Comercial: <b>{employee}</b></span>
+                  <X size={13} />
+                </button>
+              )}
+              {ageFilter !== 'Todos' && (
+                <button
+                  type="button"
+                  className="filter-pill-chip"
+                  onClick={() => setAgeFilter('Todos')}
+                  title="Toca para quitar filtro de días"
+                >
+                  <span>Días: <b>{ageFilter}</b></span>
+                  <X size={13} />
+                </button>
+              )}
+              {amountFilter !== 'Todos' && (
+                <button
+                  type="button"
+                  className="filter-pill-chip"
+                  onClick={() => setAmountFilter('Todos')}
+                  title="Toca para quitar filtro de monto"
+                >
+                  <span>Monto: <b>{amountFilter}</b></span>
+                  <X size={13} />
+                </button>
+              )}
+              {statusFilter !== 'Todos' && (
+                <button
+                  type="button"
+                  className="filter-pill-chip"
+                  onClick={() => setStatusFilter('Todos')}
+                  title="Toca para quitar filtro de estado"
+                >
+                  <span>Estado: <b>{statusFilter}</b></span>
+                  <X size={13} />
+                </button>
+              )}
+              {query && (
+                <button
+                  type="button"
+                  className="filter-pill-chip"
+                  onClick={() => setQuery('')}
+                  title="Toca para limpiar búsqueda"
+                >
+                  <span>Búsqueda: <b>"{query}"</b></span>
+                  <X size={13} />
+                </button>
+              )}
+              <button
+                type="button"
+                className="clear-all-pill"
+                onClick={resetAllFilters}
+                title="Restablecer todos los filtros"
+              >
+                <RotateCcw size={13} /> Limpiar todo
+              </button>
+            </div>
+          </section>
+        )}
+
         {view === 'overview' ? (
           <>
             <section className="metric-grid">
               <MetricCard
                 title="Pendiente total"
                 value={currency.format(currentSummary.pending)}
-                sub={`${number.format(currentSummary.remissions)} remisiones abiertas`}
+                sub={
+                  hasActiveFilters
+                    ? `${number.format(currentSummary.remissions)} remisiones · Toca para ver todo`
+                    : `${number.format(currentSummary.remissions)} remisiones abiertas`
+                }
                 icon={<CircleDollarSign />}
                 tone="blue"
                 current={currentSummary.pending}
                 previous={previousSummary.pending}
+                onClick={hasActiveFilters ? resetAllFilters : undefined}
+                clickable={hasActiveFilters}
               />
               <MetricCard
                 title="Clientes con saldo"
@@ -552,11 +709,17 @@ function Dashboard({
               <MetricCard
                 title="Antigüedad promedio"
                 value={`${currentSummary.averageAge.toFixed(1)} días`}
-                sub={`Máximo: ${currentSummary.maxAge || 0} días`}
+                sub={
+                  ageFilter === '>30 días'
+                    ? 'Filtro >30d activo · Toca para ver todos'
+                    : `Máximo: ${currentSummary.maxAge || 0} días · Toca para filtrar >30d`
+                }
                 icon={<CalendarRange />}
                 tone="orange"
                 current={currentSummary.averageAge}
                 previous={previousSummary.averageAge}
+                onClick={() => setAgeFilter((current) => current === '>30 días' ? 'Todos' : '>30 días')}
+                clickable
               />
             </section>
 
@@ -566,12 +729,21 @@ function Dashboard({
                 title="Evolución del pendiente"
                 subtitle={
                   daily.length > 1
-                    ? `${formatCutoff(from)} — ${formatCutoff(to)}`
+                    ? `${formatCutoff(from)} — ${formatCutoff(to)} · Toca cualquier punto para cambiar la fecha`
                     : 'Corte diario consolidado · Se construirá la curva histórica con cada corte'
                 }
               >
                 <ResponsiveContainer width="100%" height={320}>
-                  <AreaChart data={daily} margin={{ top: 18, right: 8, left: 0, bottom: 0 }}>
+                  <AreaChart
+                    data={daily}
+                    margin={{ top: 18, right: 8, left: 0, bottom: 0 }}
+                    onClick={(state: any) => {
+                      const payloadCutoff = state?.activePayload?.[0]?.payload?.cutoff;
+                      if (payloadCutoff && payloadCutoff !== cutoff) {
+                        setCutoff(String(payloadCutoff));
+                      }
+                    }}
+                  >
                     <defs>
                       <linearGradient id="pendingFill" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#0071e3" stopOpacity={0.28} />
@@ -600,43 +772,117 @@ function Dashboard({
               <AgeCompositionCard
                 ageData={ageBreakdown}
                 totalPending={currentSummary.pending}
+                activeRange={ageFilter}
                 onSelectRange={(range) => {
-                  setAgeFilter(range);
-                  setView('detail');
+                  setAgeFilter((current) => current === range ? 'Todos' : range);
                 }}
               />
             </section>
 
             <section className="chart-grid">
-              <ChartCard title="Pendiente por dirección" subtitle="Distribución del corte seleccionado">
+              <ChartCard
+                title="Pendiente por dirección"
+                subtitle={director !== 'Todos' ? `Filtrado por: ${director} · Toca para quitar` : "Toca una dirección para filtrar todo el tablero"}
+              >
                 <div className="donut-layout">
                   <ResponsiveContainer width="48%" height={260}>
                     <PieChart>
-                      <Pie data={directorData} dataKey="value" nameKey="name" innerRadius={64} outerRadius={94} paddingAngle={2} stroke="none">
-                        {directorData.map((entry, index) => <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
+                      <Pie
+                        data={directorData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={64}
+                        outerRadius={94}
+                        paddingAngle={2}
+                        stroke="none"
+                        cursor="pointer"
+                        onClick={(entry: any) => {
+                          if (entry && entry.name) {
+                            const dirName = String(entry.name);
+                            setDirector((current) => current === dirName ? 'Todos' : dirName);
+                          }
+                        }}
+                      >
+                        {directorData.map((entry, index) => {
+                          const isSelected = director === entry.name;
+                          const isDimmed = director !== 'Todos' && !isSelected;
+                          return (
+                            <Cell
+                              key={entry.name}
+                              fill={PIE_COLORS[index % PIE_COLORS.length]}
+                              opacity={isDimmed ? 0.35 : 1}
+                              stroke={isSelected ? '#1d1d1f' : 'none'}
+                              strokeWidth={isSelected ? 2 : 0}
+                            />
+                          );
+                        })}
                       </Pie>
                       <Tooltip formatter={(value) => currency.format(Number(value))} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="legend-list">
-                    {directorData.map((entry, index) => (
-                      <button key={entry.name} onClick={() => setDirector(entry.name)}>
-                        <i style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
-                        <span>{entry.name}<small>{entry.count} remisiones</small></span>
-                        <strong>{compactCurrency.format(entry.value)}</strong>
-                      </button>
-                    ))}
+                    {directorData.map((entry, index) => {
+                      const isSelected = director === entry.name;
+                      return (
+                        <button
+                          key={entry.name}
+                          type="button"
+                          className={`legend-btn ${isSelected ? 'active' : ''}`}
+                          onClick={() => setDirector((current) => current === entry.name ? 'Todos' : entry.name)}
+                          title={isSelected ? `Toca para quitar filtro de ${entry.name}` : `Toca para filtrar por ${entry.name}`}
+                        >
+                          <i style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
+                          <span>{entry.name}<small>{entry.count} remisiones</small></span>
+                          <strong>{compactCurrency.format(entry.value)}</strong>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </ChartCard>
-              <ChartCard title="Ejecutivos con mayor pendiente" subtitle="Top 12 por valor total">
+              <ChartCard
+                title="Ejecutivos con mayor pendiente"
+                subtitle={employee !== 'Todos' ? `Filtrado por: ${employee} · Toca para quitar` : "Toca una barra para filtrar por comercial"}
+              >
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={sellerData} margin={{ top: 8, right: 8, left: 0, bottom: 45 }}>
+                  <BarChart
+                    data={sellerData}
+                    margin={{ top: 8, right: 8, left: 0, bottom: 45 }}
+                    onClick={(state: any) => {
+                      const executiveName = state?.activePayload?.[0]?.payload?.name;
+                      if (executiveName) {
+                        const nameStr = String(executiveName);
+                        setEmployee((current) => current === nameStr ? 'Todos' : nameStr);
+                      }
+                    }}
+                  >
                     <CartesianGrid stroke="#e8e8ed" vertical={false} />
-                    <XAxis dataKey="name" interval={0} angle={-32} textAnchor="end" height={80} tickFormatter={(value) => String(value).split(' ').slice(0, 2).join(' ')} tickLine={false} axisLine={false} />
+                    <XAxis
+                      dataKey="name"
+                      interval={0}
+                      angle={-32}
+                      textAnchor="end"
+                      height={80}
+                      tickFormatter={(value) => String(value).split(' ').slice(0, 2).join(' ')}
+                      tickLine={false}
+                      axisLine={false}
+                      cursor="pointer"
+                    />
                     <YAxis tickFormatter={(value) => compactCurrency.format(value)} tickLine={false} axisLine={false} width={72} />
                     <Tooltip content={<CurrencyTooltip />} />
-                    <Bar dataKey="value" name="Pendiente" fill="#af52de" radius={[7, 7, 0, 0]} maxBarSize={34} />
+                    <Bar dataKey="value" name="Pendiente" radius={[7, 7, 0, 0]} maxBarSize={34} cursor="pointer">
+                      {sellerData.map((entry) => {
+                        const isSelected = employee === entry.name;
+                        const isDimmed = employee !== 'Todos' && !isSelected;
+                        return (
+                          <Cell
+                            key={entry.name}
+                            fill={isSelected ? '#7928ca' : '#af52de'}
+                            opacity={isDimmed ? 0.35 : 1}
+                          />
+                        );
+                      })}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -749,7 +995,18 @@ function Dashboard({
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleRows.map((record) => <DetailRow key={record.id} record={record} />)}
+                  {visibleRows.map((record) => (
+                    <DetailRow
+                      key={record.id}
+                      record={record}
+                      onSelectDirector={(dir) => setDirector((current) => current === dir ? 'Todos' : dir)}
+                      onSelectEmployee={(emp) => setEmployee((current) => current === emp ? 'Todos' : emp)}
+                      onSelectAge={(age) => setAgeFilter((current) => current === age ? 'Todos' : age)}
+                      onSelectAmount={(amt) => setAmountFilter((current) => current === amt ? 'Todos' : amt)}
+                      onSelectStatus={(st) => setStatusFilter((current) => current === st ? 'Todos' : st)}
+                      onSelectCompany={(company) => setQuery((current) => current === company ? '' : company)}
+                    />
+                  ))}
                   {!visibleRows.length && (
                     <tr>
                       <td colSpan={9}>
@@ -870,10 +1127,12 @@ function MetricCard({
 function AgeCompositionCard({
   ageData,
   totalPending,
+  activeRange = 'Todos',
   onSelectRange,
 }: {
   ageData: AgeBreakdownItem[];
   totalPending: number;
+  activeRange?: string;
   onSelectRange: (range: string) => void;
 }) {
   const overdueItems = ageData.filter((item) => item.name === '31-60 días' || item.name === '>60 días');
@@ -881,19 +1140,24 @@ function AgeCompositionCard({
   const overdueCount = overdueItems.reduce((sum, item) => sum + item.count, 0);
   const overduePercent = totalPending > 0 ? (overdueTotal / totalPending) * 100 : 0;
   const maxVal = Math.max(...ageData.map((d) => d.value), 1);
+  const isOverdueActive = activeRange === '>30 días' || activeRange === 'Vencidas (>30 días)';
 
   return (
     <article className="chart-card age-composition-card">
       <header className="age-card-header">
         <div>
           <h2>Composición por antigüedad</h2>
-          <p>Valor pendiente y conteo de remisiones por rango de días</p>
+          <p>
+            {activeRange !== 'Todos'
+              ? `Filtrado por: ${activeRange} · Toca para quitar`
+              : 'Toca un rango para filtrar todo el tablero'}
+          </p>
         </div>
         <button
           type="button"
-          className="overdue-highlight-chip"
+          className={`overdue-highlight-chip ${isOverdueActive ? 'active' : ''}`}
           onClick={() => onSelectRange('>30 días')}
-          title="Ver remisiones vencidas >30 días en el detalle"
+          title={isOverdueActive ? 'Toca para quitar filtro de vencidas' : 'Toca para filtrar remisiones vencidas (>30 días)'}
         >
           <TriangleAlert size={16} />
           <div>
@@ -905,15 +1169,17 @@ function AgeCompositionCard({
 
       <div className="age-bars-container">
         {ageData.map((item) => {
+          const isSelected = activeRange === item.name || (activeRange === '>30 días' && (item.name === '31-60 días' || item.name === '>60 días'));
+          const isDimmed = activeRange !== 'Todos' && !isSelected;
           const barWidthPercent = Math.max(5, (item.value / maxVal) * 100);
           return (
             <div
               key={item.name}
-              className={`age-bar-row tone-${item.tone}`}
+              className={`age-bar-row tone-${item.tone} ${isSelected ? 'active' : ''} ${isDimmed ? 'dimmed' : ''}`}
               onClick={() => onSelectRange(item.name)}
               role="button"
               tabIndex={0}
-              title={`Clic para filtrar remisiones de ${item.name}`}
+              title={isSelected ? `Toca para quitar filtro de ${item.name}` : `Toca para filtrar remisiones de ${item.name}`}
             >
               <div className="age-bar-label">
                 <strong>{item.name}</strong>
@@ -950,20 +1216,57 @@ function DailyStat({ label, value, tone = '' }: { label: string; value: string; 
   return <div className={`daily-stat ${tone}`}><span>{label}</span><strong>{value}</strong></div>;
 }
 
-function DetailRow({ record }: { record: Remision }) {
+function DetailRow({
+  record,
+  onSelectDirector,
+  onSelectEmployee,
+  onSelectAge,
+  onSelectAmount,
+  onSelectStatus,
+  onSelectCompany,
+}: {
+  record: Remision;
+  onSelectDirector?: (director: string) => void;
+  onSelectEmployee?: (employee: string) => void;
+  onSelectAge?: (age: string) => void;
+  onSelectAmount?: (amount: string) => void;
+  onSelectStatus?: (status: string) => void;
+  onSelectCompany?: (company: string) => void;
+}) {
   const isOverdue = record.age > 30;
   const isPriority = record.age > 15 && record.age <= 30;
   return (
     <tr>
       <td>
-        <strong className="cell-company">{record.company || 'Sin empresa'}</strong>
-        <small className="cell-nit">NIT {record.nit || '—'}</small>
+        <button
+          type="button"
+          className="cell-touch-btn text-left"
+          onClick={() => onSelectCompany?.(record.company)}
+          title={`Toca para buscar cliente "${record.company}"`}
+        >
+          <strong className="cell-company">{record.company || 'Sin empresa'}</strong>
+          <small className="cell-nit">NIT {record.nit || '—'}</small>
+        </button>
       </td>
       <td>
-        <span className="cell-director">{record.director || 'Sin asignar'}</span>
+        <button
+          type="button"
+          className="cell-touch-btn text-left"
+          onClick={() => onSelectDirector?.(record.director)}
+          title={`Toca para filtrar por director "${record.director}"`}
+        >
+          <span className="cell-director">{record.director || 'Sin asignar'}</span>
+        </button>
       </td>
       <td>
-        <span className="cell-employee">{record.employee}</span>
+        <button
+          type="button"
+          className="cell-touch-btn text-left"
+          onClick={() => onSelectEmployee?.(record.employee)}
+          title={`Toca para filtrar por comercial "${record.employee}"`}
+        >
+          <span className="cell-employee">{record.employee}</span>
+        </button>
       </td>
       <td>
         <strong className="cell-doc">{record.document || '—'}</strong>
@@ -973,23 +1276,45 @@ function DetailRow({ record }: { record: Remision }) {
       </td>
       <td>{formatCutoff(record.issuedAt)}</td>
       <td className="numeric">
-        <span className={`days-chip ${isOverdue ? 'danger' : isPriority ? 'warning' : 'ok'}`}>
-          {record.age} d
-        </span>
-        <small className="days-range-sub">{record.daysStatus}</small>
+        <button
+          type="button"
+          className="cell-touch-btn text-right"
+          onClick={() => onSelectAge?.(record.daysStatus)}
+          title={`Toca para filtrar por rango "${record.daysStatus}"`}
+        >
+          <span className={`days-chip ${isOverdue ? 'danger' : isPriority ? 'warning' : 'ok'}`}>
+            {record.age} d
+          </span>
+          <small className="days-range-sub">{record.daysStatus}</small>
+        </button>
       </td>
       <td className="numeric">
-        <strong className="cell-total">{currency.format(record.total)}</strong>
-        <span className={`amount-chip ${record.total >= 5_000_000 ? 'high' : 'standard'}`}>
-          {record.amountStatus}
-        </span>
+        <button
+          type="button"
+          className="cell-touch-btn text-right"
+          onClick={() => onSelectAmount?.(record.amountStatus)}
+          title={`Toca para filtrar por monto "${record.amountStatus}"`}
+        >
+          <strong className="cell-total">{currency.format(record.total)}</strong>
+          <span className={`amount-chip ${record.total >= 5_000_000 ? 'high' : 'standard'}`}>
+            {record.amountStatus}
+          </span>
+        </button>
       </td>
       <td>
-        <span className={`status-pill ${statusClass(record.alert)}`}>{record.alert}</span>
+        <button
+          type="button"
+          className="cell-touch-btn"
+          onClick={() => onSelectStatus?.(record.alert)}
+          title={`Toca para filtrar por estado "${record.alert}"`}
+        >
+          <span className={`status-pill ${statusClass(record.alert)}`}>{record.alert}</span>
+        </button>
       </td>
     </tr>
   );
 }
+
 
 function CurrencyTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value?: number; name?: string; color?: string }>; label?: string }) {
   if (!active || !payload?.length) return null;
