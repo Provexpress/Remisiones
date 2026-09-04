@@ -528,6 +528,13 @@ function Dashboard({
     });
   }, [baseCutoffRecords, previousCutoff, previousKeysSet, director, statusFilter, amountFilter, ageFilter]);
 
+  const withdrawnFromInitialCohort = useMemo(() => {
+    return managementWithdrawn.filter((r) => initialCohortKeys.has(r.stableKey));
+  }, [managementWithdrawn, initialCohortKeys]);
+  const withdrawnFromInitialCohortTotal = useMemo(() => {
+    return withdrawnFromInitialCohort.reduce((sum, r) => sum + r.total, 0);
+  }, [withdrawnFromInitialCohort]);
+
   const closedBySeller = useMemo(() => {
     const map = new Map<string, { name: string; director: string; total: number; count: number }>();
     for (const r of managementWithdrawn) {
@@ -734,16 +741,16 @@ function Dashboard({
             <button
               className={view === 'evolucion' ? 'active' : ''}
               onClick={() => handleSelectView('evolucion')}
-              title="Evolución de la base inicial entregada el 03/09/2026"
+              title="Evolución de la base inicial entregada el 03/09/2026 (Base fija, no entra nueva data)"
             >
-              <TrendingUp size={16} /> Evolución
+              <TrendingUp size={16} /> Evolución (Base 03/09)
             </button>
             <button
               className={view === 'gestion' ? 'active' : ''}
               onClick={() => handleSelectView('gestion')}
-              title="Gestión operativa día a día desde 04/09/2026"
+              title="Gestión operativa día a día desde 04/09/2026 (Ingresos y Salidas)"
             >
-              <CalendarRange size={16} /> Gestión
+              <CalendarRange size={16} /> Gestión (Desde 04/09)
             </button>
             <button
               className={view === 'detail' ? 'active' : ''}
@@ -1153,7 +1160,18 @@ function Dashboard({
                       </strong>
                       <div className="mgmt-kpi-foot">
                         <ArrowDownRight size={15} />
-                        <span>{previousCutoff ? <span><strong>{number.format(managementWithdrawn.length)}</strong> facturadas y cerradas</span> : 'Disponible con 2+ días'}</span>
+                        <span>
+                          {previousCutoff ? (
+                            <span>
+                              <strong>{number.format(managementWithdrawn.length)}</strong> facturadas y cerradas
+                              {withdrawnFromInitialCohort.length > 0 && (
+                                <span style={{ display: 'block', fontSize: '11px', color: '#15803d', marginTop: '2px' }}>
+                                  ({number.format(withdrawnFromInitialCohort.length)} eran de la base inicial 03/09 · bajan esa entrega)
+                                </span>
+                              )}
+                            </span>
+                          ) : 'Disponible con 2+ días'}
+                        </span>
                       </div>
                     </div>
                     <div className={`mgmt-kpi-item ${netDifference <= 0 ? 'success' : 'warning'}`}>
@@ -1859,12 +1877,71 @@ function InitialCohortEvolutionSection({
           <div>
             <div className="evolution-tag purple">
               <TrendingUp size={13} />
-              <span>Evolución · Base Inicial Entregada {formatCutoff(initialPoint.cutoff)}</span>
+              <span>Base Inicial {formatCutoff(initialPoint.cutoff)} · No entra nueva data</span>
             </div>
             <h2>Evolución: Desmonte de la Base Inicial Entregada ({formatCutoff(initialPoint.cutoff)})</h2>
             <p>
               Seguimiento exclusivo a las <strong>{number.format(initialPoint.initialCount)} remisiones</strong> entregadas el <strong>{formatCutoff(initialPoint.cutoff)}</strong> ({currency.format(initialPoint.initialPending)}). Muestra cómo ha bajado esa entrega inicial en dinero y en documentos con el paso del tiempo.
             </p>
+          </div>
+        </div>
+
+        {/* Métricas de Desmonte (Lo que dibujó el usuario: Saldo, Salió, Bajó valor) */}
+        <div className="cohort-kpis-grid">
+          <div className="cohort-kpi-card">
+            <div className="cohort-kpi-top">
+              <span className="cohort-kpi-label">Base Inicial Entregada</span>
+              <span className="cohort-kpi-badge blue">Base fija</span>
+            </div>
+            <strong className="cohort-kpi-value">{compactCurrency.format(initialPoint.initialPending)}</strong>
+            <span className="cohort-kpi-sub">
+              <strong>{number.format(initialPoint.initialCount)}</strong> remisiones entregadas el {formatCutoff(initialPoint.cutoff)}
+            </span>
+          </div>
+
+          <div className="cohort-kpi-card">
+            <div className="cohort-kpi-top">
+              <span className="cohort-kpi-label">Saldo Restante Base</span>
+              <span className="cohort-kpi-badge purple">{currentCutoff === initialPoint.cutoff ? 'Inicio' : 'Actual'}</span>
+            </div>
+            <strong className="cohort-kpi-value text-blue">
+              {compactCurrency.format(currentCohortPoint?.stillOpenPending || 0)}
+            </strong>
+            <span className="cohort-kpi-sub">
+              <strong>{number.format(currentCohortPoint?.stillOpenCount || 0)}</strong> remisiones aún abiertas de la base
+            </span>
+          </div>
+
+          <div className="cohort-kpi-card highlight">
+            <div className="cohort-kpi-top">
+              <span className="cohort-kpi-label">¿Cuánto Dinero Bajó?</span>
+              <span className="cohort-kpi-badge green">Facturado</span>
+            </div>
+            <strong className="cohort-kpi-value text-green">
+              {(currentCohortPoint?.withdrawnPending || 0) > 0
+                ? `▼ -${compactCurrency.format(currentCohortPoint!.withdrawnPending)}`
+                : '$ 0'}
+            </strong>
+            <span className="cohort-kpi-sub">
+              {(currentCohortPoint?.withdrawnPending || 0) > 0
+                ? `Bajó de las que estaban ahí (${percent.format(currentCohortPoint?.recoveryPct || 0)})`
+                : 'Punto de partida de la entrega'}
+            </span>
+          </div>
+
+          <div className="cohort-kpi-card highlight">
+            <div className="cohort-kpi-top">
+              <span className="cohort-kpi-label">Documentos Salidos</span>
+              <span className="cohort-kpi-badge green">Cerradas</span>
+            </div>
+            <strong className="cohort-kpi-value text-green">
+              {(currentCohortPoint?.withdrawnCount || 0) > 0
+                ? `▼ -${number.format(currentCohortPoint!.withdrawnCount)} rem.`
+                : '0 rem.'}
+            </strong>
+            <span className="cohort-kpi-sub">
+              de las <strong>{number.format(initialPoint.initialCount)}</strong> entregadas
+            </span>
           </div>
         </div>
       </div>
