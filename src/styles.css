@@ -1083,6 +1083,41 @@ th.numeric, td.numeric { text-align: right; }
 }
 .evolution-tag.blue { background: #eaf4ff; color: #005bb5; }
 .evolution-tag.purple { background: #f3ebfc; color: #7928ca; }
+.evolution-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+  flex-wrap: wrap;
+}
+.evolution-chart-type-pill {
+  display: inline-flex;
+  align-items: center;
+  background: #ebebed;
+  padding: 2px;
+  border-radius: 8px;
+  gap: 2px;
+}
+.evolution-chart-type-pill button {
+  border: none;
+  background: transparent;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #636366;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.evolution-chart-type-pill button:hover {
+  color: #1d1d1f;
+}
+.evolution-chart-type-pill button.active {
+  background: #ffffff;
+  color: #0071e3;
+  font-weight: 750;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
 
 .evolution-kpi-summary {
   display: flex;
@@ -1206,6 +1241,13 @@ th.numeric, td.numeric { text-align: right; }
 .delta-chip.green { background: #dcfce7; color: #15803d; }
 .delta-chip.orange { background: #ffedd5; color: #c2410c; }
 .delta-chip.gray { background: #f2f2f7; color: #636366; }
+.evolution-sub-delta {
+  display: block;
+  font-size: 9.5px;
+  color: #8e8e93;
+  font-weight: 500;
+  margin-top: 1px;
+}
 
 .empty-state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 42px; color: var(--muted); font-size: 12px; }
 .pagination { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 0 20px; color: var(--muted); font-size: 10px; }

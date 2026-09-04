@@ -1576,6 +1576,94 @@ function AgeCompositionCard({
   );
 }
 
+function EvolutionValueTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: DailyPoint; value?: number; name?: string; color?: string }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload;
+  if (!point) return null;
+  const isInitial = point.pendingDelta === undefined || point.pendingDelta === 0;
+  const delta = point.pendingDelta ?? 0;
+  const pct = point.pendingDeltaPct ?? 0;
+  return (
+    <div className="chart-tooltip">
+      <strong>{formatCutoff(point.cutoff)}</strong>
+      <span>
+        <i style={{ background: '#0071e3' }} />
+        Saldo Cartera: <b>{currency.format(point.pending)}</b>
+      </span>
+      {!isInitial && (
+        <>
+          <span>
+            <i style={{ background: delta <= 0 ? '#2fbd68' : '#ff9f0a' }} />
+            Variación: <b>{delta > 0 ? '+' : ''}{currency.format(delta)} ({delta > 0 ? '+' : ''}{percent.format(pct)})</b>
+          </span>
+          {point.newValue > 0 && (
+            <span style={{ color: '#c2410c' }}>
+              <i style={{ background: '#ff9f0a' }} />
+              Nuevas ingresadas: <b>+{currency.format(point.newValue)}</b>
+            </span>
+          )}
+          {point.withdrawn > 0 && (
+            <span style={{ color: '#15803d' }}>
+              <i style={{ background: '#2fbd68' }} />
+              Facturadas / Retiradas: <b>-{currency.format(point.withdrawn)}</b>
+            </span>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function EvolutionDocsTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: DailyPoint; value?: number; name?: string; color?: string }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload;
+  if (!point) return null;
+  const isInitial = point.remissionsDelta === undefined || point.remissionsDelta === 0;
+  const delta = point.remissionsDelta ?? 0;
+  const pct = point.remissionsDeltaPct ?? 0;
+  return (
+    <div className="chart-tooltip">
+      <strong>{formatCutoff(point.cutoff)}</strong>
+      <span>
+        <i style={{ background: '#8957d8' }} />
+        Total Remisiones: <b>{number.format(point.remissions)} rem.</b>
+      </span>
+      {!isInitial && (
+        <>
+          <span>
+            <i style={{ background: delta <= 0 ? '#2fbd68' : '#ff9f0a' }} />
+            Variación: <b>{delta > 0 ? '+' : ''}{number.format(delta)} rem. ({delta > 0 ? '+' : ''}{percent.format(pct)})</b>
+          </span>
+          {point.newCount > 0 && (
+            <span style={{ color: '#c2410c' }}>
+              <i style={{ background: '#ff9f0a' }} />
+              Nuevas abiertas: <b>+{number.format(point.newCount)} rem.</b>
+            </span>
+          )}
+          {point.withdrawnCount > 0 && (
+            <span style={{ color: '#15803d' }}>
+              <i style={{ background: '#2fbd68' }} />
+              Facturadas / Retiradas: <b>-{number.format(point.withdrawnCount)} rem.</b>
+            </span>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function DailyEvolutionSideBySide({
   daily,
   currentCutoff,
@@ -1585,6 +1673,8 @@ function DailyEvolutionSideBySide({
   currentCutoff: string;
   onSelectCutoff: (cutoff: string) => void;
 }) {
+  const [valueChartType, setValueChartType] = useState<'bar' | 'area'>('bar');
+  const [docsChartType, setDocsChartType] = useState<'bar' | 'area'>('bar');
   const initialPoint = daily[0];
   const latestPoint = daily.at(-1);
   const totalValueDelta = initialPoint && latestPoint ? latestPoint.pending - initialPoint.pending : 0;
@@ -1598,15 +1688,35 @@ function DailyEvolutionSideBySide({
       <article className="chart-card evolution-card">
         <header className="evolution-header">
           <div>
-            <div className="evolution-tag blue">
-              <CircleDollarSign size={13} />
-              <span>Comportamiento de Saldo</span>
+            <div className="evolution-tag-row">
+              <div className="evolution-tag blue">
+                <CircleDollarSign size={13} />
+                <span>Comportamiento de Saldo</span>
+              </div>
+              <div className="evolution-chart-type-pill">
+                <button
+                  type="button"
+                  className={valueChartType === 'bar' ? 'active' : ''}
+                  onClick={() => setValueChartType('bar')}
+                  title="Ver gráfico de barras"
+                >
+                  Barras
+                </button>
+                <button
+                  type="button"
+                  className={valueChartType === 'area' ? 'active' : ''}
+                  onClick={() => setValueChartType('area')}
+                  title="Ver gráfico de línea continua"
+                >
+                  Línea
+                </button>
+              </div>
             </div>
             <h2>Evolución del Valor en Cartera ($)</h2>
             <p>
               {daily.length > 1
                 ? `Seguimiento cronológico desde ${formatCutoff(daily[0].cutoff)} hasta ${formatCutoff(daily.at(-1)!.cutoff)}`
-                : 'Curva y tabla de variación diaria en pesos en el tiempo'}
+                : 'Variación diaria en pesos en el tiempo'}
             </p>
           </div>
           <div className="evolution-kpi-summary">
@@ -1629,29 +1739,60 @@ function DailyEvolutionSideBySide({
 
         <div className="evolution-chart-wrap">
           <ResponsiveContainer width="100%" height={190}>
-            <AreaChart data={daily} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="valGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#0071e3" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#0071e3" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="#ededf0" vertical={false} />
-              <XAxis
-                dataKey="cutoff"
-                tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                tickFormatter={(val) => compactCurrency.format(val)}
-                tickLine={false}
-                axisLine={false}
-                width={70}
-              />
-              <Tooltip content={<CurrencyTooltip />} />
-              <Area type="monotone" dataKey="pending" name="Saldo" stroke="#0071e3" strokeWidth={2.5} fill="url(#valGrad)" />
-            </AreaChart>
+            {valueChartType === 'bar' ? (
+              <BarChart
+                data={daily}
+                margin={{ top: 12, right: 8, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid stroke="#ededf0" vertical={false} />
+                <XAxis
+                  dataKey="cutoff"
+                  tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tickFormatter={(val) => compactCurrency.format(val)}
+                  tickLine={false}
+                  axisLine={false}
+                  width={70}
+                />
+                <Tooltip content={<EvolutionValueTooltip />} />
+                <Bar dataKey="pending" name="Saldo" radius={[5, 5, 0, 0]} maxBarSize={42} cursor="pointer">
+                  {daily.map((entry) => (
+                    <Cell
+                      key={entry.cutoff}
+                      fill={entry.cutoff === currentCutoff ? '#0071e3' : '#8ac2ff'}
+                      onClick={() => onSelectCutoff(entry.cutoff)}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            ) : (
+              <AreaChart data={daily} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="valGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0071e3" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#0071e3" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#ededf0" vertical={false} />
+                <XAxis
+                  dataKey="cutoff"
+                  tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tickFormatter={(val) => compactCurrency.format(val)}
+                  tickLine={false}
+                  axisLine={false}
+                  width={70}
+                />
+                <Tooltip content={<EvolutionValueTooltip />} />
+                <Area type="monotone" dataKey="pending" name="Saldo" stroke="#0071e3" strokeWidth={2.5} fill="url(#valGrad)" />
+              </AreaChart>
+            )}
           </ResponsiveContainer>
         </div>
 
@@ -1678,6 +1819,7 @@ function DailyEvolutionSideBySide({
                   const pct = pt.pendingDeltaPct ?? 0;
                   const isDown = delta < 0;
                   const isUp = delta > 0;
+                  const hasFlow = !isInitial && (pt.newValue > 0 || pt.withdrawn > 0);
                   return (
                     <tr
                       key={pt.cutoff}
@@ -1698,9 +1840,16 @@ function DailyEvolutionSideBySide({
                         {isInitial ? (
                           <span className="text-muted">Punto inicial</span>
                         ) : (
-                          <span className={isDown ? 'text-green' : isUp ? 'text-orange' : 'text-muted'}>
-                            {isUp ? '+' : ''}{currency.format(delta)}
-                          </span>
+                          <>
+                            <span className={isDown ? 'text-green' : isUp ? 'text-orange' : 'text-muted'}>
+                              {isUp ? '+' : ''}{currency.format(delta)}
+                            </span>
+                            {hasFlow && (
+                              <small className="evolution-sub-delta">
+                                +{compactCurrency.format(pt.newValue)} / -{compactCurrency.format(pt.withdrawn)}
+                              </small>
+                            )}
+                          </>
                         )}
                       </td>
                       <td className="numeric">
@@ -1725,9 +1874,29 @@ function DailyEvolutionSideBySide({
       <article className="chart-card evolution-card">
         <header className="evolution-header">
           <div>
-            <div className="evolution-tag purple">
-              <Boxes size={13} />
-              <span>Volumen Documental</span>
+            <div className="evolution-tag-row">
+              <div className="evolution-tag purple">
+                <Boxes size={13} />
+                <span>Volumen Documental</span>
+              </div>
+              <div className="evolution-chart-type-pill">
+                <button
+                  type="button"
+                  className={docsChartType === 'bar' ? 'active' : ''}
+                  onClick={() => setDocsChartType('bar')}
+                  title="Ver gráfico de barras"
+                >
+                  Barras
+                </button>
+                <button
+                  type="button"
+                  className={docsChartType === 'area' ? 'active' : ''}
+                  onClick={() => setDocsChartType('area')}
+                  title="Ver gráfico de línea continua"
+                >
+                  Línea
+                </button>
+              </div>
             </div>
             <h2>Evolución de Remisiones (# Docs)</h2>
             <p>
@@ -1756,26 +1925,60 @@ function DailyEvolutionSideBySide({
 
         <div className="evolution-chart-wrap">
           <ResponsiveContainer width="100%" height={190}>
-            <BarChart data={daily} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke="#ededf0" vertical={false} />
-              <XAxis
-                dataKey="cutoff"
-                tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                tickFormatter={(val) => number.format(val)}
-                tickLine={false}
-                axisLine={false}
-                width={50}
-              />
-              <Tooltip
-                formatter={(val) => [`${number.format(Number(val))} remisiones`, 'Documentos']}
-                labelFormatter={(label) => formatCutoff(String(label))}
-              />
-              <Bar dataKey="remissions" name="Remisiones" fill="#8957d8" radius={[5, 5, 0, 0]} maxBarSize={36} />
-            </BarChart>
+            {docsChartType === 'bar' ? (
+              <BarChart
+                data={daily}
+                margin={{ top: 12, right: 8, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid stroke="#ededf0" vertical={false} />
+                <XAxis
+                  dataKey="cutoff"
+                  tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tickFormatter={(val) => number.format(val)}
+                  tickLine={false}
+                  axisLine={false}
+                  width={50}
+                />
+                <Tooltip content={<EvolutionDocsTooltip />} />
+                <Bar dataKey="remissions" name="Remisiones" radius={[5, 5, 0, 0]} maxBarSize={42} cursor="pointer">
+                  {daily.map((entry) => (
+                    <Cell
+                      key={entry.cutoff}
+                      fill={entry.cutoff === currentCutoff ? '#8957d8' : '#cbb2f5'}
+                      onClick={() => onSelectCutoff(entry.cutoff)}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            ) : (
+              <AreaChart data={daily} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="docsGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8957d8" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#8957d8" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#ededf0" vertical={false} />
+                <XAxis
+                  dataKey="cutoff"
+                  tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tickFormatter={(val) => number.format(val)}
+                  tickLine={false}
+                  axisLine={false}
+                  width={50}
+                />
+                <Tooltip content={<EvolutionDocsTooltip />} />
+                <Area type="monotone" dataKey="remissions" name="Remisiones" stroke="#8957d8" strokeWidth={2.5} fill="url(#docsGrad)" />
+              </AreaChart>
+            )}
           </ResponsiveContainer>
         </div>
 
@@ -1802,6 +2005,7 @@ function DailyEvolutionSideBySide({
                   const pct = pt.remissionsDeltaPct ?? 0;
                   const isDown = delta < 0;
                   const isUp = delta > 0;
+                  const hasFlow = !isInitial && (pt.newCount > 0 || pt.withdrawnCount > 0);
                   return (
                     <tr
                       key={pt.cutoff}
@@ -1822,9 +2026,16 @@ function DailyEvolutionSideBySide({
                         {isInitial ? (
                           <span className="text-muted">Punto inicial</span>
                         ) : (
-                          <span className={isDown ? 'text-green' : isUp ? 'text-orange' : 'text-muted'}>
-                            {isUp ? '+' : ''}{number.format(delta)} rem.
-                          </span>
+                          <>
+                            <span className={isDown ? 'text-green' : isUp ? 'text-orange' : 'text-muted'}>
+                              {isUp ? '+' : ''}{number.format(delta)} rem.
+                            </span>
+                            {hasFlow && (
+                              <small className="evolution-sub-delta">
+                                +{pt.newCount} / -{pt.withdrawnCount}
+                              </small>
+                            )}
+                          </>
                         )}
                       </td>
                       <td className="numeric">
