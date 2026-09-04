@@ -485,7 +485,12 @@ function Dashboard({
 
   const totalClosed = useMemo(() => managementWithdrawn.reduce((sum, r) => sum + r.total, 0), [managementWithdrawn]);
   const totalNew = useMemo(() => managementNew.reduce((sum, r) => sum + r.total, 0), [managementNew]);
+  const closedMerchandise = useMemo(() => managementWithdrawn.reduce((sum, r) => sum + r.merchandise, 0), [managementWithdrawn]);
+  const closedTax = useMemo(() => managementWithdrawn.reduce((sum, r) => sum + r.tax, 0), [managementWithdrawn]);
+  const newMerchandise = useMemo(() => managementNew.reduce((sum, r) => sum + r.merchandise, 0), [managementNew]);
+  const newTax = useMemo(() => managementNew.reduce((sum, r) => sum + r.tax, 0), [managementNew]);
   const netDifference = useMemo(() => totalNew - totalClosed, [totalNew, totalClosed]);
+  const netCount = useMemo(() => managementNew.length - managementWithdrawn.length, [managementNew.length, managementWithdrawn.length]);
 
   const ageBreakdownRecords = useMemo(
     () => baseCutoffRecords.filter((r) =>
@@ -939,6 +944,253 @@ function Dashboard({
                       )}
                     </span>
                   </div>
+                </div>
+              </div>
+
+              {/* TABLA DE GESTIÓN OPERATIVA (GENERALES, DEL DÍA Y LAS QUE SALIERON) */}
+              <div className="management-table-container">
+                <div className="management-table-header">
+                  <div>
+                    <h3>Tabla de Gestión: Cartera General, Ingresos de Hoy y Salidas Facturadas</h3>
+                    <small>
+                      {previousCutoff
+                        ? `Balance consolidado del día ${formatCutoff(cutoff)} evaluado frente al día anterior (${formatCutoff(previousCutoff)})`
+                        : 'Balance general consolidado de la primera fecha registrada'}
+                    </small>
+                  </div>
+                  {previousCutoff && (
+                    <span className={`mgmt-flow-badge ${netDifference <= 0 ? 'favorable' : 'neutral'}`}>
+                      {netDifference <= 0 ? 'Flujo Favorable (Desahogo)' : 'Incremento de Cartera'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="management-table-wrap">
+                  <table className="management-flow-table">
+                    <thead>
+                      <tr>
+                        <th>Concepto de Gestión</th>
+                        <th className="numeric"># Remisiones</th>
+                        <th className="numeric">Mercancía</th>
+                        <th className="numeric">IVA</th>
+                        <th className="numeric">Valor Total ($)</th>
+                        <th className="numeric">Impacto / Flujo</th>
+                        <th className="text-center">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* 1. Remisiones Generales */}
+                      <tr
+                        className="flow-row general clickable"
+                        onClick={() => { setView('detail'); setDetailTab('open'); }}
+                        role="button"
+                        tabIndex={0}
+                        title="Toca para ver el detalle de todas las remisiones abiertas"
+                      >
+                        <td>
+                          <div className="flow-cell-concept">
+                            <span className="flow-indicator-dot blue" />
+                            <div>
+                              <strong>Remisiones Generales (Total Cartera)</strong>
+                              <small>Cartera activa total pendiente por facturar</small>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="numeric">
+                          <strong>{number.format(currentSummary.remissions)}</strong> rem.
+                        </td>
+                        <td className="numeric text-muted">
+                          {currency.format(currentSummary.merchandise)}
+                        </td>
+                        <td className="numeric text-muted">
+                          {currency.format(currentSummary.tax)}
+                        </td>
+                        <td className="numeric">
+                          <strong className="text-blue">{currency.format(currentSummary.pending)}</strong>
+                        </td>
+                        <td className="numeric">
+                          <span className="flow-pill blue">100% Cartera</span>
+                        </td>
+                        <td className="text-center">
+                          <button
+                            type="button"
+                            className="flow-action-btn blue"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setView('detail');
+                              setDetailTab('open');
+                            }}
+                            title="Ver detalle de remisiones abiertas"
+                          >
+                            Ver abiertas →
+                          </button>
+                        </td>
+                      </tr>
+
+                      {/* 2. Nuevas Remisiones (Las del Día) */}
+                      <tr
+                        className={`flow-row new ${previousCutoff ? 'clickable' : ''}`}
+                        onClick={previousCutoff ? () => { setView('detail'); setDetailTab('new'); } : undefined}
+                        role={previousCutoff ? 'button' : undefined}
+                        tabIndex={previousCutoff ? 0 : undefined}
+                        title={previousCutoff ? "Toca para ver el detalle de nuevas remisiones abiertas hoy" : undefined}
+                      >
+                        <td>
+                          <div className="flow-cell-concept">
+                            <span className="flow-indicator-dot orange" />
+                            <div>
+                              <strong>Nuevas Remisiones (Las del Día)</strong>
+                              <small>Remisiones abiertas ingresadas hoy a cartera</small>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="numeric">
+                          {previousCutoff ? (
+                            <strong className="text-orange">+{number.format(managementNew.length)} rem.</strong>
+                          ) : (
+                            <span className="text-muted">Punto inicial</span>
+                          )}
+                        </td>
+                        <td className="numeric text-muted">
+                          {previousCutoff ? currency.format(newMerchandise) : '—'}
+                        </td>
+                        <td className="numeric text-muted">
+                          {previousCutoff ? currency.format(newTax) : '—'}
+                        </td>
+                        <td className="numeric">
+                          <strong className="text-orange">
+                            {previousCutoff ? `+${currency.format(totalNew)}` : currency.format(currentSummary.pending)}
+                          </strong>
+                        </td>
+                        <td className="numeric">
+                          {previousCutoff && currentSummary.pending > 0 ? (
+                            <span className="flow-pill orange">+{((totalNew / currentSummary.pending) * 100).toFixed(1)}% ingresos</span>
+                          ) : (
+                            <span className="text-muted">Base</span>
+                          )}
+                        </td>
+                        <td className="text-center">
+                          {previousCutoff ? (
+                            <button
+                              type="button"
+                              className="flow-action-btn orange"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setView('detail');
+                                setDetailTab('new');
+                              }}
+                              title="Ver detalle de nuevas remisiones"
+                            >
+                              Ver nuevas ({number.format(managementNew.length)}) →
+                            </button>
+                          ) : (
+                            <span className="text-muted">—</span>
+                          )}
+                        </td>
+                      </tr>
+
+                      {/* 3. Facturadas / Retiradas (Las que Salieron) */}
+                      <tr
+                        className={`flow-row withdrawn ${previousCutoff ? 'clickable' : ''}`}
+                        onClick={previousCutoff ? () => { setView('detail'); setDetailTab('withdrawn'); } : undefined}
+                        role={previousCutoff ? 'button' : undefined}
+                        tabIndex={previousCutoff ? 0 : undefined}
+                        title={previousCutoff ? "Toca para ver el detalle de remisiones que salieron facturadas o cobradas" : undefined}
+                      >
+                        <td>
+                          <div className="flow-cell-concept">
+                            <span className="flow-indicator-dot green" />
+                            <div>
+                              <strong>Remisiones Facturadas (Las que Salieron)</strong>
+                              <small>Remisiones cobradas o facturadas retiradas de cartera</small>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="numeric">
+                          {previousCutoff ? (
+                            <strong className="text-green">-{number.format(managementWithdrawn.length)} rem.</strong>
+                          ) : (
+                            <span className="text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="numeric text-muted">
+                          {previousCutoff ? currency.format(closedMerchandise) : '—'}
+                        </td>
+                        <td className="numeric text-muted">
+                          {previousCutoff ? currency.format(closedTax) : '—'}
+                        </td>
+                        <td className="numeric">
+                          <strong className="text-green">
+                            {previousCutoff ? `-${currency.format(totalClosed)}` : '$ 0'}
+                          </strong>
+                        </td>
+                        <td className="numeric">
+                          {previousCutoff && (previousSummary.pending + totalNew) > 0 ? (
+                            <span className="flow-pill green">-{((totalClosed / (previousSummary.pending + totalNew)) * 100).toFixed(1)}% reducción</span>
+                          ) : (
+                            <span className="text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="text-center">
+                          {previousCutoff ? (
+                            <button
+                              type="button"
+                              className="flow-action-btn green"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setView('detail');
+                                setDetailTab('withdrawn');
+                              }}
+                              title="Ver detalle de remisiones facturadas"
+                            >
+                              Ver facturadas ({number.format(managementWithdrawn.length)}) →
+                            </button>
+                          ) : (
+                            <span className="text-muted">—</span>
+                          )}
+                        </td>
+                      </tr>
+
+                      {/* 4. Balance Neto del Día */}
+                      {previousCutoff && (
+                        <tr className={`flow-row net ${netDifference <= 0 ? 'favorable' : 'neutral'}`}>
+                          <td>
+                            <div className="flow-cell-concept">
+                              <span className={`flow-indicator-dot ${netDifference <= 0 ? 'blue' : 'gray'}`} />
+                              <div>
+                                <strong>Balance Neto del Día (Flujo)</strong>
+                                <small>{netDifference <= 0 ? 'Reducción favorable de saldo en cartera' : 'Crecimiento neto de cartera'}</small>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="numeric">
+                            <strong className={netCount <= 0 ? 'text-green' : 'text-orange'}>
+                              {netCount > 0 ? `+${netCount}` : netCount} rem.
+                            </strong>
+                          </td>
+                          <td className="numeric text-muted">
+                            {currency.format(newMerchandise - closedMerchandise)}
+                          </td>
+                          <td className="numeric text-muted">
+                            {currency.format(newTax - closedTax)}
+                          </td>
+                          <td className="numeric">
+                            <strong className={netDifference <= 0 ? 'text-green' : 'text-orange'}>
+                              {netDifference <= 0 ? '-' : '+'}{currency.format(Math.abs(netDifference))}
+                            </strong>
+                          </td>
+                          <td className="numeric">
+                            <span className={`delta-chip ${netDifference <= 0 ? 'green' : 'orange'}`}>
+                              {netDifference <= 0 ? 'Desahogo' : 'Crecimiento'}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <small className="text-muted">Neto: Entradas - Salidas</small>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 

@@ -875,6 +875,179 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   line-height: 1.45;
 }
 
+/* Management Flow Table */
+.management-table-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #fbfbfd;
+  border: 1px solid #e5e5ea;
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+.management-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.management-table-header h3 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 750;
+  color: #1d1d1f;
+}
+.management-table-header small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.mgmt-flow-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.mgmt-flow-badge.favorable {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+.mgmt-flow-badge.neutral {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+.management-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #ededf2;
+  border-radius: 11px;
+  background: #ffffff;
+}
+.management-flow-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.management-flow-table th {
+  height: 35px;
+  padding: 0 12px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+  background: #f4f4f7;
+  color: #636366;
+  border-bottom: 1px solid #e5e5ea;
+  white-space: nowrap;
+}
+.management-flow-table td {
+  height: 48px;
+  padding: 8px 12px;
+  font-size: 11.5px;
+  border-bottom: 1px solid #f0f0f4;
+  vertical-align: middle;
+}
+.flow-row {
+  transition: background 0.15s ease;
+}
+.flow-row.clickable {
+  cursor: pointer;
+}
+.flow-row.general:hover {
+  background: #f0f7ff;
+}
+.flow-row.new:hover {
+  background: #fffbf5;
+}
+.flow-row.withdrawn:hover {
+  background: #f2fcf5;
+}
+.flow-row.net {
+  background: #f8f8fb;
+  font-weight: 600;
+}
+.flow-cell-concept {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.flow-indicator-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.flow-indicator-dot.blue { background: #0071e3; box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15); }
+.flow-indicator-dot.orange { background: #ff9f0a; box-shadow: 0 0 0 3px rgba(255, 159, 10, 0.15); }
+.flow-indicator-dot.green { background: #2fbd68; box-shadow: 0 0 0 3px rgba(47, 189, 104, 0.15); }
+.flow-indicator-dot.gray { background: #8e8e93; }
+
+.flow-cell-concept strong {
+  display: block;
+  font-size: 12px;
+  color: #1d1d1f;
+}
+.flow-cell-concept small {
+  display: block;
+  font-size: 9.5px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+.flow-pill {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.flow-pill.blue { background: #eaf4ff; color: #005bb5; }
+.flow-pill.orange { background: #ffedd5; color: #c2410c; }
+.flow-pill.green { background: #dcfce7; color: #15803d; }
+
+.flow-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  font-size: 10.5px;
+  font-weight: 650;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.flow-action-btn.blue {
+  background: #eaf4ff;
+  color: #005bb5;
+  border-color: #c7e1ff;
+}
+.flow-action-btn.blue:hover {
+  background: #d0e7ff;
+}
+.flow-action-btn.orange {
+  background: #fff5e7;
+  color: #c2410c;
+  border-color: #fed7aa;
+}
+.flow-action-btn.orange:hover {
+  background: #ffedd5;
+}
+.flow-action-btn.green {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+.flow-action-btn.green:hover {
+  background: #dcfce7;
+}
+
 .daily-stat { display: flex; flex-direction: column; border-left: 1px solid #e3e3e7; padding-left: 17px; }
 .daily-stat span { color: var(--muted); font-size: 10px; }
 .daily-stat strong { margin-top: 4px; font-size: 13px; white-space: nowrap; }
