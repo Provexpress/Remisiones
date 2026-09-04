@@ -38,6 +38,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .brand-lockup span { border-left: 1px solid #d2d2d7; padding-left: 14px; }
 .eyebrow { display: inline-flex; align-items: center; align-self: flex-start; gap: 7px; border-radius: 999px; background: #fff; border: 1px solid #e6e6ea; color: #48484a; font-size: 13px; font-weight: 700; padding: 8px 12px; }
 .eyebrow.blue { color: #005bb5; background: #eaf4ff; border-color: #d8ebff; }
+.eyebrow.purple { color: #5e2cb8; background: #f3ebff; border-color: #e2d1fc; }
 .welcome-copy h1 { margin: 24px 0 18px; font-size: clamp(52px, 5.8vw, 84px); line-height: .98; letter-spacing: -.055em; font-weight: 750; }
 .welcome-copy h1 span { color: var(--blue); }
 .welcome-copy > p { max-width: 610px; margin: 0; color: var(--muted); font-size: 20px; line-height: 1.55; letter-spacing: -.015em; }
