@@ -1360,8 +1360,8 @@ function Dashboard({
               onSelectCutoff={setCutoff}
             />
 
-            {/* 3. EDAD DE REMISIONES Y CONCENTRACIÓN */}
-            <section className="chart-grid chart-grid-main">
+            {/* 3. ANÁLISIS DE REMISIONES: ANTIGÜEDAD Y TOP 10 DE MAYOR VALOR */}
+            <section className="chart-grid">
               <AgeCompositionCard
                 ageData={ageBreakdown}
                 totalPending={currentSummary.pending}
@@ -1370,116 +1370,6 @@ function Dashboard({
                   setAgeFilter((current) => current === range ? 'Todos' : range);
                 }}
               />
-
-              <ChartCard
-                title="Pendiente por dirección"
-                subtitle={director !== 'Todos' ? `Filtrado por: ${director} · Toca para quitar` : "Toca una dirección para filtrar todo el tablero"}
-              >
-                <div className="donut-layout">
-                  <ResponsiveContainer width="48%" height={260}>
-                    <PieChart>
-                      <Pie
-                        data={directorData}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={64}
-                        outerRadius={94}
-                        paddingAngle={2}
-                        stroke="none"
-                        cursor="pointer"
-                        onClick={(entry: any) => {
-                          if (entry && entry.name) {
-                            const dirName = String(entry.name);
-                            setDirector((current) => current === dirName ? 'Todos' : dirName);
-                          }
-                        }}
-                      >
-                        {directorData.map((entry, index) => {
-                          const isSelected = director === entry.name;
-                          const isDimmed = director !== 'Todos' && !isSelected;
-                          return (
-                            <Cell
-                              key={entry.name}
-                              fill={PIE_COLORS[index % PIE_COLORS.length]}
-                              opacity={isDimmed ? 0.35 : 1}
-                              stroke={isSelected ? '#1d1d1f' : 'none'}
-                              strokeWidth={isSelected ? 2 : 0}
-                            />
-                          );
-                        })}
-                      </Pie>
-                      <Tooltip formatter={(value) => currency.format(Number(value))} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="legend-list">
-                    {directorData.map((entry, index) => {
-                      const isSelected = director === entry.name;
-                      return (
-                        <button
-                          key={entry.name}
-                          type="button"
-                          className={`legend-btn ${isSelected ? 'active' : ''}`}
-                          onClick={() => setDirector((current) => current === entry.name ? 'Todos' : entry.name)}
-                          title={isSelected ? `Toca para quitar filtro de ${entry.name}` : `Toca para filtrar por ${entry.name}`}
-                        >
-                          <i style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
-                          <span>{entry.name}<small>{entry.count} remisiones</small></span>
-                          <strong>{compactCurrency.format(entry.value)}</strong>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </ChartCard>
-            </section>
-
-            <section className="chart-grid">
-              <ChartCard
-                title="Ejecutivos comerciales con mayor saldo pendiente"
-                subtitle={employee !== 'Todos' ? `Filtrado por: ${employee} · Toca para quitar` : "Toca una barra para filtrar por comercial"}
-              >
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart
-                    data={sellerData}
-                    margin={{ top: 8, right: 8, left: 0, bottom: 45 }}
-                    onClick={(state: any) => {
-                      const executiveName = state?.activePayload?.[0]?.payload?.name;
-                      if (executiveName) {
-                        const nameStr = String(executiveName);
-                        setEmployee((current) => current === nameStr ? 'Todos' : nameStr);
-                      }
-                    }}
-                  >
-                    <CartesianGrid stroke="#e8e8ed" vertical={false} />
-                    <XAxis
-                      dataKey="name"
-                      interval={0}
-                      angle={-32}
-                      textAnchor="end"
-                      height={80}
-                      tickFormatter={(value) => String(value).split(' ').slice(0, 2).join(' ')}
-                      tickLine={false}
-                      axisLine={false}
-                      cursor="pointer"
-                    />
-                    <YAxis tickFormatter={(value) => compactCurrency.format(value)} tickLine={false} axisLine={false} width={72} />
-                    <Tooltip content={<CurrencyTooltip />} />
-                    <Bar dataKey="value" name="Pendiente" radius={[7, 7, 0, 0]} maxBarSize={34} cursor="pointer">
-                      {sellerData.map((entry) => {
-                        const isSelected = employee === entry.name;
-                        const isDimmed = employee !== 'Todos' && !isSelected;
-                        return (
-                          <Cell
-                            key={entry.name}
-                            fill={isSelected ? '#7928ca' : '#af52de'}
-                            opacity={isDimmed ? 0.35 : 1}
-                          />
-                        );
-                      })}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartCard>
 
               {/* Top 10 Remisiones de Mayor Valor */}
               <ChartCard
@@ -1558,6 +1448,117 @@ function Dashboard({
                       );
                     })
                   )}
+                </div>
+              </ChartCard>
+            </section>
+
+            {/* 4. DISTRIBUCIÓN POR EQUIPO: COMERCIALES Y DIRECCIONES */}
+            <section className="chart-grid">
+              <ChartCard
+                title="Ejecutivos comerciales con mayor saldo pendiente"
+                subtitle={employee !== 'Todos' ? `Filtrado por: ${employee} · Toca para quitar` : "Toca una barra para filtrar por comercial"}
+              >
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={sellerData}
+                    margin={{ top: 8, right: 8, left: 0, bottom: 45 }}
+                    onClick={(state: any) => {
+                      const executiveName = state?.activePayload?.[0]?.payload?.name;
+                      if (executiveName) {
+                        const nameStr = String(executiveName);
+                        setEmployee((current) => current === nameStr ? 'Todos' : nameStr);
+                      }
+                    }}
+                  >
+                    <CartesianGrid stroke="#e8e8ed" vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      interval={0}
+                      angle={-32}
+                      textAnchor="end"
+                      height={80}
+                      tickFormatter={(value) => String(value).split(' ').slice(0, 2).join(' ')}
+                      tickLine={false}
+                      axisLine={false}
+                      cursor="pointer"
+                    />
+                    <YAxis tickFormatter={(value) => compactCurrency.format(value)} tickLine={false} axisLine={false} width={72} />
+                    <Tooltip content={<CurrencyTooltip />} />
+                    <Bar dataKey="value" name="Pendiente" radius={[7, 7, 0, 0]} maxBarSize={34} cursor="pointer">
+                      {sellerData.map((entry) => {
+                        const isSelected = employee === entry.name;
+                        const isDimmed = employee !== 'Todos' && !isSelected;
+                        return (
+                          <Cell
+                            key={entry.name}
+                            fill={isSelected ? '#7928ca' : '#af52de'}
+                            opacity={isDimmed ? 0.35 : 1}
+                          />
+                        );
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+
+              <ChartCard
+                title="Pendiente por dirección"
+                subtitle={director !== 'Todos' ? `Filtrado por: ${director} · Toca para quitar` : "Toca una dirección para filtrar todo el tablero"}
+              >
+                <div className="donut-layout">
+                  <ResponsiveContainer width="48%" height={260}>
+                    <PieChart>
+                      <Pie
+                        data={directorData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={64}
+                        outerRadius={94}
+                        paddingAngle={2}
+                        stroke="none"
+                        cursor="pointer"
+                        onClick={(entry: any) => {
+                          if (entry && entry.name) {
+                            const dirName = String(entry.name);
+                            setDirector((current) => current === dirName ? 'Todos' : dirName);
+                          }
+                        }}
+                      >
+                        {directorData.map((entry, index) => {
+                          const isSelected = director === entry.name;
+                          const isDimmed = director !== 'Todos' && !isSelected;
+                          return (
+                            <Cell
+                              key={entry.name}
+                              fill={PIE_COLORS[index % PIE_COLORS.length]}
+                              opacity={isDimmed ? 0.35 : 1}
+                              stroke={isSelected ? '#1d1d1f' : 'none'}
+                              strokeWidth={isSelected ? 2 : 0}
+                            />
+                          );
+                        })}
+                      </Pie>
+                      <Tooltip formatter={(value) => currency.format(Number(value))} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="legend-list">
+                    {directorData.map((entry, index) => {
+                      const isSelected = director === entry.name;
+                      return (
+                        <button
+                          key={entry.name}
+                          type="button"
+                          className={`legend-btn ${isSelected ? 'active' : ''}`}
+                          onClick={() => setDirector((current) => current === entry.name ? 'Todos' : entry.name)}
+                          title={isSelected ? `Toca para quitar filtro de ${entry.name}` : `Toca para filtrar por ${entry.name}`}
+                        >
+                          <i style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
+                          <span>{entry.name}<small>{entry.count} remisiones</small></span>
+                          <strong>{compactCurrency.format(entry.value)}</strong>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </ChartCard>
             </section>
