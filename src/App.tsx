@@ -25,6 +25,7 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  TrendingDown,
   TrendingUp,
   TriangleAlert,
   Upload,
@@ -38,8 +39,10 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   LabelList,
   Legend,
+  Line,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -1764,7 +1767,7 @@ function AgeCompositionCard({
   );
 }
 
-function InitialCohortValueTooltip({
+function CombinedCohortTooltip({
   active,
   payload,
 }: {
@@ -1776,52 +1779,28 @@ function InitialCohortValueTooltip({
   if (!point) return null;
   return (
     <div className="chart-tooltip">
-      <strong>Corte: {formatCutoff(point.cutoff)}</strong>
+      <strong>📅 Corte: {formatCutoff(point.cutoff)}</strong>
       <span>
         <i style={{ background: '#0071e3' }} />
-        Saldo restante de la base: <b>{currency.format(point.stillOpenPending)}</b>
-      </span>
-      <span>
-        <i style={{ background: '#8e8e93' }} />
-        Base inicial entregada: <b>{currency.format(point.initialPending)}</b>
+        Saldo en Dinero: <b>{currency.format(point.stillOpenPending)}</b>
       </span>
       {point.withdrawnPending > 0 && (
-        <span style={{ color: '#15803d' }}>
-          <i style={{ background: '#2fbd68' }} />
-          Dinero bajado de las iniciales: <b>▼ -{currency.format(point.withdrawnPending)} ({percent.format(point.recoveryPct)})</b>
+        <span style={{ color: '#15803d', fontSize: '11px', paddingLeft: '14px' }}>
+          ▼ Bajó de la base: -{currency.format(point.withdrawnPending)} ({percent.format(point.recoveryPct)})
         </span>
       )}
-    </div>
-  );
-}
-
-function InitialCohortDocsTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: Array<{ payload?: InitialCohortPoint; value?: number; name?: string; color?: string }>;
-}) {
-  if (!active || !payload?.length) return null;
-  const point = payload[0]?.payload;
-  if (!point) return null;
-  return (
-    <div className="chart-tooltip">
-      <strong>Corte: {formatCutoff(point.cutoff)}</strong>
       <span>
         <i style={{ background: '#8957d8' }} />
-        Documentos restantes de la base: <b>{number.format(point.stillOpenCount)} rem.</b>
-      </span>
-      <span>
-        <i style={{ background: '#8e8e93' }} />
-        Documentos iniciales entregados: <b>{number.format(point.initialCount)} rem.</b>
+        Remisiones Restantes: <b>{number.format(point.stillOpenCount)} rem.</b>
       </span>
       {point.withdrawnCount > 0 && (
-        <span style={{ color: '#15803d' }}>
-          <i style={{ background: '#2fbd68' }} />
-          Documentos que ya salieron: <b>▼ -{number.format(point.withdrawnCount)} rem.</b>
+        <span style={{ color: '#15803d', fontSize: '11px', paddingLeft: '14px' }}>
+          ▼ Salieron de la base: -{number.format(point.withdrawnCount)} rem.
         </span>
       )}
+      <small style={{ color: '#8e8e93', marginTop: '4px', display: 'block', fontSize: '10px' }}>
+        Toca para enfocar este corte en el tablero
+      </small>
     </div>
   );
 }
@@ -1835,8 +1814,7 @@ function InitialCohortEvolutionSection({
   currentCutoff: string;
   onSelectCutoff: (cutoff: string) => void;
 }) {
-  const [valueChartType, setValueChartType] = useState<'bar' | 'area'>('bar');
-  const [docsChartType, setDocsChartType] = useState<'bar' | 'area'>('bar');
+  const [chartMode, setChartMode] = useState<'both' | 'money' | 'docs'>('both');
   const initialPoint = cohort[0];
   const currentCohortPoint = cohort.find((c) => c.cutoff === currentCutoff) || cohort.at(-1);
   const isMultipleDays = cohort.length > 1;
@@ -1946,238 +1924,217 @@ function InitialCohortEvolutionSection({
         </div>
       </div>
 
-      {/* Gráficos de Reducción Lado a Lado: Dinero ($) y Documentos (#) */}
-      <div className="evolution-charts-grid">
-        {/* Panel 1: Saldo Restante de la Base ($) */}
-        <article className="chart-card evolution-chart-card">
-          <header className="evolution-header">
-            <div>
-              <div className="evolution-tag-row">
-                <div className="evolution-tag blue">
-                  <CircleDollarSign size={13} />
-                  <span>Desmonte en Dinero ($)</span>
-                </div>
-                <div className="evolution-chart-type-pill">
-                  <button
-                    type="button"
-                    className={valueChartType === 'bar' ? 'active' : ''}
-                    onClick={() => setValueChartType('bar')}
-                    title="Ver gráfico de barras"
-                  >
-                    Barras
-                  </button>
-                  <button
-                    type="button"
-                    className={valueChartType === 'area' ? 'active' : ''}
-                    onClick={() => setValueChartType('area')}
-                    title="Ver gráfico de línea continua"
-                  >
-                    Línea
-                  </button>
-                </div>
+      {/* Gráfica Unificada de Desmonte: Dinero ($) y Documentos (#) en una sola vista */}
+      <article className="chart-card evolution-unified-chart-card">
+        <header className="evolution-header">
+          <div>
+            <div className="evolution-tag-row">
+              <div className="evolution-tag purple">
+                <TrendingDown size={13} />
+                <span>Desmonte Consolidado Base 03/09</span>
               </div>
-              <h2>Reducción del Saldo de la Base Inicial ($)</h2>
-              <p>Muestra cómo ha bajado en dinero la base entregada de {compactCurrency.format(initialPoint.initialPending)}</p>
-            </div>
-            <div className="evolution-chart-metric">
-              <span className="evolution-kpi-label">Saldo Base {currentCohortPoint?.cutoff === currentCutoff ? 'Seleccionado' : 'Actual'}</span>
-              <strong className="evolution-kpi-val">{compactCurrency.format(currentCohortPoint?.stillOpenPending || 0)}</strong>
-            </div>
-          </header>
-
-          <div className="evolution-chart-wrap">
-            <ResponsiveContainer width="100%" height={210}>
-              {valueChartType === 'bar' ? (
-                <BarChart
-                  data={cohort}
-                  margin={{ top: 22, right: 12, left: 0, bottom: 0 }}
-                  barCategoryGap="25%"
+              <div className="evolution-chart-type-pill">
+                <button
+                  type="button"
+                  className={chartMode === 'both' ? 'active' : ''}
+                  onClick={() => setChartMode('both')}
+                  title="Ver gráfico conjunto con doble eje: Dinero ($) y Remisiones (#)"
                 >
-                  <CartesianGrid stroke="#ededf0" vertical={false} />
-                  <XAxis
-                    dataKey="cutoff"
-                    tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    domain={yDomainCohortValue}
-                    tickFormatter={(val) => compactCurrency.format(val)}
-                    tickLine={false}
-                    axisLine={false}
-                    width={72}
-                  />
-                  <Tooltip content={<InitialCohortValueTooltip />} />
-                  <Bar dataKey="stillOpenPending" name="Saldo Base" radius={[6, 6, 0, 0]} maxBarSize={48} cursor="pointer">
-                    <LabelList
-                      dataKey="stillOpenPending"
-                      position="top"
-                      formatter={(val: any) => compactCurrency.format(Number(val))}
-                      style={{ fontSize: '10px', fontWeight: 700, fill: '#1d1d1f' }}
-                    />
-                    {cohort.map((entry) => (
-                      <Cell
-                        key={entry.cutoff}
-                        fill={entry.cutoff === currentCutoff ? '#0071e3' : '#8ac2ff'}
-                        onClick={() => onSelectCutoff(entry.cutoff)}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
+                  Ambos ($ y #)
+                </button>
+                <button
+                  type="button"
+                  className={chartMode === 'money' ? 'active' : ''}
+                  onClick={() => setChartMode('money')}
+                  title="Ver solo reducción en Dinero ($)"
+                >
+                  Solo Dinero ($)
+                </button>
+                <button
+                  type="button"
+                  className={chartMode === 'docs' ? 'active' : ''}
+                  onClick={() => setChartMode('docs')}
+                  title="Ver solo reducción en Remisiones (#)"
+                >
+                  Solo Docs (#)
+                </button>
+              </div>
+            </div>
+            <h2>Evolución del Desmonte: Dinero ($) y Remisiones (#)</h2>
+            <p>
+              Comportamiento conjunto del saldo pendiente en dinero y la cantidad de remisiones restantes de la base entregada el {formatCutoff(initialPoint.cutoff)}.
+            </p>
+          </div>
+
+          <div className="evolution-unified-metrics">
+            <div className="evolution-unified-metric-item">
+              <span className="evolution-kpi-label">Saldo Dinero ({currentCohortPoint?.cutoff === currentCutoff ? 'Seleccionado' : 'Actual'})</span>
+              <strong className="evolution-kpi-val text-blue">
+                {compactCurrency.format(currentCohortPoint?.stillOpenPending || 0)}
+              </strong>
+              {(currentCohortPoint?.withdrawnPending || 0) > 0 ? (
+                <span className="evolution-metric-badge-sub green">
+                  ▼ -{compactCurrency.format(currentCohortPoint!.withdrawnPending)} ({percent.format(currentCohortPoint?.recoveryPct || 0)})
+                </span>
               ) : (
-                <AreaChart data={cohort} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="cohortValGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#0071e3" stopOpacity={0.28} />
-                      <stop offset="100%" stopColor="#0071e3" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="#ededf0" vertical={false} />
-                  <XAxis
-                    dataKey="cutoff"
-                    tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    domain={yDomainCohortValue}
-                    tickFormatter={(val) => compactCurrency.format(val)}
-                    tickLine={false}
-                    axisLine={false}
-                    width={72}
-                  />
-                  <Tooltip content={<InitialCohortValueTooltip />} />
-                  <Area
-                    type="monotone"
+                <span className="evolution-metric-badge-sub muted">Línea base</span>
+              )}
+            </div>
+            <div className="evolution-unified-metric-sep" />
+            <div className="evolution-unified-metric-item">
+              <span className="evolution-kpi-label">Remisiones Restantes</span>
+              <strong className="evolution-kpi-val text-purple">
+                {number.format(currentCohortPoint?.stillOpenCount || 0)} rem.
+              </strong>
+              {(currentCohortPoint?.withdrawnCount || 0) > 0 ? (
+                <span className="evolution-metric-badge-sub green">
+                  ▼ -{number.format(currentCohortPoint!.withdrawnCount)} rem.
+                </span>
+              ) : (
+                <span className="evolution-metric-badge-sub muted">Línea base</span>
+              )}
+            </div>
+          </div>
+        </header>
+
+        <div className="evolution-chart-wrap">
+          <ResponsiveContainer width="100%" height={290}>
+            <ComposedChart
+              data={cohort}
+              margin={{ top: 26, right: 30, left: 10, bottom: 4 }}
+              barCategoryGap="25%"
+            >
+              <CartesianGrid stroke="#ededf0" vertical={false} strokeDasharray="3 3" />
+              <XAxis
+                dataKey="cutoff"
+                tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                tickLine={false}
+                axisLine={{ stroke: '#e5e5ea' }}
+                tick={{ fontSize: 11, fill: '#636366' }}
+              />
+
+              {(chartMode === 'both' || chartMode === 'money') && (
+                <YAxis
+                  yAxisId="moneyAxis"
+                  orientation="left"
+                  domain={yDomainCohortValue}
+                  tickFormatter={(val) => compactCurrency.format(val)}
+                  tickLine={false}
+                  axisLine={false}
+                  width={76}
+                  tick={{ fontSize: 11, fill: '#0071e3', fontWeight: 650 }}
+                />
+              )}
+
+              {(chartMode === 'both' || chartMode === 'docs') && (
+                <YAxis
+                  yAxisId="docsAxis"
+                  orientation={chartMode === 'both' ? 'right' : 'left'}
+                  domain={yDomainCohortDocs}
+                  tickFormatter={(val) => `${number.format(val)} rem.`}
+                  tickLine={false}
+                  axisLine={false}
+                  width={72}
+                  tick={{ fontSize: 11, fill: '#7928ca', fontWeight: 650 }}
+                />
+              )}
+
+              <Tooltip content={<CombinedCohortTooltip />} />
+
+              {(chartMode === 'both' || chartMode === 'money') && (
+                <Bar
+                  yAxisId="moneyAxis"
+                  dataKey="stillOpenPending"
+                  name="Saldo en Dinero ($)"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={50}
+                  cursor="pointer"
+                >
+                  <LabelList
                     dataKey="stillOpenPending"
-                    name="Saldo Base"
-                    stroke="#0071e3"
-                    strokeWidth={2.5}
-                    fill="url(#cohortValGrad)"
-                    dot={{ r: 4, fill: '#0071e3', stroke: '#ffffff', strokeWidth: 2 }}
-                    activeDot={{ r: 6, fill: '#0071e3', stroke: '#ffffff', strokeWidth: 2 }}
+                    position="top"
+                    formatter={(val: any) => compactCurrency.format(Number(val))}
+                    style={{ fontSize: '11px', fontWeight: 700, fill: '#0071e3' }}
                   />
-                </AreaChart>
-              )}
-            </ResponsiveContainer>
-          </div>
-        </article>
-
-        {/* Panel 2: Remisiones Restantes de la Base (#) */}
-        <article className="chart-card evolution-chart-card">
-          <header className="evolution-header">
-            <div>
-              <div className="evolution-tag-row">
-                <div className="evolution-tag purple">
-                  <Boxes size={13} />
-                  <span>Desmonte en Documentos (#)</span>
-                </div>
-                <div className="evolution-chart-type-pill">
-                  <button
-                    type="button"
-                    className={docsChartType === 'bar' ? 'active' : ''}
-                    onClick={() => setDocsChartType('bar')}
-                    title="Ver gráfico de barras"
-                  >
-                    Barras
-                  </button>
-                  <button
-                    type="button"
-                    className={docsChartType === 'area' ? 'active' : ''}
-                    onClick={() => setDocsChartType('area')}
-                    title="Ver gráfico de línea continua"
-                  >
-                    Línea
-                  </button>
-                </div>
-              </div>
-              <h2>Reducción de Remisiones de la Base Inicial (# Docs)</h2>
-              <p>Muestra cómo han salido documentos de las {number.format(initialPoint.initialCount)} remisiones entregadas</p>
-            </div>
-            <div className="evolution-chart-metric">
-              <span className="evolution-kpi-label">Docs Restantes {currentCohortPoint?.cutoff === currentCutoff ? 'Seleccionado' : 'Actual'}</span>
-              <strong className="evolution-kpi-val">{number.format(currentCohortPoint?.stillOpenCount || 0)} rem.</strong>
-            </div>
-          </header>
-
-          <div className="evolution-chart-wrap">
-            <ResponsiveContainer width="100%" height={210}>
-              {docsChartType === 'bar' ? (
-                <BarChart
-                  data={cohort}
-                  margin={{ top: 22, right: 12, left: 0, bottom: 0 }}
-                  barCategoryGap="25%"
-                >
-                  <CartesianGrid stroke="#ededf0" vertical={false} />
-                  <XAxis
-                    dataKey="cutoff"
-                    tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    domain={yDomainCohortDocs}
-                    tickFormatter={(val) => number.format(val)}
-                    tickLine={false}
-                    axisLine={false}
-                    width={52}
-                  />
-                  <Tooltip content={<InitialCohortDocsTooltip />} />
-                  <Bar dataKey="stillOpenCount" name="Docs Restantes" radius={[6, 6, 0, 0]} maxBarSize={48} cursor="pointer">
-                    <LabelList
-                      dataKey="stillOpenCount"
-                      position="top"
-                      formatter={(val: any) => `${number.format(Number(val))} rem.`}
-                      style={{ fontSize: '10px', fontWeight: 750, fill: '#5e2cb8' }}
+                  {cohort.map((entry) => (
+                    <Cell
+                      key={entry.cutoff}
+                      fill={entry.cutoff === currentCutoff ? '#0071e3' : '#8ac2ff'}
+                      onClick={() => onSelectCutoff(entry.cutoff)}
                     />
-                    {cohort.map((entry) => (
-                      <Cell
-                        key={entry.cutoff}
-                        fill={entry.cutoff === currentCutoff ? '#8957d8' : '#cbb2f5'}
-                        onClick={() => onSelectCutoff(entry.cutoff)}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              ) : (
-                <AreaChart data={cohort} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="cohortDocsGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8957d8" stopOpacity={0.28} />
-                      <stop offset="100%" stopColor="#8957d8" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="#ededf0" vertical={false} />
-                  <XAxis
-                    dataKey="cutoff"
-                    tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    domain={yDomainCohortDocs}
-                    tickFormatter={(val) => number.format(val)}
-                    tickLine={false}
-                    axisLine={false}
-                    width={52}
-                  />
-                  <Tooltip content={<InitialCohortDocsTooltip />} />
-                  <Area
-                    type="monotone"
-                    dataKey="stillOpenCount"
-                    name="Docs Restantes"
-                    stroke="#8957d8"
-                    strokeWidth={2.5}
-                    fill="url(#cohortDocsGrad)"
-                    dot={{ r: 4, fill: '#8957d8', stroke: '#ffffff', strokeWidth: 2 }}
-                    activeDot={{ r: 6, fill: '#8957d8', stroke: '#ffffff', strokeWidth: 2 }}
-                  />
-                </AreaChart>
+                  ))}
+                </Bar>
               )}
-            </ResponsiveContainer>
+
+              {chartMode === 'docs' && (
+                <Bar
+                  yAxisId="docsAxis"
+                  dataKey="stillOpenCount"
+                  name="Remisiones Restantes (# Docs)"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={50}
+                  cursor="pointer"
+                >
+                  <LabelList
+                    dataKey="stillOpenCount"
+                    position="top"
+                    formatter={(val: any) => `${number.format(Number(val))} rem.`}
+                    style={{ fontSize: '11px', fontWeight: 750, fill: '#7928ca' }}
+                  />
+                  {cohort.map((entry) => (
+                    <Cell
+                      key={entry.cutoff}
+                      fill={entry.cutoff === currentCutoff ? '#7928ca' : '#cbb2f5'}
+                      onClick={() => onSelectCutoff(entry.cutoff)}
+                    />
+                  ))}
+                </Bar>
+              )}
+
+              {chartMode === 'both' && (
+                <Line
+                  yAxisId="docsAxis"
+                  type="monotone"
+                  dataKey="stillOpenCount"
+                  name="Remisiones Restantes (# Docs)"
+                  stroke="#7928ca"
+                  strokeWidth={3}
+                  dot={{ r: 5, fill: '#7928ca', stroke: '#ffffff', strokeWidth: 2.5 }}
+                  activeDot={{ r: 7, fill: '#7928ca', stroke: '#ffffff', strokeWidth: 2.5 }}
+                >
+                  <LabelList
+                    dataKey="stillOpenCount"
+                    position="bottom"
+                    offset={12}
+                    formatter={(val: any) => `${number.format(Number(val))} rem.`}
+                    style={{ fontSize: '11px', fontWeight: 750, fill: '#5e2cb8' }}
+                  />
+                </Line>
+              )}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="evolution-unified-footer">
+          <div className="evolution-footer-legend">
+            {(chartMode === 'both' || chartMode === 'money') && (
+              <span className="legend-badge blue">
+                <span className="legend-indicator bar-indicator" />
+                <b>Saldo en Dinero ($)</b>: Barras azules (Eje Izquierdo)
+              </span>
+            )}
+            {(chartMode === 'both' || chartMode === 'docs') && (
+              <span className="legend-badge purple">
+                <span className="legend-indicator line-indicator" />
+                <b>Remisiones Restantes (#)</b>: {chartMode === 'both' ? 'Línea morada (Eje Derecho)' : 'Barras moradas'}
+              </span>
+            )}
           </div>
-        </article>
-      </div>
+          <div className="evolution-footer-hint">
+            <span>💡 Haz clic en cualquier barra o punto para enfocar ese corte en los 4 módulos inferiores</span>
+          </div>
+        </div>
+      </article>
 
       {!isMultipleDays && (
         <div className="evolution-single-notice" style={{ marginTop: '14px' }}>

@@ -1403,6 +1403,107 @@ th.numeric, td.numeric { text-align: right; }
   padding: 20px 22px;
 }
 
+.evolution-unified-chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 24px;
+}
+
+.evolution-unified-metrics {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #f7f7f9;
+  border: 1px solid #e8e8ed;
+  padding: 8px 16px;
+  border-radius: 10px;
+}
+
+.evolution-unified-metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: right;
+}
+
+.evolution-unified-metric-sep {
+  width: 1px;
+  height: 34px;
+  background: #d8d8dc;
+}
+
+.evolution-metric-badge-sub {
+  font-size: 10px;
+  font-weight: 700;
+}
+.evolution-metric-badge-sub.green { color: #15803d; }
+.evolution-metric-badge-sub.muted { color: var(--muted); }
+
+.evolution-unified-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f3;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.evolution-footer-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.legend-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #3a3a3c;
+}
+
+.legend-badge .legend-indicator {
+  display: inline-block;
+  border-radius: 3px;
+}
+
+.legend-badge .bar-indicator {
+  width: 12px;
+  height: 12px;
+  background: #0071e3;
+  border-radius: 3px;
+}
+
+.legend-badge .line-indicator {
+  width: 14px;
+  height: 4px;
+  background: #7928ca;
+  border-radius: 2px;
+  position: relative;
+}
+.legend-badge .line-indicator::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1.5px solid #7928ca;
+}
+
+.evolution-footer-hint {
+  font-size: 11px;
+  color: #8e8e93;
+  font-style: italic;
+}
+
 .evolution-chart-metric {
   text-align: right;
   background: #f7f7f9;
