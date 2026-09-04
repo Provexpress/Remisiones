@@ -38,6 +38,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Legend,
   Pie,
   PieChart,
@@ -2029,6 +2030,32 @@ function DailyEvolutionSideBySide({
   const totalDocsPct = initialPoint && initialPoint.remissions > 0 ? totalDocsDelta / initialPoint.remissions : 0;
   const isMultipleDays = daily.length > 1;
 
+  const yDomainValue = useMemo(() => {
+    const vals = daily.map((d) => d.pending).filter((v) => Number.isFinite(v) && v > 0);
+    if (vals.length === 0) return [0, 1000];
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    if (min === max) {
+      return [Math.max(0, Math.floor(min * 0.9)), Math.ceil(max * 1.1)];
+    }
+    const diff = max - min;
+    const padding = Math.max(diff * 0.4, max * 0.04);
+    return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
+  }, [daily]);
+
+  const yDomainDocs = useMemo(() => {
+    const vals = daily.map((d) => d.remissions).filter((v) => Number.isFinite(v) && v > 0);
+    if (vals.length === 0) return [0, 100];
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    if (min === max) {
+      return [Math.max(0, Math.floor(min * 0.85)), Math.ceil(max * 1.15)];
+    }
+    const diff = max - min;
+    const padding = Math.max(Math.ceil(diff * 0.4), 6);
+    return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
+  }, [daily]);
+
   return (
     <section className="evolution-master-section" aria-label="Evolución y seguimiento diario">
       {/* 1. Cabecera Principal de Evolución con Línea Base (Día 1 vs Actual) */}
@@ -2037,13 +2064,13 @@ function DailyEvolutionSideBySide({
           <div>
             <div className="evolution-tag blue">
               <TrendingUp size={13} />
-              <span>Trazabilidad Histórica</span>
+              <span>2. Trazabilidad Histórica</span>
             </div>
-            <h2>Evolución y Seguimiento Diario</h2>
+            <h2>Evolución del Saldo y Remisiones en el Tiempo</h2>
             <p>
               {isMultipleDays
-                ? `Trazabilidad día a día desde el inicio (${formatCutoff(initialPoint.cutoff)}) hasta hoy (${formatCutoff(latestPoint!.cutoff)}). Conoce cuánto bajó en dinero y en documentos en cada jornada.`
-                : `Punto inicial de partida registrado el ${formatCutoff(initialPoint?.cutoff || '')}. A medida que ingreses nuevas fechas diarias en Base-SIS, verás la evolución día tras día.`}
+                ? `Trazabilidad cronológica desde el inicio (${formatCutoff(initialPoint.cutoff)}) hasta hoy (${formatCutoff(latestPoint!.cutoff)}). Compara cómo arrancó la operación y cuánto bajó o subió en cada fecha.`
+                : `Punto inicial de partida registrado el ${formatCutoff(initialPoint?.cutoff || '')}. Al ingresar nuevas fechas en Base-SIS, se trazarán automáticamente las curvas de reducción.`}
             </p>
           </div>
 
@@ -2129,11 +2156,12 @@ function DailyEvolutionSideBySide({
           </header>
 
           <div className="evolution-chart-wrap">
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={210}>
               {valueChartType === 'bar' ? (
                 <BarChart
                   data={daily}
-                  margin={{ top: 12, right: 8, left: 0, bottom: 0 }}
+                  margin={{ top: 22, right: 12, left: 0, bottom: 0 }}
+                  barCategoryGap="25%"
                 >
                   <CartesianGrid stroke="#ededf0" vertical={false} />
                   <XAxis
@@ -2143,13 +2171,20 @@ function DailyEvolutionSideBySide({
                     axisLine={false}
                   />
                   <YAxis
+                    domain={yDomainValue}
                     tickFormatter={(val) => compactCurrency.format(val)}
                     tickLine={false}
                     axisLine={false}
-                    width={70}
+                    width={72}
                   />
                   <Tooltip content={<EvolutionValueTooltip />} />
-                  <Bar dataKey="pending" name="Saldo" radius={[5, 5, 0, 0]} maxBarSize={44} cursor="pointer">
+                  <Bar dataKey="pending" name="Saldo" radius={[6, 6, 0, 0]} maxBarSize={48} cursor="pointer">
+                    <LabelList
+                      dataKey="pending"
+                      position="top"
+                      formatter={(val: any) => compactCurrency.format(Number(val))}
+                      style={{ fontSize: '10px', fontWeight: 700, fill: '#1d1d1f' }}
+                    />
                     {daily.map((entry) => (
                       <Cell
                         key={entry.cutoff}
@@ -2160,10 +2195,10 @@ function DailyEvolutionSideBySide({
                   </Bar>
                 </BarChart>
               ) : (
-                <AreaChart data={daily} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+                <AreaChart data={daily} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="valGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#0071e3" stopOpacity={0.25} />
+                      <stop offset="0%" stopColor="#0071e3" stopOpacity={0.28} />
                       <stop offset="100%" stopColor="#0071e3" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
@@ -2175,13 +2210,23 @@ function DailyEvolutionSideBySide({
                     axisLine={false}
                   />
                   <YAxis
+                    domain={yDomainValue}
                     tickFormatter={(val) => compactCurrency.format(val)}
                     tickLine={false}
                     axisLine={false}
-                    width={70}
+                    width={72}
                   />
                   <Tooltip content={<EvolutionValueTooltip />} />
-                  <Area type="monotone" dataKey="pending" name="Saldo" stroke="#0071e3" strokeWidth={2.5} fill="url(#valGrad)" />
+                  <Area
+                    type="monotone"
+                    dataKey="pending"
+                    name="Saldo"
+                    stroke="#0071e3"
+                    strokeWidth={2.5}
+                    fill="url(#valGrad)"
+                    dot={{ r: 4, fill: '#0071e3', stroke: '#ffffff', strokeWidth: 2 }}
+                    activeDot={{ r: 6, fill: '#0071e3', stroke: '#ffffff', strokeWidth: 2 }}
+                  />
                 </AreaChart>
               )}
             </ResponsiveContainer>
@@ -2226,11 +2271,12 @@ function DailyEvolutionSideBySide({
           </header>
 
           <div className="evolution-chart-wrap">
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={210}>
               {docsChartType === 'bar' ? (
                 <BarChart
                   data={daily}
-                  margin={{ top: 12, right: 8, left: 0, bottom: 0 }}
+                  margin={{ top: 22, right: 12, left: 0, bottom: 0 }}
+                  barCategoryGap="25%"
                 >
                   <CartesianGrid stroke="#ededf0" vertical={false} />
                   <XAxis
@@ -2240,13 +2286,20 @@ function DailyEvolutionSideBySide({
                     axisLine={false}
                   />
                   <YAxis
+                    domain={yDomainDocs}
                     tickFormatter={(val) => number.format(val)}
                     tickLine={false}
                     axisLine={false}
-                    width={50}
+                    width={52}
                   />
                   <Tooltip content={<EvolutionDocsTooltip />} />
-                  <Bar dataKey="remissions" name="Remisiones" radius={[5, 5, 0, 0]} maxBarSize={44} cursor="pointer">
+                  <Bar dataKey="remissions" name="Remisiones" radius={[6, 6, 0, 0]} maxBarSize={48} cursor="pointer">
+                    <LabelList
+                      dataKey="remissions"
+                      position="top"
+                      formatter={(val: any) => `${number.format(Number(val))} rem.`}
+                      style={{ fontSize: '10px', fontWeight: 750, fill: '#5e2cb8' }}
+                    />
                     {daily.map((entry) => (
                       <Cell
                         key={entry.cutoff}
@@ -2257,10 +2310,10 @@ function DailyEvolutionSideBySide({
                   </Bar>
                 </BarChart>
               ) : (
-                <AreaChart data={daily} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+                <AreaChart data={daily} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="docsGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8957d8" stopOpacity={0.25} />
+                      <stop offset="0%" stopColor="#8957d8" stopOpacity={0.28} />
                       <stop offset="100%" stopColor="#8957d8" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
@@ -2272,13 +2325,23 @@ function DailyEvolutionSideBySide({
                     axisLine={false}
                   />
                   <YAxis
+                    domain={yDomainDocs}
                     tickFormatter={(val) => number.format(val)}
                     tickLine={false}
                     axisLine={false}
-                    width={50}
+                    width={52}
                   />
                   <Tooltip content={<EvolutionDocsTooltip />} />
-                  <Area type="monotone" dataKey="remissions" name="Remisiones" stroke="#8957d8" strokeWidth={2.5} fill="url(#docsGrad)" />
+                  <Area
+                    type="monotone"
+                    dataKey="remissions"
+                    name="Remisiones"
+                    stroke="#8957d8"
+                    strokeWidth={2.5}
+                    fill="url(#docsGrad)"
+                    dot={{ r: 4, fill: '#8957d8', stroke: '#ffffff', strokeWidth: 2 }}
+                    activeDot={{ r: 6, fill: '#8957d8', stroke: '#ffffff', strokeWidth: 2 }}
+                  />
                 </AreaChart>
               )}
             </ResponsiveContainer>
