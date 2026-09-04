@@ -13,6 +13,7 @@ import {
   Cloud,
   Download,
   FileSpreadsheet,
+  FileText,
   LayoutDashboard,
   Filter,
   ListChecks,
@@ -2479,6 +2480,106 @@ function InitialCohortEvolutionSection({
   );
 }
 
+function ManagementDineroTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: DailyPoint; value?: number }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload;
+  if (!point) return null;
+  const delta = point.pendingDelta ?? 0;
+  const pct = point.pendingDeltaPct ?? 0;
+  const isDown = delta < 0;
+
+  return (
+    <div className="chart-tooltip">
+      <strong>📅 Corte: {formatCutoff(point.cutoff)}</strong>
+      <span>
+        <i style={{ background: '#0071e3' }} />
+        Saldo en Dinero: <b>{currency.format(point.pending)}</b>
+      </span>
+      {delta !== 0 ? (
+        <span style={{ color: isDown ? '#15803d' : '#c2410c', fontSize: '11px', paddingLeft: '14px', fontWeight: 650 }}>
+          {isDown ? '▼ Saldo bajó: -' : '▲ Saldo subió: +'}{currency.format(Math.abs(delta))} ({percent.format(Math.abs(pct))})
+        </span>
+      ) : (
+        <span style={{ color: '#8e8e93', fontSize: '11px', paddingLeft: '14px' }}>
+          Línea de partida de la serie
+        </span>
+      )}
+      <small style={{ color: '#8e8e93', marginTop: '4px', display: 'block', fontSize: '10px' }}>
+        Toca para enfocar este corte en el tablero
+      </small>
+    </div>
+  );
+}
+
+function ManagementRemisionesTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: DailyPoint; value?: number }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload;
+  if (!point) return null;
+
+  return (
+    <div className="chart-tooltip">
+      <strong>📅 Corte: {formatCutoff(point.cutoff)}</strong>
+      <span>
+        <i style={{ background: '#7928ca' }} />
+        Remisiones Abiertas: <b>{number.format(point.remissions)} rem.</b>
+      </span>
+      {point.newCount > 0 && (
+        <span style={{ color: '#c2410c', fontSize: '11px', paddingLeft: '14px' }}>
+          ⬆ Entraron hoy: +{number.format(point.newCount)} rem.
+        </span>
+      )}
+      {point.withdrawnCount > 0 && (
+        <span style={{ color: '#15803d', fontSize: '11px', paddingLeft: '14px' }}>
+          ⬇ Facturadas hoy: -{number.format(point.withdrawnCount)} rem.
+        </span>
+      )}
+      <small style={{ color: '#8e8e93', marginTop: '4px', display: 'block', fontSize: '10px' }}>
+        Toca para enfocar este corte en el tablero
+      </small>
+    </div>
+  );
+}
+
+function ManagementSalidasTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: DailyPoint; value?: number }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload;
+  if (!point) return null;
+
+  return (
+    <div className="chart-tooltip">
+      <strong>📅 Corte: {formatCutoff(point.cutoff)}</strong>
+      <span>
+        <i style={{ background: '#16a34a' }} />
+        Dinero Facturado: <b>{currency.format(point.withdrawn)}</b>
+      </span>
+      <span style={{ color: '#15803d', fontSize: '11px', paddingLeft: '14px', fontWeight: 600 }}>
+        ✓ Remisiones cerradas: {number.format(point.withdrawnCount)} docs
+      </span>
+      <small style={{ color: '#8e8e93', marginTop: '4px', display: 'block', fontSize: '10px' }}>
+        Toca para enfocar este corte en el tablero
+      </small>
+    </div>
+  );
+}
+
 function ManagementUnifiedTooltip({
   active,
   payload,
@@ -2501,19 +2602,13 @@ function ManagementUnifiedTooltip({
         Saldo en Dinero: <b>{currency.format(point.pending)}</b>
       </span>
       <span>
+        <i style={{ background: '#16a34a' }} />
+        Salidas Facturadas: <b>{currency.format(point.withdrawn)}</b> ({number.format(point.withdrawnCount)} rem.)
+      </span>
+      <span>
         <i style={{ background: '#7928ca' }} />
         Remisiones Abiertas: <b>{number.format(point.remissions)} rem.</b>
       </span>
-      {point.newCount > 0 && (
-        <span style={{ color: '#c2410c', fontSize: '11px', paddingLeft: '14px' }}>
-          ⬆ Entraron hoy: +{number.format(point.newCount)} rem. (+{currency.format(point.newValue)})
-        </span>
-      )}
-      {point.withdrawnCount > 0 && (
-        <span style={{ color: '#15803d', fontSize: '11px', paddingLeft: '14px' }}>
-          ⬇ Facturadas hoy: -{number.format(point.withdrawnCount)} rem. (-{currency.format(point.withdrawn)})
-        </span>
-      )}
       {delta !== 0 && (
         <span style={{ color: isDown ? '#15803d' : '#c2410c', fontSize: '11px', paddingLeft: '14px', fontWeight: 650 }}>
           {isDown ? '▼ Saldo bajó: -' : '▲ Saldo subió: +'}{currency.format(Math.abs(delta))} ({percent.format(Math.abs(pct))})
@@ -2535,7 +2630,8 @@ function ManagementUnifiedChartCard({
   currentCutoff: string;
   onSelectCutoff: (cutoff: string) => void;
 }) {
-  const [chartMode, setChartMode] = useState<'both' | 'money' | 'docs'>('both');
+  const [viewLayout, setViewLayout] = useState<'three' | 'unified'>('three');
+  const [chartMode, setChartMode] = useState<'all' | 'money' | 'docs' | 'withdrawn'>('all');
   const currentPoint = daily.find((d) => d.cutoff === currentCutoff) || daily.at(-1);
 
   const yDomainManagementValue = useMemo(() => {
@@ -2564,6 +2660,20 @@ function ManagementUnifiedChartCard({
     return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
   }, [daily]);
 
+  const yDomainManagementWithdrawn = useMemo(() => {
+    const vals = daily.map((d) => d.withdrawn).filter((v) => Number.isFinite(v) && v > 0);
+    if (vals.length === 0) return [0, 1000];
+    const max = Math.max(...vals);
+    return [0, Math.ceil(max * 1.25)];
+  }, [daily]);
+
+  const yDomainUnifiedMoney = useMemo(() => {
+    const vals = daily.flatMap((d) => [d.pending, d.withdrawn]).filter((v) => Number.isFinite(v) && v > 0);
+    if (vals.length === 0) return [0, 1000];
+    const max = Math.max(...vals);
+    return [0, Math.ceil(max * 1.15)];
+  }, [daily]);
+
   if (!daily.length) return null;
 
   const delta = currentPoint?.pendingDelta ?? 0;
@@ -2582,19 +2692,310 @@ function ManagementUnifiedChartCard({
             <div className="evolution-chart-type-pill">
               <button
                 type="button"
-                className={chartMode === 'both' ? 'active' : ''}
-                onClick={() => setChartMode('both')}
-                title="Ver ambas barras agrupadas: Dinero ($) y Remisiones (#)"
+                className={viewLayout === 'three' ? 'active' : ''}
+                onClick={() => setViewLayout('three')}
+                title="Ver 3 visuales separadas: Dinero, Remisiones y Salidas"
               >
-                Ambas Barras ($ y #)
+                3 Visuales (Dinero · Remisiones · Salidas)
+              </button>
+              <button
+                type="button"
+                className={viewLayout === 'unified' ? 'active' : ''}
+                onClick={() => setViewLayout('unified')}
+                title="Ver 1 sola visual unificada con las 3 dimensiones"
+              >
+                1 Sola Visual (3 en 1)
+              </button>
+            </div>
+          </div>
+          <h2>
+            {viewLayout === 'three'
+              ? 'Gestión del Portafolio: Dinero, Remisiones y Salidas'
+              : 'Visual Unificada: Dinero ($), Salidas ($) y Remisiones (#)'}
+          </h2>
+          <p>
+            {viewLayout === 'three'
+              ? 'Seguimiento visual independiente de los 3 pilares de la gestión: saldo en dinero pendiente, total de remisiones vivas y salidas facturadas.'
+              : 'Gráfica integral con barras agrupadas de saldo en dinero pendiente, salidas facturadas y volumen de remisiones abiertas.'}
+          </p>
+        </div>
+
+        {viewLayout === 'unified' ? (
+          <div className="evolution-unified-metrics">
+            <div className="evolution-unified-metric-item">
+              <span className="evolution-kpi-label">Saldo Dinero ({currentPoint?.cutoff === currentCutoff ? 'Seleccionado' : 'Actual'})</span>
+              <strong className="evolution-kpi-val text-blue">
+                {compactCurrency.format(currentPoint?.pending || 0)}
+              </strong>
+              {delta !== 0 ? (
+                <span className={`evolution-metric-badge-sub ${isDown ? 'green' : 'orange'}`}>
+                  {isDown ? '▼ -' : '▲ +'}{compactCurrency.format(Math.abs(delta))} ({percent.format(Math.abs(pct))})
+                </span>
+              ) : (
+                <span className="evolution-metric-badge-sub muted">Punto inicial</span>
+              )}
+            </div>
+            <div className="evolution-unified-metric-sep" />
+            <div className="evolution-unified-metric-item">
+              <span className="evolution-kpi-label">Salidas Facturadas Hoy</span>
+              <strong className="evolution-kpi-val text-green" style={{ color: '#15803d' }}>
+                {compactCurrency.format(currentPoint?.withdrawn || 0)}
+              </strong>
+              <span className="evolution-metric-badge-sub green">
+                {number.format(currentPoint?.withdrawnCount || 0)} rem. cerradas
+              </span>
+            </div>
+            <div className="evolution-unified-metric-sep" />
+            <div className="evolution-unified-metric-item">
+              <span className="evolution-kpi-label">Remisiones Abiertas</span>
+              <strong className="evolution-kpi-val text-purple">
+                {number.format(currentPoint?.remissions || 0)} rem.
+              </strong>
+              <span className="evolution-metric-badge-sub muted">
+                +{number.format(currentPoint?.newCount || 0)} / -{number.format(currentPoint?.withdrawnCount || 0)} hoy
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="evolution-table-hint" style={{ alignSelf: 'center' }}>
+            <span>💡 3 visuales dedicadas · Haz clic en cualquier barra para enfocar ese corte</span>
+          </div>
+        )}
+      </header>
+
+      {viewLayout === 'three' ? (
+        /* ══ MODO 3 VISUALES SEPARADAS ══════════════════════════════════════ */
+        <div className="management-three-visuals-grid">
+          {/* Visual 1: Dinero ($ Pendiente) */}
+          <div className="management-sub-visual-card">
+            <div className="management-sub-visual-top">
+              <div className="management-sub-visual-title-row">
+                <div className="management-sub-visual-icon blue">
+                  <CircleDollarSign size={17} />
+                </div>
+                <div className="management-sub-visual-titles">
+                  <h4>1. Dinero ($ Pendiente)</h4>
+                  <span>Saldo activo por facturar</span>
+                </div>
+              </div>
+              <div className="management-sub-visual-metric">
+                <strong className="blue">{compactCurrency.format(currentPoint?.pending || 0)}</strong>
+                {delta !== 0 ? (
+                  <span className={isDown ? 'green' : 'orange'}>
+                    {isDown ? '▼ -' : '▲ +'}{compactCurrency.format(Math.abs(delta))}
+                  </span>
+                ) : (
+                  <span className="muted">Punto inicial</span>
+                )}
+              </div>
+            </div>
+            <div className="evolution-chart-wrap">
+              <ResponsiveContainer width="100%" height={210}>
+                <BarChart data={daily} margin={{ top: 22, right: 10, left: -10, bottom: 4 }}>
+                  <CartesianGrid stroke="#ededf0" vertical={false} strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="cutoff"
+                    tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e5ea' }}
+                    tick={{ fontSize: 10.5, fill: '#636366' }}
+                  />
+                  <YAxis
+                    domain={yDomainManagementValue}
+                    tickFormatter={(val) => compactCurrency.format(val)}
+                    tickLine={false}
+                    axisLine={false}
+                    width={60}
+                    tick={{ fontSize: 10.5, fill: '#0071e3', fontWeight: 650 }}
+                  />
+                  <Tooltip content={<ManagementDineroTooltip />} />
+                  <Bar dataKey="pending" name="Saldo en Dinero ($)" radius={[5, 5, 0, 0]} maxBarSize={38} cursor="pointer">
+                    <LabelList
+                      dataKey="pending"
+                      position="top"
+                      formatter={(val: any) => compactCurrency.format(Number(val))}
+                      style={{ fontSize: '10px', fontWeight: 700, fill: '#0071e3' }}
+                    />
+                    {daily.map((entry) => (
+                      <Cell
+                        key={`mgmt-grid-money-${entry.cutoff}`}
+                        fill={entry.cutoff === currentCutoff ? '#0071e3' : '#93c5fd'}
+                        onClick={() => onSelectCutoff(entry.cutoff)}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="management-sub-visual-footer">
+              <span className="legend-badge blue">
+                <span className="legend-indicator bar-indicator blue" />
+                <b>Saldo en Dinero ($)</b>
+              </span>
+              <small style={{ color: '#8e8e93' }}>Toca para enfocar</small>
+            </div>
+          </div>
+
+          {/* Visual 2: Total de Remisiones (# Abiertas) */}
+          <div className="management-sub-visual-card">
+            <div className="management-sub-visual-top">
+              <div className="management-sub-visual-title-row">
+                <div className="management-sub-visual-icon purple">
+                  <FileText size={17} />
+                </div>
+                <div className="management-sub-visual-titles">
+                  <h4>2. Total de Remisiones (#)</h4>
+                  <span>Documentos abiertos</span>
+                </div>
+              </div>
+              <div className="management-sub-visual-metric">
+                <strong className="purple">{number.format(currentPoint?.remissions || 0)} rem.</strong>
+                <span className="muted">
+                  +{number.format(currentPoint?.newCount || 0)} / -{number.format(currentPoint?.withdrawnCount || 0)} hoy
+                </span>
+              </div>
+            </div>
+            <div className="evolution-chart-wrap">
+              <ResponsiveContainer width="100%" height={210}>
+                <BarChart data={daily} margin={{ top: 22, right: 10, left: -10, bottom: 4 }}>
+                  <CartesianGrid stroke="#ededf0" vertical={false} strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="cutoff"
+                    tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e5ea' }}
+                    tick={{ fontSize: 10.5, fill: '#636366' }}
+                  />
+                  <YAxis
+                    domain={yDomainManagementDocs}
+                    tickFormatter={(val) => `${number.format(val)}`}
+                    tickLine={false}
+                    axisLine={false}
+                    width={48}
+                    tick={{ fontSize: 10.5, fill: '#7928ca', fontWeight: 650 }}
+                  />
+                  <Tooltip content={<ManagementRemisionesTooltip />} />
+                  <Bar dataKey="remissions" name="Remisiones Abiertas (#)" radius={[5, 5, 0, 0]} maxBarSize={38} cursor="pointer">
+                    <LabelList
+                      dataKey="remissions"
+                      position="top"
+                      formatter={(val: any) => `${number.format(Number(val))} rem.`}
+                      style={{ fontSize: '10px', fontWeight: 700, fill: '#7928ca' }}
+                    />
+                    {daily.map((entry) => (
+                      <Cell
+                        key={`mgmt-grid-docs-${entry.cutoff}`}
+                        fill={entry.cutoff === currentCutoff ? '#7928ca' : '#d8b4fe'}
+                        onClick={() => onSelectCutoff(entry.cutoff)}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="management-sub-visual-footer">
+              <span className="legend-badge purple">
+                <span className="legend-indicator bar-indicator purple" />
+                <b>Remisiones Abiertas (#)</b>
+              </span>
+              <small style={{ color: '#8e8e93' }}>Toca para enfocar</small>
+            </div>
+          </div>
+
+          {/* Visual 3: Salidas Facturadas */}
+          <div className="management-sub-visual-card">
+            <div className="management-sub-visual-top">
+              <div className="management-sub-visual-title-row">
+                <div className="management-sub-visual-icon green">
+                  <CheckCircle2 size={17} />
+                </div>
+                <div className="management-sub-visual-titles">
+                  <h4>3. Salidas Facturadas</h4>
+                  <span>Desmonte y cobro del día</span>
+                </div>
+              </div>
+              <div className="management-sub-visual-metric">
+                <strong className="green">{compactCurrency.format(currentPoint?.withdrawn || 0)}</strong>
+                <span className="green">
+                  {number.format(currentPoint?.withdrawnCount || 0)} rem. facturadas
+                </span>
+              </div>
+            </div>
+            <div className="evolution-chart-wrap">
+              <ResponsiveContainer width="100%" height={210}>
+                <BarChart data={daily} margin={{ top: 22, right: 10, left: -10, bottom: 4 }}>
+                  <CartesianGrid stroke="#ededf0" vertical={false} strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="cutoff"
+                    tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e5ea' }}
+                    tick={{ fontSize: 10.5, fill: '#636366' }}
+                  />
+                  <YAxis
+                    domain={yDomainManagementWithdrawn}
+                    tickFormatter={(val) => compactCurrency.format(val)}
+                    tickLine={false}
+                    axisLine={false}
+                    width={60}
+                    tick={{ fontSize: 10.5, fill: '#16a34a', fontWeight: 650 }}
+                  />
+                  <Tooltip content={<ManagementSalidasTooltip />} />
+                  <Bar dataKey="withdrawn" name="Salidas Facturadas ($)" radius={[5, 5, 0, 0]} maxBarSize={38} cursor="pointer">
+                    <LabelList
+                      dataKey="withdrawn"
+                      position="top"
+                      formatter={(val: any) => Number(val) > 0 ? compactCurrency.format(Number(val)) : '$0'}
+                      style={{ fontSize: '10px', fontWeight: 700, fill: '#16a34a' }}
+                    />
+                    {daily.map((entry) => (
+                      <Cell
+                        key={`mgmt-grid-withdrawn-${entry.cutoff}`}
+                        fill={entry.cutoff === currentCutoff ? '#16a34a' : '#86efac'}
+                        onClick={() => onSelectCutoff(entry.cutoff)}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="management-sub-visual-footer">
+              <span className="legend-badge green">
+                <span className="legend-indicator bar-indicator green" />
+                <b>Salidas Facturadas ($)</b>
+              </span>
+              <small style={{ color: '#8e8e93' }}>Toca para enfocar</small>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* ══ MODO 1 SOLA VISUAL UNIFICADA (3 en 1) ══════════════════════════ */
+        <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px', marginBottom: '-6px' }}>
+            <div className="evolution-chart-type-pill">
+              <button
+                type="button"
+                className={chartMode === 'all' ? 'active' : ''}
+                onClick={() => setChartMode('all')}
+                title="Ver las 3 métricas agrupadas: Dinero ($), Salidas ($) y Remisiones (#)"
+              >
+                Todas (3 en 1)
               </button>
               <button
                 type="button"
                 className={chartMode === 'money' ? 'active' : ''}
                 onClick={() => setChartMode('money')}
-                title="Ver solo barra de Dinero ($)"
+                title="Ver solo barra de Saldo en Dinero ($)"
               >
                 Solo Dinero ($)
+              </button>
+              <button
+                type="button"
+                className={chartMode === 'withdrawn' ? 'active' : ''}
+                onClick={() => setChartMode('withdrawn')}
+                title="Ver solo barra de Salidas Facturadas ($)"
+              >
+                Solo Salidas ($)
               </button>
               <button
                 type="button"
@@ -2602,160 +3003,161 @@ function ManagementUnifiedChartCard({
                 onClick={() => setChartMode('docs')}
                 title="Ver solo barra de Remisiones (#)"
               >
-                Solo Docs (#)
+                Solo Remisiones (#)
               </button>
             </div>
           </div>
-          <h2>Evolución del Portafolio: Dinero ($) y Remisiones (#)</h2>
-          <p>
-            Barras agrupadas de saldo pendiente en dinero y remisiones totales del portafolio activo a lo largo del tiempo.
-          </p>
-        </div>
 
-        <div className="evolution-unified-metrics">
-          <div className="evolution-unified-metric-item">
-            <span className="evolution-kpi-label">Saldo Dinero ({currentPoint?.cutoff === currentCutoff ? 'Seleccionado' : 'Actual'})</span>
-            <strong className="evolution-kpi-val text-blue">
-              {compactCurrency.format(currentPoint?.pending || 0)}
-            </strong>
-            {delta !== 0 ? (
-              <span className={`evolution-metric-badge-sub ${isDown ? 'green' : 'orange'}`}>
-                {isDown ? '▼ -' : '▲ +'}{compactCurrency.format(Math.abs(delta))} ({percent.format(Math.abs(pct))})
-              </span>
-            ) : (
-              <span className="evolution-metric-badge-sub muted">Punto inicial</span>
-            )}
-          </div>
-          <div className="evolution-unified-metric-sep" />
-          <div className="evolution-unified-metric-item">
-            <span className="evolution-kpi-label">Remisiones Totales</span>
-            <strong className="evolution-kpi-val text-purple">
-              {number.format(currentPoint?.remissions || 0)} rem.
-            </strong>
-            <span className="evolution-metric-badge-sub muted">
-              +{number.format(currentPoint?.newCount || 0)} / -{number.format(currentPoint?.withdrawnCount || 0)} hoy
-            </span>
-          </div>
-        </div>
-      </header>
-
-      <div className="evolution-chart-wrap">
-        <ResponsiveContainer width="100%" height={290}>
-          <BarChart
-            data={daily}
-            margin={{ top: 28, right: 32, left: 10, bottom: 4 }}
-            barGap={6}
-            barCategoryGap="24%"
-          >
-            <CartesianGrid stroke="#ededf0" vertical={false} strokeDasharray="3 3" />
-            <XAxis
-              dataKey="cutoff"
-              tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
-              tickLine={false}
-              axisLine={{ stroke: '#e5e5ea' }}
-              tick={{ fontSize: 11, fill: '#636366' }}
-            />
-
-            {(chartMode === 'both' || chartMode === 'money') && (
-              <YAxis
-                yAxisId="moneyAxis"
-                orientation="left"
-                domain={yDomainManagementValue}
-                tickFormatter={(val) => compactCurrency.format(val)}
-                tickLine={false}
-                axisLine={false}
-                width={76}
-                tick={{ fontSize: 11, fill: '#0071e3', fontWeight: 650 }}
-              />
-            )}
-
-            {(chartMode === 'both' || chartMode === 'docs') && (
-              <YAxis
-                yAxisId="docsAxis"
-                orientation={chartMode === 'both' ? 'right' : 'left'}
-                domain={yDomainManagementDocs}
-                tickFormatter={(val) => `${number.format(val)} rem.`}
-                tickLine={false}
-                axisLine={false}
-                width={72}
-                tick={{ fontSize: 11, fill: '#7928ca', fontWeight: 650 }}
-              />
-            )}
-
-            <Tooltip content={<ManagementUnifiedTooltip />} />
-
-            {(chartMode === 'both' || chartMode === 'money') && (
-              <Bar
-                yAxisId="moneyAxis"
-                dataKey="pending"
-                name="Saldo en Dinero ($)"
-                radius={[6, 6, 0, 0]}
-                maxBarSize={44}
-                cursor="pointer"
+          <div className="evolution-chart-wrap">
+            <ResponsiveContainer width="100%" height={290}>
+              <BarChart
+                data={daily}
+                margin={{ top: 28, right: 32, left: 10, bottom: 4 }}
+                barGap={6}
+                barCategoryGap="22%"
               >
-                <LabelList
-                  dataKey="pending"
-                  position="top"
-                  formatter={(val: any) => compactCurrency.format(Number(val))}
-                  style={{ fontSize: '10.5px', fontWeight: 700, fill: '#0071e3' }}
+                <CartesianGrid stroke="#ededf0" vertical={false} strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="cutoff"
+                  tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e5e5ea' }}
+                  tick={{ fontSize: 11, fill: '#636366' }}
                 />
-                {daily.map((entry) => (
-                  <Cell
-                    key={`mgmt-money-${entry.cutoff}`}
-                    fill={entry.cutoff === currentCutoff ? '#0071e3' : '#8ac2ff'}
-                    onClick={() => onSelectCutoff(entry.cutoff)}
-                  />
-                ))}
-              </Bar>
-            )}
 
-            {(chartMode === 'both' || chartMode === 'docs') && (
-              <Bar
-                yAxisId="docsAxis"
-                dataKey="remissions"
-                name="Remisiones Totales (# Docs)"
-                radius={[6, 6, 0, 0]}
-                maxBarSize={44}
-                cursor="pointer"
-              >
-                <LabelList
-                  dataKey="remissions"
-                  position="top"
-                  formatter={(val: any) => `${number.format(Number(val))} rem.`}
-                  style={{ fontSize: '10.5px', fontWeight: 750, fill: '#7928ca' }}
-                />
-                {daily.map((entry) => (
-                  <Cell
-                    key={`mgmt-docs-${entry.cutoff}`}
-                    fill={entry.cutoff === currentCutoff ? '#7928ca' : '#cbb2f5'}
-                    onClick={() => onSelectCutoff(entry.cutoff)}
+                {(chartMode === 'all' || chartMode === 'money' || chartMode === 'withdrawn') && (
+                  <YAxis
+                    yAxisId="moneyAxis"
+                    orientation="left"
+                    domain={chartMode === 'money' ? yDomainManagementValue : chartMode === 'withdrawn' ? yDomainManagementWithdrawn : yDomainUnifiedMoney}
+                    tickFormatter={(val) => compactCurrency.format(val)}
+                    tickLine={false}
+                    axisLine={false}
+                    width={76}
+                    tick={{ fontSize: 11, fill: '#0071e3', fontWeight: 650 }}
                   />
-                ))}
-              </Bar>
-            )}
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+                )}
 
-      <div className="evolution-unified-footer">
-        <div className="evolution-footer-legend">
-          {(chartMode === 'both' || chartMode === 'money') && (
-            <span className="legend-badge blue">
-              <span className="legend-indicator bar-indicator blue" />
-              <b>Saldo en Dinero ($)</b>: Barra azul (Eje Izquierdo)
-            </span>
-          )}
-          {(chartMode === 'both' || chartMode === 'docs') && (
-            <span className="legend-badge purple">
-              <span className="legend-indicator bar-indicator purple" />
-              <b>Remisiones Totales (#)</b>: Barra morada (Eje Derecho)
-            </span>
-          )}
-        </div>
-        <div className="evolution-footer-hint">
-          <span>💡 Haz clic en cualquier barra para enfocar ese día en el tablero de gestión</span>
-        </div>
-      </div>
+                {(chartMode === 'all' || chartMode === 'docs') && (
+                  <YAxis
+                    yAxisId="docsAxis"
+                    orientation={chartMode === 'all' ? 'right' : 'left'}
+                    domain={yDomainManagementDocs}
+                    tickFormatter={(val) => `${number.format(val)} rem.`}
+                    tickLine={false}
+                    axisLine={false}
+                    width={72}
+                    tick={{ fontSize: 11, fill: '#7928ca', fontWeight: 650 }}
+                  />
+                )}
+
+                <Tooltip content={<ManagementUnifiedTooltip />} />
+
+                {(chartMode === 'all' || chartMode === 'money') && (
+                  <Bar
+                    yAxisId="moneyAxis"
+                    dataKey="pending"
+                    name="Saldo en Dinero ($)"
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={38}
+                    cursor="pointer"
+                  >
+                    <LabelList
+                      dataKey="pending"
+                      position="top"
+                      formatter={(val: any) => compactCurrency.format(Number(val))}
+                      style={{ fontSize: '10px', fontWeight: 700, fill: '#0071e3' }}
+                    />
+                    {daily.map((entry) => (
+                      <Cell
+                        key={`mgmt-uni-money-${entry.cutoff}`}
+                        fill={entry.cutoff === currentCutoff ? '#0071e3' : '#8ac2ff'}
+                        onClick={() => onSelectCutoff(entry.cutoff)}
+                      />
+                    ))}
+                  </Bar>
+                )}
+
+                {(chartMode === 'all' || chartMode === 'withdrawn') && (
+                  <Bar
+                    yAxisId="moneyAxis"
+                    dataKey="withdrawn"
+                    name="Salidas Facturadas ($)"
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={38}
+                    cursor="pointer"
+                  >
+                    <LabelList
+                      dataKey="withdrawn"
+                      position="top"
+                      formatter={(val: any) => Number(val) > 0 ? compactCurrency.format(Number(val)) : ''}
+                      style={{ fontSize: '10px', fontWeight: 700, fill: '#16a34a' }}
+                    />
+                    {daily.map((entry) => (
+                      <Cell
+                        key={`mgmt-uni-withdrawn-${entry.cutoff}`}
+                        fill={entry.cutoff === currentCutoff ? '#16a34a' : '#86efac'}
+                        onClick={() => onSelectCutoff(entry.cutoff)}
+                      />
+                    ))}
+                  </Bar>
+                )}
+
+                {(chartMode === 'all' || chartMode === 'docs') && (
+                  <Bar
+                    yAxisId="docsAxis"
+                    dataKey="remissions"
+                    name="Remisiones Abiertas (#)"
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={38}
+                    cursor="pointer"
+                  >
+                    <LabelList
+                      dataKey="remissions"
+                      position="top"
+                      formatter={(val: any) => `${number.format(Number(val))} rem.`}
+                      style={{ fontSize: '10px', fontWeight: 750, fill: '#7928ca' }}
+                    />
+                    {daily.map((entry) => (
+                      <Cell
+                        key={`mgmt-uni-docs-${entry.cutoff}`}
+                        fill={entry.cutoff === currentCutoff ? '#7928ca' : '#cbb2f5'}
+                        onClick={() => onSelectCutoff(entry.cutoff)}
+                      />
+                    ))}
+                  </Bar>
+                )}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="evolution-unified-footer">
+            <div className="evolution-footer-legend">
+              {(chartMode === 'all' || chartMode === 'money') && (
+                <span className="legend-badge blue">
+                  <span className="legend-indicator bar-indicator blue" />
+                  <b>Saldo en Dinero ($)</b>: Barra azul (Eje Izquierdo)
+                </span>
+              )}
+              {(chartMode === 'all' || chartMode === 'withdrawn') && (
+                <span className="legend-badge green">
+                  <span className="legend-indicator bar-indicator green" />
+                  <b>Salidas Facturadas ($)</b>: Barra verde (Eje Izquierdo)
+                </span>
+              )}
+              {(chartMode === 'all' || chartMode === 'docs') && (
+                <span className="legend-badge purple">
+                  <span className="legend-indicator bar-indicator purple" />
+                  <b>Remisiones Abiertas (#)</b>: Barra morada (Eje Derecho)
+                </span>
+              )}
+            </div>
+            <div className="evolution-footer-hint">
+              <span>💡 Haz clic en cualquier barra para enfocar ese día en el tablero de gestión</span>
+            </div>
+          </div>
+        </>
+      )}
     </article>
   );
 }

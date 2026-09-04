@@ -1482,6 +1482,9 @@ th.numeric, td.numeric { text-align: right; }
 .legend-badge .bar-indicator.purple {
   background: #7928ca;
 }
+.legend-badge .bar-indicator.green {
+  background: #16a34a;
+}
 
 .evolution-footer-hint {
   font-size: 11px;
@@ -2518,6 +2521,113 @@ th.numeric, td.numeric { text-align: right; }
   letter-spacing: -0.02em;
 }
 
+/* ── Management 3 Visuals Grid (Dinero, Remisiones, Salidas) ── */
+.management-three-visuals-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.management-sub-visual-card {
+  background: #fbfbfd;
+  border: 1px solid #e8e8ed;
+  border-radius: 14px;
+  padding: 16px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+}
+
+.management-sub-visual-card:hover {
+  background: #ffffff;
+  border-color: #d1d1d6;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+.management-sub-visual-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.management-sub-visual-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.management-sub-visual-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.management-sub-visual-icon.blue { background: #eaf4ff; color: #0071e3; }
+.management-sub-visual-icon.purple { background: #f3ebfc; color: #7928ca; }
+.management-sub-visual-icon.green { background: #dcfce7; color: #15803d; }
+
+.management-sub-visual-titles h4 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 750;
+  color: #1d1d1f;
+  letter-spacing: -0.01em;
+}
+
+.management-sub-visual-titles span {
+  font-size: 10.5px;
+  color: var(--muted);
+  display: block;
+}
+
+.management-sub-visual-metric {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.management-sub-visual-metric strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.management-sub-visual-metric strong.blue { color: #0071e3; }
+.management-sub-visual-metric strong.purple { color: #7928ca; }
+.management-sub-visual-metric strong.green { color: #15803d; }
+
+.management-sub-visual-metric span {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-top: 2px;
+}
+
+.management-sub-visual-metric span.green { background: #dcfce7; color: #15803d; }
+.management-sub-visual-metric span.orange { background: #ffedd5; color: #c2410c; }
+.management-sub-visual-metric span.muted { background: #f2f2f7; color: #636366; }
+
+.management-sub-visual-footer {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #ededf0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: #636366;
+}
+
 @media (max-width: 1180px) {
   .welcome-shell { grid-template-columns: 1fr 1fr; }
   .welcome-copy { padding: 72px 48px; }
@@ -2527,6 +2637,7 @@ th.numeric, td.numeric { text-align: right; }
   .evolution-grid, .evolution-charts-grid { grid-template-columns: 1fr; }
   .management-kpis-grid { grid-template-columns: repeat(2, 1fr); }
   .management-sellers-columns { grid-template-columns: 1fr; }
+  .management-three-visuals-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 850px) {
