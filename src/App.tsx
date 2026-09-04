@@ -521,6 +521,12 @@ function Dashboard({
   );
   const sellerData = useMemo(() => aggregateBy(sellerFilterRecords, (record) => record.employee).slice(0, 12), [sellerFilterRecords]);
 
+  const top10Remisiones = useMemo(() => {
+    return [...currentRecords]
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+  }, [currentRecords]);
+
   const targetRecords = useMemo(() => {
     if (detailTab === 'withdrawn') return withdrawnRecords;
     if (detailTab === 'new') return newRecords;
@@ -810,7 +816,7 @@ function Dashboard({
                     <div className="management-eyebrow">
                       Proceso de Gestión · {formattedCutoffWithTime}
                     </div>
-                    <h2>Gestión Operativa: Cartera, Ingresos y Facturación</h2>
+                    <h2>Control Diario: Remisiones Abiertas, Nuevas y Facturadas</h2>
                     <p>
                       {previousCutoff ? (
                         <>
@@ -849,7 +855,7 @@ function Dashboard({
               </div>
 
               <div className="management-kpis-grid">
-                {/* 1. Cartera General */}
+                {/* 1. Saldo Pendiente General */}
                 <div
                   className="mgmt-kpi-item"
                   role="button"
@@ -858,7 +864,7 @@ function Dashboard({
                   title="Toca para ver el detalle de todas las remisiones abiertas"
                 >
                   <div className="mgmt-kpi-top">
-                    <span className="mgmt-kpi-label">Cartera General (Saldo Activo)</span>
+                    <span className="mgmt-kpi-label">Saldo Pendiente Total</span>
                     <span className="mgmt-kpi-badge blue">Día Actual</span>
                   </div>
                   <strong className="mgmt-kpi-value">{currency.format(currentSummary.pending)}</strong>
@@ -888,7 +894,7 @@ function Dashboard({
                     <span>
                       {previousCutoff
                         ? <span><strong>{number.format(managementNew.length)}</strong> remisiones nuevas registradas</span>
-                        : 'Punto de partida de cartera'}
+                        : 'Punto inicial de remisiones'}
                     </span>
                   </div>
                 </div>
@@ -912,18 +918,18 @@ function Dashboard({
                     <ArrowDownRight size={15} />
                     <span>
                       {previousCutoff
-                        ? <span><strong>{number.format(managementWithdrawn.length)}</strong> remisiones salieron de cartera</span>
+                        ? <span><strong>{number.format(managementWithdrawn.length)}</strong> remisiones facturadas y cerradas</span>
                         : 'Disponible con dos o más días registrados'}
                     </span>
                   </div>
                 </div>
 
-                {/* 4. Balance del Día: ¿Subió o bajó la cartera? */}
+                {/* 4. Balance del Día: ¿Subió o bajó el saldo pendiente? */}
                 <div className={`mgmt-kpi-item ${netDifference <= 0 ? 'success' : 'warning'}`}>
                   <div className="mgmt-kpi-top">
-                    <span className="mgmt-kpi-label">¿Subió o bajó la cartera hoy?</span>
+                    <span className="mgmt-kpi-label">¿Subió o bajó el saldo hoy?</span>
                     <span className={`mgmt-kpi-badge ${netDifference <= 0 ? 'green' : 'orange'}`}>
-                      {previousCutoff ? (netDifference <= 0 ? 'Bajó cartera (Favorable)' : 'Subió cartera') : 'Base inicial'}
+                      {previousCutoff ? (netDifference <= 0 ? 'Disminuyó saldo (Favorable)' : 'Aumentó saldo') : 'Base inicial'}
                     </span>
                   </div>
                   <strong className={`mgmt-kpi-value ${netDifference <= 0 ? 'text-green' : 'text-orange'}`}>
@@ -951,7 +957,7 @@ function Dashboard({
               <div className="management-table-container">
                 <div className="management-table-header">
                   <div>
-                    <h3>Tabla de Gestión: Cartera General, Ingresos de Hoy y Salidas Facturadas</h3>
+                    <h3>Tabla de Gestión: Remisiones Abiertas, Nuevas de Hoy y Facturadas</h3>
                     <small>
                       {previousCutoff
                         ? `Balance consolidado del día ${formatCutoff(cutoff)} evaluado frente al día anterior (${formatCutoff(previousCutoff)})`
@@ -960,7 +966,7 @@ function Dashboard({
                   </div>
                   {previousCutoff && (
                     <span className={`mgmt-flow-badge ${netDifference <= 0 ? 'favorable' : 'neutral'}`}>
-                      {netDifference <= 0 ? '▼ Favorable: La cartera bajó hoy' : '▲ Atención: La cartera subió hoy'}
+                      {netDifference <= 0 ? '▼ Favorable: El saldo pendiente disminuyó hoy' : '▲ Atención: El saldo pendiente aumentó hoy'}
                     </span>
                   )}
                 </div>
@@ -991,8 +997,8 @@ function Dashboard({
                           <div className="flow-cell-concept">
                             <span className="flow-indicator-dot blue" />
                             <div>
-                              <strong>Remisiones Generales (Total Cartera)</strong>
-                              <small>Cartera activa total pendiente por facturar</small>
+                              <strong>Remisiones Generales (Total Abierto)</strong>
+                              <small>Total de remisiones pendientes por facturar</small>
                             </div>
                           </div>
                         </td>
@@ -1009,7 +1015,7 @@ function Dashboard({
                           <strong className="text-blue">{currency.format(currentSummary.pending)}</strong>
                         </td>
                         <td className="numeric">
-                          <span className="flow-pill blue">100% Cartera</span>
+                          <span className="flow-pill blue">100% Total Abierto</span>
                         </td>
                         <td className="text-center">
                           <button
@@ -1040,7 +1046,7 @@ function Dashboard({
                             <span className="flow-indicator-dot orange" />
                             <div>
                               <strong>Nuevas Remisiones (Las del Día)</strong>
-                              <small>Remisiones abiertas ingresadas hoy a cartera</small>
+                              <small>Nuevas remisiones abiertas generadas hoy</small>
                             </div>
                           </div>
                         </td>
@@ -1102,7 +1108,7 @@ function Dashboard({
                             <span className="flow-indicator-dot green" />
                             <div>
                               <strong>Remisiones Facturadas (Las que Salieron)</strong>
-                              <small>Remisiones cobradas o facturadas retiradas de cartera</small>
+                              <small>Remisiones cobradas o facturadas que ya salieron</small>
                             </div>
                           </div>
                         </td>
@@ -1161,8 +1167,8 @@ function Dashboard({
                                 <strong>Balance del Día (Entradas vs Salidas)</strong>
                                 <small>
                                   {netDifference <= 0
-                                    ? 'Favorable: se facturó más de lo que ingresó (la cartera disminuyó)'
-                                    : 'Atención: ingresaron más remisiones nuevas de las que se facturaron (la cartera aumentó)'}
+                                    ? 'Favorable: se facturó más de lo que ingresó (el saldo pendiente disminuyó)'
+                                    : 'Atención: ingresaron más remisiones nuevas de las que se facturaron (el saldo pendiente aumentó)'}
                                 </small>
                               </div>
                             </div>
@@ -1185,7 +1191,7 @@ function Dashboard({
                           </td>
                           <td className="numeric">
                             <span className={`delta-chip ${netDifference <= 0 ? 'green' : 'orange'}`}>
-                              {netDifference <= 0 ? '▼ Bajó Cartera' : '▲ Subió Cartera'}
+                              {netDifference <= 0 ? '▼ Disminuyó Saldo' : '▲ Aumentó Saldo'}
                             </span>
                           </td>
                           <td className="text-center">
@@ -1354,7 +1360,7 @@ function Dashboard({
               onSelectCutoff={setCutoff}
             />
 
-            {/* 3. SALUD DE CARTERA Y CONCENTRACIÓN */}
+            {/* 3. EDAD DE REMISIONES Y CONCENTRACIÓN */}
             <section className="chart-grid chart-grid-main">
               <AgeCompositionCard
                 ageData={ageBreakdown}
@@ -1429,7 +1435,6 @@ function Dashboard({
 
             <section className="chart-grid">
               <ChartCard
-                className="chart-wide"
                 title="Ejecutivos comerciales con mayor saldo pendiente"
                 subtitle={employee !== 'Todos' ? `Filtrado por: ${employee} · Toca para quitar` : "Toca una barra para filtrar por comercial"}
               >
@@ -1474,6 +1479,86 @@ function Dashboard({
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+              </ChartCard>
+
+              {/* Top 10 Remisiones de Mayor Valor */}
+              <ChartCard
+                title="Top 10 remisiones de mayor valor"
+                subtitle="Remisiones abiertas con mayor importe pendiente por facturar"
+                action={
+                  <button
+                    type="button"
+                    className="top-remisiones-header-action"
+                    onClick={() => {
+                      setView('detail');
+                      setDetailTab('open');
+                      setSortBy('total-desc');
+                    }}
+                    title="Ver todas las remisiones ordenadas por mayor valor"
+                  >
+                    Ver todas en detalle →
+                  </button>
+                }
+              >
+                <div className="top-remisiones-list">
+                  {top10Remisiones.length === 0 ? (
+                    <div className="empty-state">
+                      <Search size={20} />
+                      No hay remisiones abiertas para los filtros seleccionados
+                    </div>
+                  ) : (
+                    top10Remisiones.map((record, idx) => {
+                      const ageClass = record.age > 30 ? 'critical' : record.age > 15 ? 'warning' : 'ok';
+                      return (
+                        <div
+                          key={record.id}
+                          className="top-remision-item"
+                          onClick={() => {
+                            setView('detail');
+                            setDetailTab('open');
+                            setQuery(record.document);
+                          }}
+                          role="button"
+                          tabIndex={0}
+                          title={`Toca para ver la remisión ${record.document} (${record.company})`}
+                        >
+                          <div className="top-remision-left">
+                            <span className={`top-remision-rank rank-${idx + 1}`}>
+                              #{idx + 1}
+                            </span>
+                            <div className="top-remision-info">
+                              <div className="top-remision-primary">
+                                <strong className="top-remision-doc">{record.document}</strong>
+                                <span className="top-remision-company" title={record.company}>
+                                  {record.company}
+                                </span>
+                              </div>
+                              <div className="top-remision-meta">
+                                <span className="top-remision-seller">{record.employee}</span>
+                                <span>·</span>
+                                <span className={`top-remision-age ${ageClass}`}>
+                                  {record.age} días
+                                </span>
+                                {record.order && (
+                                  <>
+                                    <span>·</span>
+                                    <span>Ped. {record.order}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="top-remision-right">
+                            <strong className="top-remision-value">
+                              {currency.format(record.total)}
+                            </strong>
+                            <span className="top-remision-action-hint">Ver detalle →</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </ChartCard>
             </section>
           </>
@@ -1850,7 +1935,7 @@ function EvolutionValueTooltip({
       <strong>{formatCutoff(point.cutoff)}</strong>
       <span>
         <i style={{ background: '#0071e3' }} />
-        Saldo Cartera: <b>{currency.format(point.pending)}</b>
+        Saldo Pendiente: <b>{currency.format(point.pending)}</b>
       </span>
       {!isInitial && (
         <>
@@ -1970,7 +2055,7 @@ function DailyEvolutionSideBySide({
                 </button>
               </div>
             </div>
-            <h2>Evolución del Valor en Cartera ($)</h2>
+            <h2>Evolución del Saldo Pendiente ($)</h2>
             <p>
               {daily.length > 1
                 ? `Seguimiento cronológico desde ${formatCutoff(daily[0].cutoff)} hasta ${formatCutoff(daily.at(-1)!.cutoff)}`
@@ -2056,7 +2141,7 @@ function DailyEvolutionSideBySide({
 
         <div className="evolution-table-container">
           <div className="evolution-table-title">
-            <span>Tabla de evolución día a día (¿Cuánto sube o baja la cartera?):</span>
+            <span>Tabla de evolución día a día (¿Cuánto sube o baja el saldo pendiente?):</span>
             <small>Toca una fila para enfocar ese día</small>
           </div>
           <div className="evolution-table-wrap">
@@ -2317,8 +2402,31 @@ function DailyEvolutionSideBySide({
   );
 }
 
-function ChartCard({ title, subtitle, children, className = '' }: { title: string; subtitle: string; children: React.ReactNode; className?: string }) {
-  return <article className={`chart-card ${className}`}><header><div><h2>{title}</h2><p>{subtitle}</p></div></header>{children}</article>;
+function ChartCard({
+  title,
+  subtitle,
+  children,
+  className = '',
+  action,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+  className?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <article className={`chart-card ${className}`}>
+      <header>
+        <div>
+          <h2>{title}</h2>
+          <p>{subtitle}</p>
+        </div>
+        {action}
+      </header>
+      {children}
+    </article>
+  );
 }
 
 function DailyStat({
