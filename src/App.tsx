@@ -476,6 +476,59 @@ function Dashboard({
     [evolucionCutoffRecords, statusFilter, amountFilter, ageFilter],
   );
 
+  const initialCohortRecords = useMemo(
+    () => data.records.filter((r) => r.cutoff === EVOLUCION_CUTOFF),
+    [data.records, EVOLUCION_CUTOFF],
+  );
+
+  // Remisiones de la base 03/09 que ya salieron/cerraron al corte evaluado (todos los comerciales)
+  const evolucionWithdrawnAllSellers = useMemo(() => {
+    if (cutoff === EVOLUCION_CUTOFF) return [];
+    const openKeysAtCutoff = new Set(
+      data.records.filter((r) => r.cutoff === cutoff).map((r) => r.stableKey),
+    );
+    return initialCohortRecords.filter((record) => {
+      if (openKeysAtCutoff.has(record.stableKey)) return false;
+      if (director !== 'Todos' && record.director !== director) return false;
+      if (statusFilter !== 'Todos' && record.alert !== statusFilter) return false;
+      if (!matchesAmountFilter(record.amountStatus, amountFilter)) return false;
+      if (!matchesAgeFilter(record.age, record.ageRange, ageFilter)) return false;
+      return true;
+    });
+  }, [cutoff, initialCohortRecords, data.records, director, statusFilter, amountFilter, ageFilter]);
+
+  const evolucionClosedBySeller = useMemo(() => {
+    const map = new Map<string, { name: string; director: string; total: number; count: number }>();
+    for (const r of evolucionWithdrawnAllSellers) {
+      const cur = map.get(r.employee) || { name: r.employee, director: r.director, total: 0, count: 0 };
+      cur.total += r.total;
+      cur.count += 1;
+      map.set(r.employee, cur);
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total);
+  }, [evolucionWithdrawnAllSellers]);
+
+  // Remisiones de la base 03/09 que siguen abiertas (todos los comerciales)
+  const evolucionOpenAllSellers = useMemo(() => {
+    return evolucionCutoffRecords.filter((r) =>
+      (director === 'Todos' || r.director === director) &&
+      (statusFilter === 'Todos' || r.alert === statusFilter) &&
+      matchesAmountFilter(r.amountStatus, amountFilter) &&
+      matchesAgeFilter(r.age, r.ageRange, ageFilter),
+    );
+  }, [evolucionCutoffRecords, director, statusFilter, amountFilter, ageFilter]);
+
+  const evolucionOpenBySeller = useMemo(() => {
+    const map = new Map<string, { name: string; director: string; total: number; count: number }>();
+    for (const r of evolucionOpenAllSellers) {
+      const cur = map.get(r.employee) || { name: r.employee, director: r.director, total: 0, count: 0 };
+      cur.total += r.total;
+      cur.count += 1;
+      map.set(r.employee, cur);
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total);
+  }, [evolucionOpenAllSellers]);
+
   const previousCutoffRecords = useMemo(
     () => data.records.filter((record) => record.cutoff === previousCutoff),
     [data.records, previousCutoff],
@@ -1078,6 +1131,153 @@ function Dashboard({
                 </div>
               </ChartCard>
             </section>
+
+            {/* Comerciales: Facturación/Cierre de la base inicial vs Saldo Restante de la base */}
+            <section className="management-sellers-columns">
+              {/* Comerciales que cerraron remisiones de la base inicial */}
+              <div className="mgmt-sellers-card closed-card">
+                <div className="mgmt-sellers-header">
+                  <div>
+                    <div className="mgmt-sellers-tag green">
+                      <CheckCircle2 size={13} /> Facturación y Cierre · Base 03/09
+                    </div>
+                    <h3>Comerciales que cerraron remisiones de la base</h3>
+                    <p>
+                      {evolucionClosedBySeller.length > 0
+                        ? `${evolucionClosedBySeller.length} comercial${evolucionClosedBySeller.length === 1 ? '' : 'es'} lograron facturar o retirar saldo de la entrega inicial`
+                        : cutoff === EVOLUCION_CUTOFF
+                          ? 'Punto de partida (Línea base): aún no se registran salidas en esta fecha'
+                          : 'No hay retiros registrados para los filtros seleccionados'}
+                    </p>
+                  </div>
+                  {employee !== 'Todos' && (
+                    <button
+                      type="button"
+                      className="mgmt-reset-filter-btn"
+                      onClick={() => setEmployee('Todos')}
+                      title="Quitar filtro de comercial"
+                    >
+                      Ver todos
+                    </button>
+                  )}
+                </div>
+
+                <div className="mgmt-sellers-list">
+                  {evolucionClosedBySeller.length === 0 ? (
+                    <div className="mgmt-empty-msg">
+                      <span>
+                        {cutoff === EVOLUCION_CUTOFF
+                          ? 'En la fecha base (03/09/2026) todas las remisiones arrancaron abiertas. Al avanzar la fecha con nuevos cortes, aquí verás los comerciales que las facturaron.'
+                          : 'No se registraron remisiones cerradas de la base para estos filtros.'}
+                      </span>
+                    </div>
+                  ) : (
+                    evolucionClosedBySeller.map((seller, idx) => {
+                      const isSelected = employee === seller.name;
+                      const isDimmed = employee !== 'Todos' && !isSelected;
+                      const maxTotal = evolucionClosedBySeller[0]?.total || 1;
+                      const pct = Math.round((seller.total / maxTotal) * 100);
+                      return (
+                        <div
+                          key={seller.name}
+                          className={`mgmt-seller-row green-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
+                          onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
+                          role="button"
+                          tabIndex={0}
+                          title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
+                        >
+                          <span className="mgmt-seller-rank">{idx + 1}</span>
+                          <div className="mgmt-seller-info">
+                            <div className="mgmt-seller-top">
+                              <strong className="mgmt-seller-name">{seller.name}</strong>
+                              <span className="mgmt-seller-count green">
+                                {seller.count} remisi{seller.count === 1 ? 'ón facturada' : 'ones facturadas'}
+                              </span>
+                            </div>
+                            <div className="mgmt-seller-bar-track">
+                              <div className="mgmt-seller-bar-fill green" style={{ width: `${pct}%` }} />
+                            </div>
+                            <div className="mgmt-seller-sub">
+                              <small>{seller.director}</small>
+                              <strong className="mgmt-seller-amount green">{currency.format(seller.total)}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Comerciales con saldo pendiente de la base inicial */}
+              <div className="mgmt-sellers-card purple-card">
+                <div className="mgmt-sellers-header">
+                  <div>
+                    <div className="mgmt-sellers-tag purple">
+                      <Boxes size={13} /> Saldo Restante · Base 03/09
+                    </div>
+                    <h3>Comerciales con saldo restante de la base</h3>
+                    <p>
+                      {evolucionOpenBySeller.length > 0
+                        ? `${evolucionOpenBySeller.length} comercial${evolucionOpenBySeller.length === 1 ? '' : 'es'} tienen remisiones aún abiertas de la entrega inicial`
+                        : 'No hay saldo abierto registrado para los filtros seleccionados'}
+                    </p>
+                  </div>
+                  {employee !== 'Todos' && (
+                    <button
+                      type="button"
+                      className="mgmt-reset-filter-btn"
+                      onClick={() => setEmployee('Todos')}
+                      title="Quitar filtro de comercial"
+                    >
+                      Ver todos
+                    </button>
+                  )}
+                </div>
+
+                <div className="mgmt-sellers-list">
+                  {evolucionOpenBySeller.length === 0 ? (
+                    <div className="mgmt-empty-msg">
+                      <span>No hay remisiones abiertas de la base para estos filtros.</span>
+                    </div>
+                  ) : (
+                    evolucionOpenBySeller.map((seller, idx) => {
+                      const isSelected = employee === seller.name;
+                      const isDimmed = employee !== 'Todos' && !isSelected;
+                      const maxTotal = evolucionOpenBySeller[0]?.total || 1;
+                      const pct = Math.round((seller.total / maxTotal) * 100);
+                      return (
+                        <div
+                          key={seller.name}
+                          className={`mgmt-seller-row purple-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
+                          onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
+                          role="button"
+                          tabIndex={0}
+                          title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
+                        >
+                          <span className="mgmt-seller-rank">{idx + 1}</span>
+                          <div className="mgmt-seller-info">
+                            <div className="mgmt-seller-top">
+                              <strong className="mgmt-seller-name">{seller.name}</strong>
+                              <span className="mgmt-seller-count purple">
+                                {seller.count} remisi{seller.count === 1 ? 'ón pendiente' : 'ones pendientes'}
+                              </span>
+                            </div>
+                            <div className="mgmt-seller-bar-track">
+                              <div className="mgmt-seller-bar-fill purple" style={{ width: `${pct}%` }} />
+                            </div>
+                            <div className="mgmt-seller-sub">
+                              <small>{seller.director}</small>
+                              <strong className="mgmt-seller-amount purple">{currency.format(seller.total)}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </section>
           </>
         )}
 
@@ -1408,6 +1608,147 @@ function Dashboard({
                   </div>
                 </div>
               </ChartCard>
+            </section>
+
+            {/* Comerciales: Facturación/Cierre del día vs Nuevos Ingresos del día */}
+            <section className="management-sellers-columns">
+              {/* Comerciales que cerraron remisiones */}
+              <div className="mgmt-sellers-card closed-card">
+                <div className="mgmt-sellers-header">
+                  <div>
+                    <div className="mgmt-sellers-tag green">
+                      <CheckCircle2 size={13} /> Facturación y Cierre
+                    </div>
+                    <h3>Comerciales que cerraron remisiones</h3>
+                    <p>
+                      {closedBySeller.length > 0
+                        ? `${closedBySeller.length} comercial${closedBySeller.length === 1 ? '' : 'es'} lograron facturar o retirar saldo`
+                        : 'No hay retiros registrados para los filtros seleccionados'}
+                    </p>
+                  </div>
+                  {employee !== 'Todos' && (
+                    <button
+                      type="button"
+                      className="mgmt-reset-filter-btn"
+                      onClick={() => setEmployee('Todos')}
+                      title="Quitar filtro de comercial"
+                    >
+                      Ver todos
+                    </button>
+                  )}
+                </div>
+
+                <div className="mgmt-sellers-list">
+                  {closedBySeller.length === 0 ? (
+                    <div className="mgmt-empty-msg">
+                      <span>No se registraron remisiones cerradas para estos filtros.</span>
+                    </div>
+                  ) : (
+                    closedBySeller.map((seller, idx) => {
+                      const isSelected = employee === seller.name;
+                      const isDimmed = employee !== 'Todos' && !isSelected;
+                      const maxTotal = closedBySeller[0]?.total || 1;
+                      const pct = Math.round((seller.total / maxTotal) * 100);
+                      return (
+                        <div
+                          key={seller.name}
+                          className={`mgmt-seller-row green-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
+                          onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
+                          role="button"
+                          tabIndex={0}
+                          title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
+                        >
+                          <span className="mgmt-seller-rank">{idx + 1}</span>
+                          <div className="mgmt-seller-info">
+                            <div className="mgmt-seller-top">
+                              <strong className="mgmt-seller-name">{seller.name}</strong>
+                              <span className="mgmt-seller-count green">
+                                {seller.count} remisi{seller.count === 1 ? 'ón facturada' : 'ones facturadas'}
+                              </span>
+                            </div>
+                            <div className="mgmt-seller-bar-track">
+                              <div className="mgmt-seller-bar-fill green" style={{ width: `${pct}%` }} />
+                            </div>
+                            <div className="mgmt-seller-sub">
+                              <small>{seller.director}</small>
+                              <strong className="mgmt-seller-amount green">{currency.format(seller.total)}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Comerciales con nuevas remisiones */}
+              <div className="mgmt-sellers-card new-card">
+                <div className="mgmt-sellers-header">
+                  <div>
+                    <div className="mgmt-sellers-tag orange">
+                      <PlusCircle size={13} /> Nuevos Ingresos
+                    </div>
+                    <h3>Comerciales con nuevas remisiones</h3>
+                    <p>
+                      {newBySeller.length > 0
+                        ? `${newBySeller.length} comercial${newBySeller.length === 1 ? '' : 'es'} abrieron nuevas remisiones`
+                        : 'No hay nuevas aperturas registradas para los filtros seleccionados'}
+                    </p>
+                  </div>
+                  {employee !== 'Todos' && (
+                    <button
+                      type="button"
+                      className="mgmt-reset-filter-btn"
+                      onClick={() => setEmployee('Todos')}
+                      title="Quitar filtro de comercial"
+                    >
+                      Ver todos
+                    </button>
+                  )}
+                </div>
+
+                <div className="mgmt-sellers-list">
+                  {newBySeller.length === 0 ? (
+                    <div className="mgmt-empty-msg">
+                      <span>No se registraron nuevas remisiones para estos filtros.</span>
+                    </div>
+                  ) : (
+                    newBySeller.map((seller, idx) => {
+                      const isSelected = employee === seller.name;
+                      const isDimmed = employee !== 'Todos' && !isSelected;
+                      const maxTotal = newBySeller[0]?.total || 1;
+                      const pct = Math.round((seller.total / maxTotal) * 100);
+                      return (
+                        <div
+                          key={seller.name}
+                          className={`mgmt-seller-row orange-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
+                          onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
+                          role="button"
+                          tabIndex={0}
+                          title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
+                        >
+                          <span className="mgmt-seller-rank">{idx + 1}</span>
+                          <div className="mgmt-seller-info">
+                            <div className="mgmt-seller-top">
+                              <strong className="mgmt-seller-name">{seller.name}</strong>
+                              <span className="mgmt-seller-count orange">
+                                {seller.count} remisi{seller.count === 1 ? 'ón nueva' : 'ones nuevas'}
+                              </span>
+                            </div>
+                            <div className="mgmt-seller-bar-track">
+                              <div className="mgmt-seller-bar-fill orange" style={{ width: `${pct}%` }} />
+                            </div>
+                            <div className="mgmt-seller-sub">
+                              <small>{seller.director}</small>
+                              <strong className="mgmt-seller-amount orange">{currency.format(seller.total)}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </section>
           </>
         )}
