@@ -133,6 +133,57 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .date-filter { min-width: 142px; }
 .date-filter input { padding-right: 8px; }
 .filter-separator { width: 1px; align-self: stretch; margin: 0 3px; background: #e0e0e5; }
+.filter-date-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: #f5f5f7;
+  border: 1px solid #e2e2e7;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #1d1d1f;
+  height: 38px;
+  box-sizing: border-box;
+}
+.filter-date-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.filter-date-val {
+  font-weight: 700;
+  color: #1d1d1f;
+}
+.filter-status-tag.current {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #eaf8ef;
+  color: #1b7a3e;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.filter-return-today-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  background: #0071e3;
+  color: #fff;
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.filter-return-today-btn:hover {
+  background: #005bb5;
+}
 
 .quality-notice { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 14px; border: 1px solid #ffdfb0; border-radius: 14px; background: #fff8e9; color: #76500b; }
 .quality-notice > svg { flex: 0 0 auto; }

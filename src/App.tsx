@@ -247,7 +247,7 @@ function WelcomeScreen({
           <div className="preview-content">
             <div className="preview-label">PENDIENTE TOTAL</div>
             <div className="preview-amount">$ 3.600 MM</div>
-            <div className="preview-change">Corte diario consolidado</div>
+            <div className="preview-change">Seguimiento diario consolidado</div>
             <div className="preview-chart">
               {[34, 46, 39, 58, 51, 68, 62, 79, 72, 88, 82, 94].map((height, index) => (
                 <span key={index} style={{ height: `${height}%` }} />
@@ -296,9 +296,8 @@ function Dashboard({
 }) {
   const [view, setView] = useState<View>('overview');
   const [detailTab, setDetailTab] = useState<'open' | 'withdrawn' | 'new'>('open');
-  const [cutoff, setCutoff] = useState(data.cutoffs.at(-1) || '');
-  const [from, setFrom] = useState(data.cutoffs[0] || '');
-  const [to, setTo] = useState(data.cutoffs.at(-1) || '');
+  const latestCutoff = data.cutoffs.at(-1) || '';
+  const [cutoff, setCutoff] = useState(latestCutoff);
   const [director, setDirector] = useState('Todos');
   const [employee, setEmployee] = useState('Todos');
   const [statusFilter, setStatusFilter] = useState('Todos');
@@ -311,9 +310,9 @@ function Dashboard({
 
   useEffect(() => {
     if (data.cutoffs.length && (!cutoff || !data.cutoffs.includes(cutoff))) {
-      setCutoff(data.cutoffs.at(-1)!);
+      setCutoff(latestCutoff);
     }
-  }, [data.cutoffs, cutoff]);
+  }, [data.cutoffs, cutoff, latestCutoff]);
 
   const matchesAgeFilter = (age: number, ageRange: string, filter: string): boolean => {
     if (filter === 'Todos') return true;
@@ -397,10 +396,9 @@ function Dashboard({
 
   const periodRecords = useMemo(
     () => data.records.filter((record) =>
-      record.cutoff >= from && record.cutoff <= to &&
       (director === 'Todos' || record.director === director) &&
       (employee === 'Todos' || record.employee === employee)),
-    [data.records, from, to, director, employee],
+    [data.records, director, employee],
   );
   const daily = useMemo(() => buildDailySeries(periodRecords), [periodRecords]);
   const currentDailyPoint = useMemo(
@@ -587,8 +585,8 @@ function Dashboard({
 
   const exportCsv = () => {
     const headers = [
-      'Corte',
-      'Hora_Corte',
+      'Fecha',
+      'Hora',
       'Director',
       'Comercial',
       'NIT',
@@ -671,9 +669,7 @@ function Dashboard({
             <h1>Remisiones abiertas</h1>
             <p>
               Una lectura clara del pendiente por facturar y de la gestión de cada equipo.
-              {data.cutoffTimeDisplay && (
-                <span className="hero-time-tag"> · Hora de corte: <b>{data.cutoffTimeDisplay}</b></span>
-              )}
+              <span className="hero-time-tag"> · Fecha: <b>{formatCutoff(cutoff)}</b>{data.cutoffTimeDisplay ? ` (${data.cutoffTimeDisplay})` : ''}</span>
             </p>
           </div>
           <div className="source-card">
@@ -682,7 +678,7 @@ function Dashboard({
               <strong>{metadata?.name || 'Remisiones.xlsx'}</strong>
               <small>
                 {source === 'sharepoint' ? 'SharePoint' : 'Archivo local'}
-                {data.cutoffTimeDisplay ? ` · Corte ${data.cutoffTimeDisplay}` : ''}
+                {data.cutoffTimeDisplay ? ` · Actualizado ${data.cutoffTimeDisplay}` : ''}
                 {data.activeSheetName ? ` · Hoja ${data.activeSheetName}` : ''}
               </small>
             </div>
@@ -691,18 +687,24 @@ function Dashboard({
         </section>
 
         <section className="filter-bar" aria-label="Filtros del tablero">
-          <SelectFilter
-            label="Corte"
-            value={cutoff}
-            onChange={setCutoff}
-            options={data.cutoffs}
-            format={(val) => data.cutoffTimeDisplay ? `${formatCutoff(val)} · ${data.cutoffTimeDisplay}` : formatCutoff(val)}
-          />
           <SelectFilter label="Director" value={director} onChange={setDirector} options={['Todos', ...directors]} />
           <SelectFilter label="Ejecutivo" value={employee} onChange={setEmployee} options={['Todos', ...employees]} />
-          <div className="filter-separator" />
-          <label className="date-filter"><span>Desde</span><input type="date" value={from} min={data.cutoffs[0]} max={to} onChange={(event) => setFrom(event.target.value)} /></label>
-          <label className="date-filter"><span>Hasta</span><input type="date" value={to} min={from} max={data.cutoffs.at(-1)} onChange={(event) => setTo(event.target.value)} /></label>
+          <div className="filter-date-badge">
+            <span className="filter-date-label">Fecha activa:</span>
+            <strong className="filter-date-val">{formatCutoff(cutoff)}</strong>
+            {cutoff === latestCutoff ? (
+              <span className="filter-status-tag current">Al día</span>
+            ) : (
+              <button
+                type="button"
+                className="filter-return-today-btn"
+                onClick={() => setCutoff(latestCutoff)}
+                title="Volver a la fecha actual más reciente"
+              >
+                <RotateCcw size={12} /> Volver a hoy ({formatCutoff(latestCutoff)})
+              </button>
+            )}
+          </div>
         </section>
 
         {hasActiveFilters && (
@@ -807,12 +809,12 @@ function Dashboard({
                     <p>
                       {previousCutoff ? (
                         <>
-                          Evaluación de flujo frente al corte previo del <strong>{formatCutoff(previousCutoff)}</strong>
+                          Evaluación de flujo frente al día previo del <strong>{formatCutoff(previousCutoff)}</strong>
                           {director !== 'Todos' ? ` · Dirección: ${director}` : ''}
                           {employee !== 'Todos' ? ` · Comercial: ${employee}` : ''}
                         </>
                       ) : (
-                        'Estado actual consolidado del primer corte registrado'
+                        'Estado actual consolidado de la primera fecha registrada'
                       )}
                     </p>
                   </div>
@@ -852,7 +854,7 @@ function Dashboard({
                 >
                   <div className="mgmt-kpi-top">
                     <span className="mgmt-kpi-label">Cartera General (Saldo Activo)</span>
-                    <span className="mgmt-kpi-badge blue">Corte Actual</span>
+                    <span className="mgmt-kpi-badge blue">Día Actual</span>
                   </div>
                   <strong className="mgmt-kpi-value">{currency.format(currentSummary.pending)}</strong>
                   <div className="mgmt-kpi-foot">
@@ -880,7 +882,7 @@ function Dashboard({
                     <ArrowUpRight size={15} />
                     <span>
                       {previousCutoff
-                        ? <span><strong>{number.format(managementNew.length)}</strong> remisiones nuevas en este corte</span>
+                        ? <span><strong>{number.format(managementNew.length)}</strong> remisiones nuevas registradas</span>
                         : 'Punto de partida de cartera'}
                     </span>
                   </div>
@@ -906,7 +908,7 @@ function Dashboard({
                     <span>
                       {previousCutoff
                         ? <span><strong>{number.format(managementWithdrawn.length)}</strong> remisiones salieron de cartera</span>
-                        : 'Disponible a partir del 2do corte'}
+                        : 'Disponible con dos o más días registrados'}
                     </span>
                   </div>
                 </div>
@@ -931,7 +933,7 @@ function Dashboard({
                       {previousCutoff ? (
                         netDifference <= 0
                           ? `Desahogo neto (${percent.format(currentDailyPoint?.grossReduction || 0)} reducción bruta)`
-                          : 'Crecimiento de saldo frente al corte previo'
+                          : 'Crecimiento de saldo frente al día anterior'
                       ) : (
                         `Saldo inicial con ${number.format(currentSummary.remissions)} remisiones`
                       )}
@@ -1080,9 +1082,9 @@ function Dashboard({
                 <div className="management-empty-banner">
                   <FileSpreadsheet size={30} />
                   <div>
-                    <strong>Comparación disponible al registrar el segundo corte</strong>
+                    <strong>Comparación disponible al registrar dos o más días</strong>
                     <p>
-                      Para ver qué comerciales cerraron remisiones y quiénes abrieron nuevas, pega la información del nuevo corte en la hoja <strong>Base-SIS</strong> (en la columna <strong>Fecha de corte</strong>). El sistema comparará automáticamente ambos cortes y calculará la trazabilidad completa.
+                      Para ver qué comerciales cerraron remisiones y quiénes abrieron nuevas, mantén actualizada la hoja <strong>Base-SIS</strong> diariamente. El sistema comparará automáticamente la evolución entre fechas y calculará la trazabilidad completa.
                     </p>
                   </div>
                 </div>
@@ -1228,7 +1230,7 @@ function Dashboard({
                     {detailTab === 'withdrawn'
                       ? 'Remisiones retiradas (Cobradas / Facturadas)'
                       : detailTab === 'new'
-                        ? 'Nuevas remisiones abiertas (Ingresadas en este corte)'
+                        ? 'Nuevas remisiones abiertas (Ingresadas recientemente)'
                         : 'Detalle de remisiones abiertas'}
                   </h2>
                   {previousCutoff && (
@@ -1260,9 +1262,9 @@ function Dashboard({
                 <p>
                   {number.format(detailRecords.length)}{' '}
                   {detailTab === 'withdrawn'
-                    ? 'remisiones retiradas frente al corte anterior'
+                    ? 'remisiones facturadas / retiradas frente al día anterior'
                     : detailTab === 'new'
-                      ? 'remisiones nuevas abiertas en este corte'
+                      ? 'remisiones nuevas abiertas recientemente'
                       : 'registros'}
                   {statusFilter !== 'Todos' ? ` · Estado: ${statusFilter}` : ''}
                   {ageFilter !== 'Todos' ? ` · Días: ${ageFilter}` : ''}
@@ -1399,7 +1401,7 @@ function Dashboard({
             {metadata?.lastModifiedDateTime
               ? `Archivo actualizado: ${formatDateTime(metadata.lastModifiedDateTime)}`
               : data.cutoffDateTime
-                ? `Corte: ${formatDateTime(data.cutoffDateTime)}`
+                ? `Actualizado: ${formatDateTime(data.cutoffDateTime)}`
                 : ''}
           </span>
         </footer>
@@ -1604,7 +1606,7 @@ function DailyEvolutionSideBySide({
             <p>
               {daily.length > 1
                 ? `Seguimiento cronológico desde ${formatCutoff(daily[0].cutoff)} hasta ${formatCutoff(daily.at(-1)!.cutoff)}`
-                : 'Curva y tabla de variación diaria en pesos a lo largo de los cortes'}
+                : 'Curva y tabla de variación diaria en pesos en el tiempo'}
             </p>
           </div>
           <div className="evolution-kpi-summary">
@@ -1656,7 +1658,7 @@ function DailyEvolutionSideBySide({
         <div className="evolution-table-container">
           <div className="evolution-table-title">
             <span>Tabla de variación diaria en pesos:</span>
-            <small>Toca una fila para enfocar el corte</small>
+            <small>Toca una fila para enfocar ese día</small>
           </div>
           <div className="evolution-table-wrap">
             <table className="evolution-table">
@@ -1683,7 +1685,7 @@ function DailyEvolutionSideBySide({
                       onClick={() => onSelectCutoff(pt.cutoff)}
                       role="button"
                       tabIndex={0}
-                      title={`Toca para ver corte del ${formatCutoff(pt.cutoff)}`}
+                      title={`Toca para ver datos del ${formatCutoff(pt.cutoff)}`}
                     >
                       <td>
                         <strong>{formatCutoff(pt.cutoff)}</strong>
@@ -1780,7 +1782,7 @@ function DailyEvolutionSideBySide({
         <div className="evolution-table-container">
           <div className="evolution-table-title">
             <span>Tabla de variación documental:</span>
-            <small>Toca una fila para enfocar el corte</small>
+            <small>Toca una fila para enfocar ese día</small>
           </div>
           <div className="evolution-table-wrap">
             <table className="evolution-table">
@@ -1807,7 +1809,7 @@ function DailyEvolutionSideBySide({
                       onClick={() => onSelectCutoff(pt.cutoff)}
                       role="button"
                       tabIndex={0}
-                      title={`Toca para ver corte del ${formatCutoff(pt.cutoff)}`}
+                      title={`Toca para ver datos del ${formatCutoff(pt.cutoff)}`}
                     >
                       <td>
                         <strong>{formatCutoff(pt.cutoff)}</strong>
