@@ -56,27 +56,6 @@ export function toNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export function toIsoDate(value: unknown): string {
-  const raw = unwrapCell(value as ExcelJS.CellValue);
-  let date: Date | null = null;
-  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
-    date = new Date(Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate()));
-  } else if (typeof raw === 'number' && raw > 20_000) {
-    date = new Date(Math.round((raw - 25_569) * DAY_MS));
-  } else if (typeof raw === 'string') {
-    const text = raw.trim();
-    const iso = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-    const latin = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (iso) date = new Date(Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])));
-    else if (latin) date = new Date(Date.UTC(Number(latin[3]), Number(latin[2]) - 1, Number(latin[1])));
-    else {
-      const parsed = new Date(text);
-      if (!Number.isNaN(parsed.getTime())) date = parsed;
-    }
-  }
-  return date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : '';
-}
-
 export function diffDays(laterIso: string, earlierIso: string): number {
   if (!laterIso || !earlierIso) return 0;
   const later = Date.parse(`${laterIso}T00:00:00Z`);
@@ -84,6 +63,76 @@ export function diffDays(laterIso: string, earlierIso: string): number {
   return Number.isFinite(later) && Number.isFinite(earlier)
     ? Math.max(0, Math.round((later - earlier) / DAY_MS))
     : 0;
+}
+
+export function toIsoDate(value: unknown, referenceIso?: string, sourceDays?: number): string {
+  const raw = unwrapCell(value as ExcelJS.CellValue);
+  if (raw == null || raw === '') return '';
+
+  let y = 0;
+  let m = 0;
+  let d = 0;
+
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
+    y = raw.getUTCFullYear();
+    m = raw.getUTCMonth() + 1;
+    d = raw.getUTCDate();
+  } else if (typeof raw === 'number' && raw > 20_000 && raw < 60_000) {
+    const dt = new Date(Math.round((raw - 25_569) * DAY_MS));
+    if (!Number.isNaN(dt.getTime())) {
+      y = dt.getUTCFullYear();
+      m = dt.getUTCMonth() + 1;
+      d = dt.getUTCDate();
+    }
+  } else if (typeof raw === 'string') {
+    const text = raw.trim();
+    if (!text) return '';
+    const latin = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    const iso = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (latin) {
+      d = Number(latin[1]);
+      m = Number(latin[2]);
+      y = Number(latin[3]);
+    } else if (iso) {
+      y = Number(iso[1]);
+      m = Number(iso[2]);
+      d = Number(iso[3]);
+    } else {
+      const parsed = new Date(text);
+      if (!Number.isNaN(parsed.getTime())) {
+        y = parsed.getUTCFullYear();
+        m = parsed.getUTCMonth() + 1;
+        d = parsed.getUTCDate();
+      }
+    }
+  }
+
+  if (!y || !m || !d) return '';
+
+  // In Colombia/Latin locales (DD/MM/YYYY), if Excel or a US-locale tool swapped day and month (when d <= 12 and m <= 12)
+  if (d <= 12 && m <= 12 && d !== m) {
+    const optionA = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const optionB = `${y}-${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}`;
+
+    // 1. If we have the source "Dias" (age) column, match the date whose distance to cutoff matches the age
+    if (typeof sourceDays === 'number' && referenceIso) {
+      const diffA = Math.abs(diffDays(referenceIso, optionA) - sourceDays);
+      const diffB = Math.abs(diffDays(referenceIso, optionB) - sourceDays);
+      if (diffB < diffA) return optionB;
+      return optionA;
+    }
+
+    // 2. If we have a reference cutoff date (e.g. file modified date in September), choose the option closer to it
+    if (referenceIso) {
+      const refTime = Date.parse(`${referenceIso}T00:00:00Z`);
+      const distA = Math.abs(refTime - Date.parse(`${optionA}T00:00:00Z`));
+      const distB = Math.abs(refTime - Date.parse(`${optionB}T00:00:00Z`));
+      if (distB < distA) return optionB;
+      return optionA;
+    }
+  }
+
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
 export function getAgeRange(age: number): string {
@@ -231,12 +280,12 @@ function makeStableKey(nit: string, document: string, order: string, fallback: s
   return pieces.length >= 2 ? pieces.join('|') : fallback;
 }
 
-export function readHistoricalDiario(sheet: ExcelJS.Worksheet | undefined): DailyPoint[] {
+export function readHistoricalDiario(sheet: ExcelJS.Worksheet | undefined, referenceIso?: string): DailyPoint[] {
   if (!sheet) return [];
   const points: DailyPoint[] = [];
   for (let r = 5; r <= sheet.rowCount; r += 1) {
     const row = sheet.getRow(r);
-    const dateVal = toIsoDate(row.getCell(1).value);
+    const dateVal = toIsoDate(row.getCell(1).value, referenceIso);
     const pending = toNumber(row.getCell(2).value);
     const remissions = toNumber(row.getCell(3).value);
     if (!dateVal || pending <= 0) continue;
@@ -336,13 +385,15 @@ export async function parseRemisionesWorkbook(
     const employee = textValue(row.getCell(indices.employee).value);
     if (!employee) continue;
 
-    const rowCutoff = indices.cutoff ? toIsoDate(row.getCell(indices.cutoff).value) : '';
-    const cutoff = rowCutoff || defaultCutoffIso;
-    const issuedAt = toIsoDate(row.getCell(indices.issuedAt).value);
-    const total = toNumber(row.getCell(indices.total).value);
-    const quantity = toNumber(row.getCell(indices.quantity).value);
     const rawAgeValue = indices.age ? unwrapCell(row.getCell(indices.age).value) : null;
     const hasSourceAge = rawAgeValue != null && rawAgeValue !== '';
+    const sourceAge = hasSourceAge ? Math.max(0, Math.round(toNumber(rawAgeValue))) : undefined;
+
+    const rowCutoff = indices.cutoff ? toIsoDate(row.getCell(indices.cutoff).value, defaultCutoffIso) : '';
+    const cutoff = rowCutoff || defaultCutoffIso;
+    const issuedAt = toIsoDate(row.getCell(indices.issuedAt).value, cutoff, sourceAge);
+    const total = toNumber(row.getCell(indices.total).value);
+    const quantity = toNumber(row.getCell(indices.quantity).value);
     const calculatedAge = issuedAt ? diffDays(cutoff, issuedAt) : 0;
     const age = hasSourceAge ? Math.max(0, Math.round(toNumber(rawAgeValue))) : calculatedAge;
     const nit = textValue(row.getCell(indices.nit).value);

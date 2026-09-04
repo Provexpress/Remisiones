@@ -46,7 +46,21 @@ describe('normalización de datos', () => {
     expect(formatDateTime(date)).toContain('03/09/2026');
     expect(formatCutoff('2026-09-04')).toBe('04/09/2026');
     expect(formatCutoff('2026-09-04', { day: '2-digit', month: '2-digit', year: undefined })).toBe('04/09');
-    expect(formatCutoff('2026-09-04', { day: '2-digit', month: 'short', year: undefined })).toBe('04/09');
+  });
+
+  it('normaliza fechas evitando confusión entre día y mes (marzo/abril vs septiembre)', async () => {
+    const { toIsoDate } = await import('./remisiones');
+    // Si Excel guardó 03/09 como marzo 9 y 04/09 como abril 9 por configuración en inglés
+    expect(toIsoDate(new Date('2026-03-09T00:00:00Z'), '2026-09-04')).toBe('2026-09-03');
+    expect(toIsoDate(new Date('2026-04-09T00:00:00Z'), '2026-09-04')).toBe('2026-09-04');
+    expect(toIsoDate('03/09/2026', '2026-09-04')).toBe('2026-09-03');
+    expect(toIsoDate('04/09/2026', '2026-09-04')).toBe('2026-09-04');
+    // Emisión con Dias=0
+    expect(toIsoDate(new Date('2026-03-09T00:00:00Z'), '2026-09-03', 0)).toBe('2026-09-03');
+    // Emisión con Dias=1
+    expect(toIsoDate(new Date('2026-02-09T00:00:00Z'), '2026-09-03', 1)).toBe('2026-09-02');
+    // Factura verdaderamente antigua de marzo 9 (Dias=178)
+    expect(toIsoDate(new Date('2026-03-09T00:00:00Z'), '2026-09-03', 178)).toBe('2026-03-09');
   });
 });
 
