@@ -94,6 +94,18 @@ export interface DailyPoint {
   remissionsDeltaPct?: number;
 }
 
+export interface InitialCohortPoint {
+  cutoff: string;
+  initialPending: number;
+  initialCount: number;
+  stillOpenPending: number;
+  stillOpenCount: number;
+  withdrawnPending: number;
+  withdrawnCount: number;
+  recoveryPct: number;
+  stillOpenPct: number;
+}
+
 export interface Summary {
   pending: number;
   remissions: number;

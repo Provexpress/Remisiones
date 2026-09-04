@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import {
   buildDailySeries,
+  buildInitialCohortSeries,
   getAgeRange,
   matchGroup,
   normalizeText,
@@ -176,6 +177,28 @@ describe('parser del libro', () => {
     expect(daily[1].pendingDeltaPct).toBeCloseTo(1190 / 3570);
     expect(daily[1].remissionsDelta).toBe(0);
     expect(daily[1].remissionsDeltaPct).toBe(0);
+
+    const cohort = buildInitialCohortSeries(parsed.records, '2026-09-03');
+    expect(cohort).toHaveLength(2);
+    // Day 1 (Baseline)
+    expect(cohort[0].cutoff).toBe('2026-09-03');
+    expect(cohort[0].initialPending).toBe(3570);
+    expect(cohort[0].initialCount).toBe(2);
+    expect(cohort[0].stillOpenPending).toBe(3570);
+    expect(cohort[0].stillOpenCount).toBe(2);
+    expect(cohort[0].withdrawnPending).toBe(0);
+    expect(cohort[0].withdrawnCount).toBe(0);
+    expect(cohort[0].recoveryPct).toBe(0);
+
+    // Day 2 (Desmonte de la base inicial entregada)
+    expect(cohort[1].cutoff).toBe('2026-09-04');
+    expect(cohort[1].initialPending).toBe(3570);
+    expect(cohort[1].initialCount).toBe(2);
+    expect(cohort[1].stillOpenPending).toBe(1190); // Solo R1 sigue abierta
+    expect(cohort[1].stillOpenCount).toBe(1);
+    expect(cohort[1].withdrawnPending).toBe(2380); // R2 ya salió facturada de la base
+    expect(cohort[1].withdrawnCount).toBe(1);
+    expect(cohort[1].recoveryPct).toBeCloseTo(2380 / 3570);
   });
 });
 

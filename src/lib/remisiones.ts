@@ -6,6 +6,7 @@ import type {
   DailyPoint,
   DaysStatus,
   GroupEntry,
+  InitialCohortPoint,
   ParsedWorkbook,
   Remision,
   Summary,
@@ -562,6 +563,60 @@ export function buildDailySeries(records: Remision[], historicalDiario: DailyPoi
       pendingDeltaPct,
       remissionsDelta,
       remissionsDeltaPct,
+    };
+  });
+}
+
+export function buildInitialCohortSeries(
+  records: Remision[],
+  preferredInitialCutoff?: string,
+): InitialCohortPoint[] {
+  const cutoffs = [...new Set(records.map((r) => r.cutoff))].sort();
+  if (!cutoffs.length) return [];
+
+  const initialCutoff = preferredInitialCutoff && cutoffs.includes(preferredInitialCutoff)
+    ? preferredInitialCutoff
+    : cutoffs[0];
+
+  const initialRecords = records.filter((r) => r.cutoff === initialCutoff);
+  const initialPending = initialRecords.reduce((sum, r) => sum + r.total, 0);
+  const initialCount = initialRecords.length;
+  const initialKeys = new Set(initialRecords.map((r) => r.stableKey));
+
+  return cutoffs.map((cutoff) => {
+    if (cutoff === initialCutoff) {
+      return {
+        cutoff,
+        initialPending,
+        initialCount,
+        stillOpenPending: initialPending,
+        stillOpenCount: initialCount,
+        withdrawnPending: 0,
+        withdrawnCount: 0,
+        recoveryPct: 0,
+        stillOpenPct: 1,
+      };
+    }
+
+    const currentRecords = records.filter((r) => r.cutoff === cutoff);
+    const stillOpen = currentRecords.filter((r) => initialKeys.has(r.stableKey));
+    const stillOpenPending = stillOpen.reduce((sum, r) => sum + r.total, 0);
+    const stillOpenCount = stillOpen.length;
+    const withdrawnPending = Math.max(0, initialPending - stillOpenPending);
+    const withdrawnCount = Math.max(0, initialCount - stillOpenCount);
+    const recoveryPct = initialPending > 0 ? withdrawnPending / initialPending : 0;
+    const stillOpenPct = initialPending > 0 ? stillOpenPending / initialPending : 0;
+
+    return {
+      cutoff,
+      initialPending,
+      initialCount,
+      stillOpenPending,
+      stillOpenCount,
+      withdrawnPending,
+      withdrawnCount,
+      recoveryPct,
+      stillOpenPct,
     };
   });
 }

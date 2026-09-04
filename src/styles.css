@@ -1245,6 +1245,80 @@ th.numeric, td.numeric { text-align: right; }
   max-width: 600px;
 }
 
+.management-daily-history-card {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cohort-kpis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.cohort-kpi-card {
+  background: #fbfbfd;
+  border: 1px solid #e8e8ed;
+  border-radius: 12px;
+  padding: 13px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.cohort-kpi-card:hover {
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.cohort-kpi-card.highlight {
+  background: #f6fdf9;
+  border-color: #bbf7d0;
+}
+
+.cohort-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cohort-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+}
+
+.cohort-kpi-badge {
+  font-size: 9px;
+  font-weight: 750;
+  padding: 2px 6px;
+  border-radius: 5px;
+  text-transform: uppercase;
+}
+.cohort-kpi-badge.blue { background: #eaf4ff; color: #0071e3; }
+.cohort-kpi-badge.green { background: #dcfce7; color: #15803d; }
+.cohort-kpi-badge.purple { background: #f3ebfc; color: #7928ca; }
+.cohort-kpi-badge.gray { background: #f2f2f7; color: #636366; }
+
+.cohort-kpi-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1d1d1f;
+  letter-spacing: -0.02em;
+}
+
+.cohort-kpi-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .evolution-baseline-summary {
   display: flex;
   align-items: center;
