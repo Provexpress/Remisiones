@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDownRight,
+  ArrowRight,
   ArrowUpRight,
   BadgeDollarSign,
   Boxes,
+  CalendarClock,
   CalendarRange,
   CheckCircle2,
   ChevronDown,
@@ -2025,379 +2027,414 @@ function DailyEvolutionSideBySide({
   const totalValuePct = initialPoint && initialPoint.pending > 0 ? totalValueDelta / initialPoint.pending : 0;
   const totalDocsDelta = initialPoint && latestPoint ? latestPoint.remissions - initialPoint.remissions : 0;
   const totalDocsPct = initialPoint && initialPoint.remissions > 0 ? totalDocsDelta / initialPoint.remissions : 0;
+  const isMultipleDays = daily.length > 1;
 
   return (
-    <section className="evolution-grid" aria-label="Evolución histórica lado a lado">
-      {/* Panel 1: Evolución por Valor ($) */}
-      <article className="chart-card evolution-card">
-        <header className="evolution-header">
+    <section className="evolution-master-section" aria-label="Evolución y seguimiento diario">
+      {/* 1. Cabecera Principal de Evolución con Línea Base (Día 1 vs Actual) */}
+      <div className="chart-card evolution-master-header-card">
+        <div className="evolution-master-top">
           <div>
-            <div className="evolution-tag-row">
-              <div className="evolution-tag blue">
-                <CircleDollarSign size={13} />
-                <span>Comportamiento de Saldo</span>
-              </div>
-              <div className="evolution-chart-type-pill">
-                <button
-                  type="button"
-                  className={valueChartType === 'bar' ? 'active' : ''}
-                  onClick={() => setValueChartType('bar')}
-                  title="Ver gráfico de barras"
-                >
-                  Barras
-                </button>
-                <button
-                  type="button"
-                  className={valueChartType === 'area' ? 'active' : ''}
-                  onClick={() => setValueChartType('area')}
-                  title="Ver gráfico de línea continua"
-                >
-                  Línea
-                </button>
-              </div>
+            <div className="evolution-tag blue">
+              <TrendingUp size={13} />
+              <span>Trazabilidad Histórica</span>
             </div>
-            <h2>Evolución del Saldo Pendiente ($)</h2>
+            <h2>Evolución y Seguimiento Diario</h2>
             <p>
-              {daily.length > 1
-                ? `Seguimiento cronológico desde ${formatCutoff(daily[0].cutoff)} hasta ${formatCutoff(daily.at(-1)!.cutoff)}`
-                : 'Variación diaria en pesos en el tiempo'}
+              {isMultipleDays
+                ? `Trazabilidad día a día desde el inicio (${formatCutoff(initialPoint.cutoff)}) hasta hoy (${formatCutoff(latestPoint!.cutoff)}). Conoce cuánto bajó en dinero y en documentos en cada jornada.`
+                : `Punto inicial de partida registrado el ${formatCutoff(initialPoint?.cutoff || '')}. A medida que ingreses nuevas fechas diarias en Base-SIS, verás la evolución día tras día.`}
             </p>
           </div>
-          <div className="evolution-kpi-summary">
-            <div>
-              <span className="evolution-kpi-label">Saldo Inicial</span>
-              <strong className="evolution-kpi-val">{compactCurrency.format(initialPoint?.pending || 0)}</strong>
-            </div>
-            <div className="evolution-kpi-arrow">→</div>
-            <div>
-              <span className="evolution-kpi-label">Saldo Actual</span>
-              <strong className="evolution-kpi-val">{compactCurrency.format(latestPoint?.pending || 0)}</strong>
-            </div>
-            {daily.length > 1 && (
-              <span className={`evolution-badge ${totalValueDelta <= 0 ? 'green' : 'orange'}`}>
-                {totalValueDelta <= 0 ? '▼ Bajó ' : '▲ Subió '}{percent.format(Math.abs(totalValuePct))}
-              </span>
-            )}
-          </div>
-        </header>
 
-        <div className="evolution-chart-wrap">
-          <ResponsiveContainer width="100%" height={190}>
-            {valueChartType === 'bar' ? (
-              <BarChart
-                data={daily}
-                margin={{ top: 12, right: 8, left: 0, bottom: 0 }}
-              >
-                <CartesianGrid stroke="#ededf0" vertical={false} />
-                <XAxis
-                  dataKey="cutoff"
-                  tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  tickFormatter={(val) => compactCurrency.format(val)}
-                  tickLine={false}
-                  axisLine={false}
-                  width={70}
-                />
-                <Tooltip content={<EvolutionValueTooltip />} />
-                <Bar dataKey="pending" name="Saldo" radius={[5, 5, 0, 0]} maxBarSize={42} cursor="pointer">
-                  {daily.map((entry) => (
-                    <Cell
-                      key={entry.cutoff}
-                      fill={entry.cutoff === currentCutoff ? '#0071e3' : '#8ac2ff'}
-                      onClick={() => onSelectCutoff(entry.cutoff)}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            ) : (
-              <AreaChart data={daily} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="valGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0071e3" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="#0071e3" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#ededf0" vertical={false} />
-                <XAxis
-                  dataKey="cutoff"
-                  tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  tickFormatter={(val) => compactCurrency.format(val)}
-                  tickLine={false}
-                  axisLine={false}
-                  width={70}
-                />
-                <Tooltip content={<EvolutionValueTooltip />} />
-                <Area type="monotone" dataKey="pending" name="Saldo" stroke="#0071e3" strokeWidth={2.5} fill="url(#valGrad)" />
-              </AreaChart>
-            )}
-          </ResponsiveContainer>
-        </div>
+          <div className="evolution-baseline-summary">
+            <div className="baseline-block">
+              <span className="baseline-label">1. Punto Inicial ({formatCutoff(initialPoint?.cutoff || '')})</span>
+              <div className="baseline-values">
+                <strong>{compactCurrency.format(initialPoint?.pending || 0)}</strong>
+                <span>· {number.format(initialPoint?.remissions || 0)} rem.</span>
+              </div>
+            </div>
 
-        <div className="evolution-table-container">
-          <div className="evolution-table-title">
-            <span>Tabla de evolución día a día (¿Cuánto sube o baja el saldo pendiente?):</span>
-            <small>Toca una fila para enfocar ese día</small>
-          </div>
-          <div className="evolution-table-wrap">
-            <table className="evolution-table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th className="numeric">Saldo Pendiente</th>
-                  <th className="numeric">¿Subió o bajó? ($)</th>
-                  <th className="numeric">Cambio (%)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {daily.map((pt, idx) => {
-                  const isSelected = pt.cutoff === currentCutoff;
-                  const isInitial = idx === 0;
-                  const delta = pt.pendingDelta ?? 0;
-                  const pct = pt.pendingDeltaPct ?? 0;
-                  const isDown = delta < 0;
-                  const isUp = delta > 0;
-                  const hasFlow = !isInitial && (pt.newValue > 0 || pt.withdrawn > 0);
-                  return (
-                    <tr
-                      key={pt.cutoff}
-                      className={`evolution-row ${isSelected ? 'selected' : ''}`}
-                      onClick={() => onSelectCutoff(pt.cutoff)}
-                      role="button"
-                      tabIndex={0}
-                      title={`Toca para ver datos del ${formatCutoff(pt.cutoff)}`}
-                    >
-                      <td>
-                        <strong>{formatCutoff(pt.cutoff)}</strong>
-                        {isSelected && <span className="active-dot-pill">Activo</span>}
-                      </td>
-                      <td className="numeric">
-                        <strong>{currency.format(pt.pending)}</strong>
-                      </td>
-                      <td className="numeric">
-                        {isInitial ? (
-                          <span className="text-muted">Punto inicial</span>
-                        ) : (
-                          <>
-                            <span className={isDown ? 'text-green' : isUp ? 'text-orange' : 'text-muted'}>
-                              {isDown ? '▼ -' : isUp ? '▲ +' : ''}{currency.format(Math.abs(delta))}
-                            </span>
-                            {hasFlow && (
-                              <small className="evolution-sub-delta">
-                                +{compactCurrency.format(pt.newValue)} / -{compactCurrency.format(pt.withdrawn)}
-                              </small>
-                            )}
-                          </>
-                        )}
-                      </td>
-                      <td className="numeric">
-                        {isInitial ? (
-                          <span className="text-muted">—</span>
-                        ) : (
-                          <span className={`delta-chip ${isDown ? 'green' : isUp ? 'orange' : 'gray'}`}>
-                            {isDown ? '▼ -' : isUp ? '▲ +' : ''}{percent.format(Math.abs(pct))}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="baseline-arrow" aria-hidden="true">
+              <ArrowRight size={18} />
+            </div>
+
+            <div className="baseline-block">
+              <span className="baseline-label">2. Saldo Actual ({formatCutoff(latestPoint?.cutoff || '')})</span>
+              <div className="baseline-values">
+                <strong>{compactCurrency.format(latestPoint?.pending || 0)}</strong>
+                <span>· {number.format(latestPoint?.remissions || 0)} rem.</span>
+              </div>
+            </div>
+
+            <div className="baseline-divider" />
+
+            <div className="baseline-deltas">
+              <span className="baseline-label">Avance Acumulado Total</span>
+              <div className="baseline-delta-chips">
+                <span className={`evolution-badge ${totalValueDelta <= 0 ? 'green' : 'orange'}`}>
+                  {totalValueDelta <= 0 ? '▼ En dinero: bajó ' : '▲ En dinero: subió '}
+                  {compactCurrency.format(Math.abs(totalValueDelta))}
+                  {isMultipleDays ? ` (${percent.format(Math.abs(totalValuePct))})` : ''}
+                </span>
+                <span className={`evolution-badge ${totalDocsDelta <= 0 ? 'green' : 'orange'}`}>
+                  {totalDocsDelta <= 0 ? '▼ En docs: bajaron ' : '▲ En docs: subieron '}
+                  {number.format(Math.abs(totalDocsDelta))} rem.
+                  {isMultipleDays ? ` (${percent.format(Math.abs(totalDocsPct))})` : ''}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
-      </article>
+      </div>
 
-      {/* Panel 2: Evolución por Documentos (# Remisiones) */}
-      <article className="chart-card evolution-card">
-        <header className="evolution-header">
+      {/* 2. Gráficos de Evolución Lado a Lado: Dinero ($) y Documentos (#) */}
+      <div className="evolution-charts-grid">
+        {/* Panel 1: Gráfico de Saldo Pendiente ($) */}
+        <article className="chart-card evolution-chart-card">
+          <header className="evolution-header">
+            <div>
+              <div className="evolution-tag-row">
+                <div className="evolution-tag blue">
+                  <CircleDollarSign size={13} />
+                  <span>Comportamiento de Saldo</span>
+                </div>
+                <div className="evolution-chart-type-pill">
+                  <button
+                    type="button"
+                    className={valueChartType === 'bar' ? 'active' : ''}
+                    onClick={() => setValueChartType('bar')}
+                    title="Ver gráfico de barras"
+                  >
+                    Barras
+                  </button>
+                  <button
+                    type="button"
+                    className={valueChartType === 'area' ? 'active' : ''}
+                    onClick={() => setValueChartType('area')}
+                    title="Ver gráfico de línea continua"
+                  >
+                    Línea
+                  </button>
+                </div>
+              </div>
+              <h2>Evolución del Saldo Pendiente ($)</h2>
+              <p>Fluctuación del valor total abierto a lo largo de las fechas registradas</p>
+            </div>
+            <div className="evolution-chart-metric">
+              <span className="evolution-kpi-label">Saldo {latestPoint?.cutoff === currentCutoff ? 'Hoy' : 'Seleccionado'}</span>
+              <strong className="evolution-kpi-val">{compactCurrency.format(daily.find((d) => d.cutoff === currentCutoff)?.pending || latestPoint?.pending || 0)}</strong>
+            </div>
+          </header>
+
+          <div className="evolution-chart-wrap">
+            <ResponsiveContainer width="100%" height={200}>
+              {valueChartType === 'bar' ? (
+                <BarChart
+                  data={daily}
+                  margin={{ top: 12, right: 8, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid stroke="#ededf0" vertical={false} />
+                  <XAxis
+                    dataKey="cutoff"
+                    tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(val) => compactCurrency.format(val)}
+                    tickLine={false}
+                    axisLine={false}
+                    width={70}
+                  />
+                  <Tooltip content={<EvolutionValueTooltip />} />
+                  <Bar dataKey="pending" name="Saldo" radius={[5, 5, 0, 0]} maxBarSize={44} cursor="pointer">
+                    {daily.map((entry) => (
+                      <Cell
+                        key={entry.cutoff}
+                        fill={entry.cutoff === currentCutoff ? '#0071e3' : '#8ac2ff'}
+                        onClick={() => onSelectCutoff(entry.cutoff)}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              ) : (
+                <AreaChart data={daily} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="valGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0071e3" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="#0071e3" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#ededf0" vertical={false} />
+                  <XAxis
+                    dataKey="cutoff"
+                    tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(val) => compactCurrency.format(val)}
+                    tickLine={false}
+                    axisLine={false}
+                    width={70}
+                  />
+                  <Tooltip content={<EvolutionValueTooltip />} />
+                  <Area type="monotone" dataKey="pending" name="Saldo" stroke="#0071e3" strokeWidth={2.5} fill="url(#valGrad)" />
+                </AreaChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        </article>
+
+        {/* Panel 2: Gráfico de Volumen de Remisiones (#) */}
+        <article className="chart-card evolution-chart-card">
+          <header className="evolution-header">
+            <div>
+              <div className="evolution-tag-row">
+                <div className="evolution-tag purple">
+                  <Boxes size={13} />
+                  <span>Volumen Documental</span>
+                </div>
+                <div className="evolution-chart-type-pill">
+                  <button
+                    type="button"
+                    className={docsChartType === 'bar' ? 'active' : ''}
+                    onClick={() => setDocsChartType('bar')}
+                    title="Ver gráfico de barras"
+                  >
+                    Barras
+                  </button>
+                  <button
+                    type="button"
+                    className={docsChartType === 'area' ? 'active' : ''}
+                    onClick={() => setDocsChartType('area')}
+                    title="Ver gráfico de línea continua"
+                  >
+                    Línea
+                  </button>
+                </div>
+              </div>
+              <h2>Evolución de Remisiones (# Docs)</h2>
+              <p>Cantidad de documentos abiertos pendientes por facturar en cada fecha</p>
+            </div>
+            <div className="evolution-chart-metric">
+              <span className="evolution-kpi-label">Docs {latestPoint?.cutoff === currentCutoff ? 'Hoy' : 'Seleccionado'}</span>
+              <strong className="evolution-kpi-val">{number.format(daily.find((d) => d.cutoff === currentCutoff)?.remissions || latestPoint?.remissions || 0)} rem.</strong>
+            </div>
+          </header>
+
+          <div className="evolution-chart-wrap">
+            <ResponsiveContainer width="100%" height={200}>
+              {docsChartType === 'bar' ? (
+                <BarChart
+                  data={daily}
+                  margin={{ top: 12, right: 8, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid stroke="#ededf0" vertical={false} />
+                  <XAxis
+                    dataKey="cutoff"
+                    tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(val) => number.format(val)}
+                    tickLine={false}
+                    axisLine={false}
+                    width={50}
+                  />
+                  <Tooltip content={<EvolutionDocsTooltip />} />
+                  <Bar dataKey="remissions" name="Remisiones" radius={[5, 5, 0, 0]} maxBarSize={44} cursor="pointer">
+                    {daily.map((entry) => (
+                      <Cell
+                        key={entry.cutoff}
+                        fill={entry.cutoff === currentCutoff ? '#8957d8' : '#cbb2f5'}
+                        onClick={() => onSelectCutoff(entry.cutoff)}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              ) : (
+                <AreaChart data={daily} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="docsGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8957d8" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="#8957d8" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#ededf0" vertical={false} />
+                  <XAxis
+                    dataKey="cutoff"
+                    tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(val) => number.format(val)}
+                    tickLine={false}
+                    axisLine={false}
+                    width={50}
+                  />
+                  <Tooltip content={<EvolutionDocsTooltip />} />
+                  <Area type="monotone" dataKey="remissions" name="Remisiones" stroke="#8957d8" strokeWidth={2.5} fill="url(#docsGrad)" />
+                </AreaChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        </article>
+      </div>
+
+      {/* 3. Gran Tabla Consolidada de Seguimiento Diario (Día a Día) */}
+      <article className="chart-card evolution-master-table-card">
+        <header className="evolution-master-table-head">
           <div>
-            <div className="evolution-tag-row">
-              <div className="evolution-tag purple">
-                <Boxes size={13} />
-                <span>Volumen Documental</span>
-              </div>
-              <div className="evolution-chart-type-pill">
-                <button
-                  type="button"
-                  className={docsChartType === 'bar' ? 'active' : ''}
-                  onClick={() => setDocsChartType('bar')}
-                  title="Ver gráfico de barras"
-                >
-                  Barras
-                </button>
-                <button
-                  type="button"
-                  className={docsChartType === 'area' ? 'active' : ''}
-                  onClick={() => setDocsChartType('area')}
-                  title="Ver gráfico de línea continua"
-                >
-                  Línea
-                </button>
-              </div>
+            <div className="evolution-tag green">
+              <CheckCircle2 size={13} />
+              <span>Seguimiento Día a Día</span>
             </div>
-            <h2>Evolución de Remisiones (# Docs)</h2>
+            <h3>Tabla Consolidada de Evolución: Dinero ($), Documentos (#) y Gestión</h3>
             <p>
-              {daily.length > 1
-                ? `Conteo de documentos desde ${formatCutoff(daily[0].cutoff)} hasta ${formatCutoff(daily.at(-1)!.cutoff)}`
-                : 'Conteo y fluctuación diaria del número de remisiones abiertas'}
+              Compara cronológicamente cómo inició el saldo y cuántos documentos o dinero bajaron o subieron en cada jornada frente al día anterior.
             </p>
           </div>
-          <div className="evolution-kpi-summary">
-            <div>
-              <span className="evolution-kpi-label">Docs Inicio</span>
-              <strong className="evolution-kpi-val">{number.format(initialPoint?.remissions || 0)} rem.</strong>
-            </div>
-            <div className="evolution-kpi-arrow">→</div>
-            <div>
-              <span className="evolution-kpi-label">Docs Hoy</span>
-              <strong className="evolution-kpi-val">{number.format(latestPoint?.remissions || 0)} rem.</strong>
-            </div>
-            {daily.length > 1 && (
-              <span className={`evolution-badge ${totalDocsDelta <= 0 ? 'green' : 'orange'}`}>
-                {totalDocsDelta <= 0 ? '▼ Bajaron ' : '▲ Subieron '}{percent.format(Math.abs(totalDocsPct))}
-              </span>
-            )}
-          </div>
+          <small className="evolution-table-hint">
+            Toca cualquier fila para ver el detalle de ese día en todo el tablero
+          </small>
         </header>
 
-        <div className="evolution-chart-wrap">
-          <ResponsiveContainer width="100%" height={190}>
-            {docsChartType === 'bar' ? (
-              <BarChart
-                data={daily}
-                margin={{ top: 12, right: 8, left: 0, bottom: 0 }}
-              >
-                <CartesianGrid stroke="#ededf0" vertical={false} />
-                <XAxis
-                  dataKey="cutoff"
-                  tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  tickFormatter={(val) => number.format(val)}
-                  tickLine={false}
-                  axisLine={false}
-                  width={50}
-                />
-                <Tooltip content={<EvolutionDocsTooltip />} />
-                <Bar dataKey="remissions" name="Remisiones" radius={[5, 5, 0, 0]} maxBarSize={42} cursor="pointer">
-                  {daily.map((entry) => (
-                    <Cell
-                      key={entry.cutoff}
-                      fill={entry.cutoff === currentCutoff ? '#8957d8' : '#cbb2f5'}
-                      onClick={() => onSelectCutoff(entry.cutoff)}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            ) : (
-              <AreaChart data={daily} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="docsGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8957d8" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="#8957d8" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#ededf0" vertical={false} />
-                <XAxis
-                  dataKey="cutoff"
-                  tickFormatter={(val) => formatCutoff(val, { day: '2-digit', month: '2-digit', year: undefined })}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  tickFormatter={(val) => number.format(val)}
-                  tickLine={false}
-                  axisLine={false}
-                  width={50}
-                />
-                <Tooltip content={<EvolutionDocsTooltip />} />
-                <Area type="monotone" dataKey="remissions" name="Remisiones" stroke="#8957d8" strokeWidth={2.5} fill="url(#docsGrad)" />
-              </AreaChart>
-            )}
-          </ResponsiveContainer>
+        <div className="evolution-consolidated-table-wrap">
+          <table className="evolution-consolidated-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th className="numeric">Saldo Pendiente ($)</th>
+                <th className="numeric">¿Cuánto bajó o subió? ($)</th>
+                <th className="numeric"># Remisiones</th>
+                <th className="numeric">¿Cuántos docs bajaron/subieron?</th>
+                <th>Gestión del Día (Entradas vs Salidas)</th>
+                <th className="text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {daily.map((pt, idx) => {
+                const isSelected = pt.cutoff === currentCutoff;
+                const isInitial = idx === 0;
+                const isLatest = idx === daily.length - 1 && daily.length > 1;
+
+                const deltaVal = pt.pendingDelta ?? 0;
+                const pctVal = pt.pendingDeltaPct ?? 0;
+                const isValDown = deltaVal < 0;
+                const isValUp = deltaVal > 0;
+
+                const deltaDocs = pt.remissionsDelta ?? 0;
+                const pctDocs = pt.remissionsDeltaPct ?? 0;
+                const isDocsDown = deltaDocs < 0;
+                const isDocsUp = deltaDocs > 0;
+
+                const hasManagement = !isInitial && (pt.newCount > 0 || pt.withdrawnCount > 0 || pt.newValue > 0 || pt.withdrawn > 0);
+
+                return (
+                  <tr
+                    key={pt.cutoff}
+                    className={`evolution-consolidated-row ${isSelected ? 'selected' : ''}`}
+                    onClick={() => onSelectCutoff(pt.cutoff)}
+                    role="button"
+                    tabIndex={0}
+                    title={`Toca para ver los datos del día ${formatCutoff(pt.cutoff)}`}
+                  >
+                    <td>
+                      <div className="evolution-date-cell">
+                        <strong>{formatCutoff(pt.cutoff)}</strong>
+                        {isInitial && <span className="evolution-chip initial">Día 1 · Base</span>}
+                        {isSelected && <span className="evolution-chip active">Activo</span>}
+                        {isLatest && !isSelected && <span className="evolution-chip latest">Hoy</span>}
+                      </div>
+                    </td>
+                    <td className="numeric">
+                      <strong className="evolution-pending-val">{currency.format(pt.pending)}</strong>
+                    </td>
+                    <td className="numeric">
+                      {isInitial ? (
+                        <span className="evolution-base-cell">Punto inicial base</span>
+                      ) : (
+                        <div className="evolution-delta-cell">
+                          <span className={`delta-chip ${isValDown ? 'green' : isValUp ? 'orange' : 'gray'}`}>
+                            {isValDown ? '▼ Bajó ' : isValUp ? '▲ Subió ' : ''}
+                            {currency.format(Math.abs(deltaVal))}
+                          </span>
+                          <small className={`evolution-delta-pct ${isValDown ? 'text-green' : isValUp ? 'text-orange' : 'text-muted'}`}>
+                            {isValDown ? '-' : isValUp ? '+' : ''}{percent.format(Math.abs(pctVal))}
+                          </small>
+                        </div>
+                      )}
+                    </td>
+                    <td className="numeric">
+                      <strong className="evolution-docs-val">{number.format(pt.remissions)} rem.</strong>
+                    </td>
+                    <td className="numeric">
+                      {isInitial ? (
+                        <span className="evolution-base-cell">Volumen inicial</span>
+                      ) : (
+                        <div className="evolution-delta-cell">
+                          <span className={`delta-chip ${isDocsDown ? 'green' : isDocsUp ? 'orange' : 'gray'}`}>
+                            {isDocsDown ? '▼ Bajaron ' : isDocsUp ? '▲ Subieron ' : ''}
+                            {number.format(Math.abs(deltaDocs))} rem.
+                          </span>
+                          <small className={`evolution-delta-pct ${isDocsDown ? 'text-green' : isDocsUp ? 'text-orange' : 'text-muted'}`}>
+                            {isDocsDown ? '-' : isDocsUp ? '+' : ''}{percent.format(Math.abs(pctDocs))}
+                          </small>
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {isInitial ? (
+                        <span className="evolution-base-cell">Apertura inicial del archivo</span>
+                      ) : hasManagement ? (
+                        <div className="evolution-mgmt-flow-cell">
+                          <span className="mgmt-flow-chip new">
+                            +{pt.newCount} nuevas ({compactCurrency.format(pt.newValue)})
+                          </span>
+                          <span className="mgmt-flow-chip closed">
+                            -{pt.withdrawnCount} facturadas ({compactCurrency.format(pt.withdrawn)})
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-muted">Sin movimientos reportados</span>
+                      )}
+                    </td>
+                    <td className="text-center">
+                      <button
+                        type="button"
+                        className={`evolution-action-btn ${isSelected ? 'active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectCutoff(pt.cutoff);
+                        }}
+                        title={`Enfocar el día ${formatCutoff(pt.cutoff)} en el tablero`}
+                      >
+                        {isSelected ? 'Día activo' : 'Ver día →'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
 
-        <div className="evolution-table-container">
-          <div className="evolution-table-title">
-            <span>Tabla de evolución documental (¿Subió o bajó el número de remisiones?):</span>
-            <small>Toca una fila para enfocar ese día</small>
+        {!isMultipleDays && (
+          <div className="evolution-single-notice">
+            <CalendarClock size={22} />
+            <div>
+              <strong>Línea base inicial registrada con éxito ({formatCutoff(initialPoint?.cutoff || '')})</strong>
+              <p>
+                El seguimiento arrancó con un saldo de <strong>{currency.format(initialPoint?.pending || 0)}</strong> y <strong>{number.format(initialPoint?.remissions || 0)} remisiones abiertas</strong>. Al mantener actualizada la hoja <strong>Base-SIS</strong> diariamente agregando las nuevas fechas de corte, esta tabla calculará y mostrará automáticamente día a día cuántos documentos bajaron, cuánto dinero se redujo y el balance de facturación.
+              </p>
+            </div>
           </div>
-          <div className="evolution-table-wrap">
-            <table className="evolution-table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th className="numeric"># Remisiones</th>
-                  <th className="numeric">¿Subió o bajó? (# rem.)</th>
-                  <th className="numeric">Cambio (%)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {daily.map((pt, idx) => {
-                  const isSelected = pt.cutoff === currentCutoff;
-                  const isInitial = idx === 0;
-                  const delta = pt.remissionsDelta ?? 0;
-                  const pct = pt.remissionsDeltaPct ?? 0;
-                  const isDown = delta < 0;
-                  const isUp = delta > 0;
-                  const hasFlow = !isInitial && (pt.newCount > 0 || pt.withdrawnCount > 0);
-                  return (
-                    <tr
-                      key={pt.cutoff}
-                      className={`evolution-row ${isSelected ? 'selected' : ''}`}
-                      onClick={() => onSelectCutoff(pt.cutoff)}
-                      role="button"
-                      tabIndex={0}
-                      title={`Toca para ver datos del ${formatCutoff(pt.cutoff)}`}
-                    >
-                      <td>
-                        <strong>{formatCutoff(pt.cutoff)}</strong>
-                        {isSelected && <span className="active-dot-pill">Activo</span>}
-                      </td>
-                      <td className="numeric">
-                        <strong>{number.format(pt.remissions)} rem.</strong>
-                      </td>
-                      <td className="numeric">
-                        {isInitial ? (
-                          <span className="text-muted">Punto inicial</span>
-                        ) : (
-                          <>
-                            <span className={isDown ? 'text-green' : isUp ? 'text-orange' : 'text-muted'}>
-                              {isDown ? '▼ -' : isUp ? '▲ +' : ''}{number.format(Math.abs(delta))} rem.
-                            </span>
-                            {hasFlow && (
-                              <small className="evolution-sub-delta">
-                                +{pt.newCount} / -{pt.withdrawnCount}
-                              </small>
-                            )}
-                          </>
-                        )}
-                      </td>
-                      <td className="numeric">
-                        {isInitial ? (
-                          <span className="text-muted">—</span>
-                        ) : (
-                          <span className={`delta-chip ${isDown ? 'green' : isUp ? 'orange' : 'gray'}`}>
-                            {isDown ? '▼ -' : isUp ? '▲ +' : ''}{percent.format(Math.abs(pct))}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        )}
       </article>
     </section>
   );
