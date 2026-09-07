@@ -12,28 +12,50 @@ import {
 describe('Sistema de permisos y control de acceso corporativo', () => {
   const buffer = fs.readFileSync(path.resolve(process.cwd(), 'Remisiones.xlsx'));
 
-  it('valida que el directorio contenga 4 directores y 38 ejecutivos', () => {
+  it('valida que el directorio contenga 4 miembros de gerencia, 3 directores de grupo y 38 ejecutivos', () => {
+    const gerencia = CORPORATE_DIRECTORY.filter((u) => u.role === 'admin');
     const directors = CORPORATE_DIRECTORY.filter((u) => u.role === 'director');
     const executives = CORPORATE_DIRECTORY.filter((u) => u.role === 'executive');
-    expect(directors.length).toBe(4);
+    expect(gerencia.length).toBe(4);
+    expect(directors.length).toBe(3);
     expect(executives.length).toBe(38);
-    expect(CORPORATE_DIRECTORY.length).toBe(42);
+    expect(CORPORATE_DIRECTORY.length).toBe(45);
   });
 
-  it('resuelve correctamente a los 4 directores bloqueando su dirección', async () => {
+  it('resuelve correctamente a los miembros de Gerencia con Acceso Total', async () => {
     const wb = await parseRemisionesWorkbook(buffer.buffer);
     const excelDirectors = [...new Set(wb.records.map((r) => r.director))];
     const excelEmployees = [...new Set(wb.records.map((r) => r.employee))];
 
-    // 1. Rafael Novoa
+    // 1. Rafael Novoa (Gerencia / Dirección Comercial)
     const novoa = resolveUserAccess('rafael.novoa@provexpress.com.co', excelDirectors, excelEmployees);
-    expect(novoa.role).toBe('director');
-    expect(novoa.group).toBe(1);
-    expect(novoa.lockedDirector).toBe('Rafael Novoa');
-    expect(novoa.isRestricted).toBe(true);
-    expect(novoa.allowedEmployees.length).toBeGreaterThan(0);
+    expect(novoa.role).toBe('admin');
+    expect(novoa.isRestricted).toBe(false);
+    expect(novoa.lockedDirector).toBeUndefined();
+    expect(novoa.label).toContain('Gerencia');
 
-    // 2. Angélica Caballero
+    // 2. Juan Novoa (Gerencia General)
+    const juan = resolveUserAccess('juannovoa@provexpress.com.co', excelDirectors, excelEmployees);
+    expect(juan.role).toBe('admin');
+    expect(juan.isRestricted).toBe(false);
+
+    // 3. Cuentas Estratégicas (Gerencia)
+    const estrategica = resolveUserAccess('c.estrategica@provexpress.com.co', excelDirectors, excelEmployees);
+    expect(estrategica.role).toBe('admin');
+    expect(estrategica.isRestricted).toBe(false);
+
+    // 4. Preventa Software (Gerencia)
+    const preventa = resolveUserAccess('preventa.software@provexpress.com.co', excelDirectors, excelEmployees);
+    expect(preventa.role).toBe('admin');
+    expect(preventa.isRestricted).toBe(false);
+  });
+
+  it('resuelve correctamente a los directores de grupo bloqueando su dirección', async () => {
+    const wb = await parseRemisionesWorkbook(buffer.buffer);
+    const excelDirectors = [...new Set(wb.records.map((r) => r.director))];
+    const excelEmployees = [...new Set(wb.records.map((r) => r.employee))];
+
+    // 1. Angélica Caballero
     const caballero = resolveUserAccess('angelica.caballero@provexpress.com.co', excelDirectors, excelEmployees);
     expect(caballero.role).toBe('director');
     expect(caballero.group).toBe(2);
@@ -41,14 +63,14 @@ describe('Sistema de permisos y control de acceso corporativo', () => {
     expect(caballero.isRestricted).toBe(true);
     expect(caballero.allowedEmployees.length).toBeGreaterThan(0);
 
-    // 3. Óscar Beltrán
+    // 2. Óscar Beltrán
     const beltran = resolveUserAccess('oscar.beltran@provexpress.com.co', excelDirectors, excelEmployees);
     expect(beltran.role).toBe('director');
     expect(beltran.group).toBe(3);
     expect(beltran.lockedDirector).toBe('Óscar Beltrán');
     expect(beltran.isRestricted).toBe(true);
 
-    // 4. Miller Romero
+    // 3. Miller Romero
     const romero = resolveUserAccess('miller.romero@provexpress.com.co', excelDirectors, excelEmployees);
     expect(romero.role).toBe('director');
     expect(romero.group).toBe(4);

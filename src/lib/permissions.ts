@@ -40,16 +40,42 @@ export interface UserAccess {
 }
 
 export const CORPORATE_DIRECTORY: DirectoryUser[] = [
-  // ══ DIRECTORES ═════════════════════════════════════════════════════════════
+  // ══ EQUIPO DE GERENCIA / DIRECCIÓN GENERAL ═════════════════════════════════
+  {
+    email: 'juannovoa@provexpress.com.co',
+    name: 'Juan Novoa',
+    role: 'admin',
+    group: 0,
+    groupName: 'Gerencia General',
+    directorName: 'Gerencia General',
+  },
   {
     email: 'rafael.novoa@provexpress.com.co',
     name: 'Rafael Novoa',
-    role: 'director',
+    role: 'admin', // Gerencia / Dirección Comercial (Acceso Total y Líder Grupo Novoa)
     group: 1,
-    groupName: 'Grupo Novoa',
+    groupName: 'Gerencia / Grupo Novoa',
     directorName: 'Rafael Novoa',
     aliases: ['Rafael Francisco Nov', 'Rafael Novoa'],
   },
+  {
+    email: 'c.estrategica@provexpress.com.co',
+    name: 'Cuentas Estratégicas',
+    role: 'admin',
+    group: 0,
+    groupName: 'Gerencia Estratégica',
+    directorName: 'Gerencia General',
+  },
+  {
+    email: 'preventa.software@provexpress.com.co',
+    name: 'Preventa Software',
+    role: 'admin',
+    group: 0,
+    groupName: 'Gerencia / Preventa',
+    directorName: 'Gerencia General',
+  },
+
+  // ══ DIRECTORES COMERCIALES DE GRUPO ════════════════════════════════════════
   {
     email: 'angelica.caballero@provexpress.com.co',
     name: 'Angélica Caballero',
@@ -621,8 +647,11 @@ export function resolveUserAccess(
     email: cleanEmail,
     name: found.name,
     role: 'admin',
+    group: found.group,
+    groupName: found.groupName,
+    directorName: found.directorName,
     allowedEmployees: [],
     isRestricted: false,
-    label: 'Administrador General',
+    label: `Gerencia · ${found.name}`,
   };
 }

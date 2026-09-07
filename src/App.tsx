@@ -956,8 +956,13 @@ function Dashboard({
                   className="role-simulator-select"
                 >
                   <option value="">👑 Acceso Total (Admin / Todos)</option>
-                  <optgroup label="👔 Directores Comerciales (4)">
-                    <option value="rafael.novoa@provexpress.com.co">Rafael Novoa — Grupo Novoa (9)</option>
+                  <optgroup label="👑 Equipo de Gerencia (Acceso Total)">
+                    <option value="juannovoa@provexpress.com.co">Juan Novoa — Gerencia General</option>
+                    <option value="rafael.novoa@provexpress.com.co">Rafael Novoa — Gerencia / Grupo Novoa</option>
+                    <option value="c.estrategica@provexpress.com.co">Cuentas Estratégicas — Gerencia</option>
+                    <option value="preventa.software@provexpress.com.co">Preventa Software — Gerencia</option>
+                  </optgroup>
+                  <optgroup label="👔 Directores Comerciales de Grupo">
                     <option value="angelica.caballero@provexpress.com.co">Angélica Caballero — Grupo Caballero (11)</option>
                     <option value="oscar.beltran@provexpress.com.co">Óscar Beltrán — Grupo Beltrán (10)</option>
                     <option value="miller.romero@provexpress.com.co">Miller Romero — Grupo Romero (8)</option>
