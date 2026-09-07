@@ -317,12 +317,50 @@ export async function parseRemisionesWorkbook(
   const workbook = new ExcelJSRuntime.Workbook();
   await workbook.xlsx.load(buffer);
 
-  // Prioritize Base-SIS sheet if present and contains data, else Base
+  // Prioritize the sheet that contains more data / newer cutoffs between Base and Base-SIS
   const sisSheet = workbook.getWorksheet('Base-SIS') || workbook.getWorksheet('base-sis');
   const baseSheet = workbook.getWorksheet('Base') || workbook.getWorksheet('base');
-  const targetSheet = (sisSheet && sisSheet.rowCount > 1) ? sisSheet : baseSheet;
+  let targetSheet: ExcelJS.Worksheet | undefined;
+
+  if (sisSheet && baseSheet && sisSheet.rowCount > 1 && baseSheet.rowCount > 1) {
+    if (baseSheet.rowCount > sisSheet.rowCount) {
+      targetSheet = baseSheet;
+    } else if (sisSheet.rowCount > baseSheet.rowCount) {
+      targetSheet = sisSheet;
+    } else {
+      // If row counts are comparable, prefer the one with an explicit Fecha de Corte column (like Base)
+      try {
+        const baseHdr = findHeaderRow(baseSheet);
+        const sisHdr = findHeaderRow(sisSheet);
+        if (baseHdr.hasCutoff && !sisHdr.hasCutoff) {
+          targetSheet = baseSheet;
+        } else {
+          targetSheet = sisSheet;
+        }
+      } catch {
+        targetSheet = baseSheet || sisSheet;
+      }
+    }
+  } else {
+    targetSheet = (sisSheet && sisSheet.rowCount > 1)
+      ? sisSheet
+      : (baseSheet && baseSheet.rowCount > 1)
+        ? baseSheet
+        : sisSheet || baseSheet;
+  }
+
+  // Graceful fallback if neither Base-SIS nor Base exists, or if a raw export sheet is provided
+  if (!targetSheet || targetSheet.rowCount <= 1) {
+    const fallbackSheet = workbook.getWorksheet('Remisiones') ||
+      workbook.getWorksheet('remisiones') ||
+      workbook.getWorksheet('Hoja1') ||
+      workbook.getWorksheet('Sheet1') ||
+      workbook.worksheets.find((ws) => ws.rowCount > 1);
+    if (fallbackSheet) targetSheet = fallbackSheet;
+  }
+
   if (!targetSheet) {
-    throw new Error('No se encontró la hoja Base-SIS ni Base en el archivo.');
+    throw new Error('No se encontró la hoja Base ni Base-SIS con datos en el archivo.');
   }
 
   const groups = readGroups(workbook.getWorksheet('Grupos'));
