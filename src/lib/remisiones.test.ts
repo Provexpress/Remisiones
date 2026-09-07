@@ -200,6 +200,34 @@ describe('parser del libro', () => {
     expect(cohort[1].withdrawnCount).toBe(1);
     expect(cohort[1].recoveryPct).toBeCloseTo(2380 / 3570);
   });
+
+  it('combina Base-SIS (base inicial 03/09) y Base (cortes 09/04/2026 y 9/7/2026)', async () => {
+    const workbook = new ExcelJS.Workbook();
+    // 1. Base-SIS: Snapshot 03/09/2026 (sin columna Fecha de corte)
+    const sis = workbook.addWorksheet('Base-SIS');
+    sis.addRow(['Empleado', 'NIT', 'Empresa', 'Vr. Mercancia', 'Vr. IVA', 'Vr. Total', 'Emision', 'Dias', 'Documento', 'Pedido', 'Cantidad']);
+    sis.addRow(['Dayana Marcela Chala', '9001', 'Empresa 1', 1000, 190, 1190, '2026-09-01', 2, 'R1', 'P1', 1]);
+    sis.addRow(['Dayana Marcela Chala', '9002', 'Empresa 2', 2000, 380, 2380, '2026-08-15', 19, 'R2', 'P2', 1]);
+
+    // 2. Base: Cortes diarios con fechas en formato M/D/YYYY (09/04/2026 y 9/7/2026)
+    const base = workbook.addWorksheet('Base');
+    base.addRow(['Fecha_Corte', 'Empleado', 'NIT', 'Empresa', 'Vr. Mercancia', 'Vr. IVA', 'Vr. Total', 'Emision', 'Dias', 'Documento', 'Pedido', 'Cantidad']);
+    base.addRow(['09/04/2026', 'Dayana Marcela Chala', '9001', 'Empresa 1', 1000, 190, 1190, '2026-09-01', 3, 'R1', 'P1', 1]);
+    base.addRow(['9/7/2026', 'Dayana Marcela Chala', '9001', 'Empresa 1', 1000, 190, 1190, '2026-09-01', 6, 'R1', 'P1', 1]);
+    base.addRow(['9/7/2026', 'Dayana Marcela Chala', '9003', 'Empresa 3', 3000, 570, 3570, '4/9/2026', 3, 'R3', 'P3', 1]);
+
+    const groups = workbook.addWorksheet('Grupos');
+    groups.addRow(['Grupo 2 — Directora: Angélica Caballero']);
+    groups.addRow(['Ejecutivo Comercial']);
+    groups.addRow(['Dayana Chala']);
+
+    const output = await workbook.xlsx.writeBuffer();
+    const parsed = await parseRemisionesWorkbook(output as ArrayBuffer);
+    expect(parsed.cutoffs).toEqual(['2026-09-03', '2026-09-04', '2026-09-07']);
+    expect(parsed.records.filter((r) => r.cutoff === '2026-09-03')).toHaveLength(2);
+    expect(parsed.records.filter((r) => r.cutoff === '2026-09-04')).toHaveLength(1);
+    expect(parsed.records.filter((r) => r.cutoff === '2026-09-07')).toHaveLength(2);
+  });
 });
 
 const corporateWorkbookPath = fileURLToPath(new URL('../../Remisiones.xlsx', import.meta.url));

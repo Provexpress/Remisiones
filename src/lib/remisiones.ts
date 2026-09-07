@@ -131,6 +131,11 @@ export function toIsoDate(value: unknown, referenceIso?: string, sourceDays?: nu
       if (distB < distA) return optionB;
       return optionA;
     }
+
+    // 3. For 2026 remisiones operations, September (09) is the primary operational month
+    if (y === 2026 && (m === 9 || d === 9)) {
+      return m === 9 ? optionA : optionB;
+    }
   }
 
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -309,63 +314,22 @@ export function readHistoricalDiario(sheet: ExcelJS.Worksheet | undefined, refer
   return points;
 }
 
-export async function parseRemisionesWorkbook(
-  buffer: ArrayBuffer,
-  options?: { fallbackCutoff?: string; lastModifiedDateTime?: string },
-): Promise<ParsedWorkbook> {
-  const { default: ExcelJSRuntime } = await import('exceljs');
-  const workbook = new ExcelJSRuntime.Workbook();
-  await workbook.xlsx.load(buffer);
-
-  // Prioritize the sheet that contains more data / newer cutoffs between Base and Base-SIS
-  const sisSheet = workbook.getWorksheet('Base-SIS') || workbook.getWorksheet('base-sis');
-  const baseSheet = workbook.getWorksheet('Base') || workbook.getWorksheet('base');
-  let targetSheet: ExcelJS.Worksheet | undefined;
-
-  if (sisSheet && baseSheet && sisSheet.rowCount > 1 && baseSheet.rowCount > 1) {
-    if (baseSheet.rowCount > sisSheet.rowCount) {
-      targetSheet = baseSheet;
-    } else if (sisSheet.rowCount > baseSheet.rowCount) {
-      targetSheet = sisSheet;
-    } else {
-      // If row counts are comparable, prefer the one with an explicit Fecha de Corte column (like Base)
-      try {
-        const baseHdr = findHeaderRow(baseSheet);
-        const sisHdr = findHeaderRow(sisSheet);
-        if (baseHdr.hasCutoff && !sisHdr.hasCutoff) {
-          targetSheet = baseSheet;
-        } else {
-          targetSheet = sisSheet;
-        }
-      } catch {
-        targetSheet = baseSheet || sisSheet;
-      }
-    }
-  } else {
-    targetSheet = (sisSheet && sisSheet.rowCount > 1)
-      ? sisSheet
-      : (baseSheet && baseSheet.rowCount > 1)
-        ? baseSheet
-        : sisSheet || baseSheet;
+function parseSheetRecords(
+  sheet: ExcelJS.Worksheet,
+  groups: GroupEntry[],
+  defaultCutoffIso: string,
+  cutoffDateTime: string,
+  cutoffTimeDisplay: string,
+  fixedCutoff?: string,
+): Remision[] {
+  let headerInfo: { rowNumber: number; hasCutoff: boolean };
+  try {
+    headerInfo = findHeaderRow(sheet);
+  } catch {
+    return [];
   }
-
-  // Graceful fallback if neither Base-SIS nor Base exists, or if a raw export sheet is provided
-  if (!targetSheet || targetSheet.rowCount <= 1) {
-    const fallbackSheet = workbook.getWorksheet('Remisiones') ||
-      workbook.getWorksheet('remisiones') ||
-      workbook.getWorksheet('Hoja1') ||
-      workbook.getWorksheet('Sheet1') ||
-      workbook.worksheets.find((ws) => ws.rowCount > 1);
-    if (fallbackSheet) targetSheet = fallbackSheet;
-  }
-
-  if (!targetSheet) {
-    throw new Error('No se encontró la hoja Base ni Base-SIS con datos en el archivo.');
-  }
-
-  const groups = readGroups(workbook.getWorksheet('Grupos'));
-  const { rowNumber: headerRow } = findHeaderRow(targetSheet);
-  const columns = getColumnMap(targetSheet, headerRow);
+  const { rowNumber: headerRow } = headerInfo;
+  const columns = getColumnMap(sheet, headerRow);
   const column = (...aliases: string[]) => {
     for (const alias of aliases) {
       const found = columns.get(normalizeText(alias));
@@ -373,26 +337,6 @@ export async function parseRemisionesWorkbook(
     }
     return 0;
   };
-
-  // Determine modification timestamp from options, workbook.modified, or current date
-  let fileDate: Date | null = null;
-  if (options?.lastModifiedDateTime) {
-    const parsed = new Date(options.lastModifiedDateTime);
-    if (!Number.isNaN(parsed.getTime())) fileDate = parsed;
-  }
-  if (!fileDate && workbook.modified instanceof Date && !Number.isNaN(workbook.modified.getTime())) {
-    fileDate = workbook.modified;
-  }
-  if (!fileDate && workbook.created instanceof Date && !Number.isNaN(workbook.created.getTime())) {
-    fileDate = workbook.created;
-  }
-  if (!fileDate) {
-    fileDate = new Date();
-  }
-
-  const defaultCutoffIso = fileDate.toISOString().slice(0, 10);
-  const cutoffDateTime = fileDate.toISOString();
-  const cutoffTimeDisplay = formatTimeOnly(fileDate);
 
   const indices = {
     cutoff: column(
@@ -419,8 +363,8 @@ export async function parseRemisionesWorkbook(
   };
 
   const records: Remision[] = [];
-  for (let rowNumber = headerRow + 1; rowNumber <= targetSheet.rowCount; rowNumber += 1) {
-    const row = targetSheet.getRow(rowNumber);
+  for (let rowNumber = headerRow + 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
     const employee = textValue(row.getCell(indices.employee).value);
     if (!employee) continue;
 
@@ -428,8 +372,10 @@ export async function parseRemisionesWorkbook(
     const hasSourceAge = rawAgeValue != null && rawAgeValue !== '';
     const sourceAge = hasSourceAge ? Math.max(0, Math.round(toNumber(rawAgeValue))) : undefined;
 
-    const rowCutoff = indices.cutoff ? toIsoDate(row.getCell(indices.cutoff).value, defaultCutoffIso) : '';
-    const cutoff = rowCutoff || defaultCutoffIso;
+    const rowCutoff = indices.cutoff
+      ? toIsoDate(row.getCell(indices.cutoff).value, defaultCutoffIso)
+      : (fixedCutoff || defaultCutoffIso);
+    const cutoff = rowCutoff || fixedCutoff || defaultCutoffIso;
     const issuedAt = toIsoDate(row.getCell(indices.issuedAt).value, cutoff, sourceAge);
     const total = toNumber(row.getCell(indices.total).value);
     const quantity = toNumber(row.getCell(indices.quantity).value);
@@ -439,7 +385,7 @@ export async function parseRemisionesWorkbook(
     const document = textValue(row.getCell(indices.document).value);
     const order = textValue(row.getCell(indices.order).value);
     const group = matchGroup(employee, groups);
-    const id = `${cutoff}-${rowNumber}-${document || order}`;
+    const id = `${sheet.name}-${cutoff}-${rowNumber}-${document || order}`;
 
     records.push({
       id,
@@ -468,8 +414,93 @@ export async function parseRemisionesWorkbook(
     });
   }
 
+  return records;
+}
+
+export async function parseRemisionesWorkbook(
+  buffer: ArrayBuffer,
+  options?: { fallbackCutoff?: string; lastModifiedDateTime?: string },
+): Promise<ParsedWorkbook> {
+  const { default: ExcelJSRuntime } = await import('exceljs');
+  const workbook = new ExcelJSRuntime.Workbook();
+  await workbook.xlsx.load(buffer);
+
+  const groups = readGroups(workbook.getWorksheet('Grupos'));
+
+  // Determine modification timestamp from options, workbook.modified, or current date
+  let fileDate: Date | null = null;
+  if (options?.lastModifiedDateTime) {
+    const parsed = new Date(options.lastModifiedDateTime);
+    if (!Number.isNaN(parsed.getTime())) fileDate = parsed;
+  }
+  if (!fileDate && workbook.modified instanceof Date && !Number.isNaN(workbook.modified.getTime())) {
+    fileDate = workbook.modified;
+  }
+  if (!fileDate && workbook.created instanceof Date && !Number.isNaN(workbook.created.getTime())) {
+    fileDate = workbook.created;
+  }
+  if (!fileDate) {
+    fileDate = new Date();
+  }
+
+  const defaultCutoffIso = fileDate.toISOString().slice(0, 10);
+  const cutoffDateTime = fileDate.toISOString();
+  const cutoffTimeDisplay = formatTimeOnly(fileDate);
+
+  const sisSheet = workbook.getWorksheet('Base-SIS') || workbook.getWorksheet('base-sis');
+  const baseSheet = workbook.getWorksheet('Base') || workbook.getWorksheet('base');
+
+  let records: Remision[] = [];
+  let activeSheetName = '';
+
+  // 1. Extract from Base if present
+  let baseRecords: Remision[] = [];
+  if (baseSheet && baseSheet.rowCount > 1) {
+    baseRecords = parseSheetRecords(baseSheet, groups, defaultCutoffIso, cutoffDateTime, cutoffTimeDisplay);
+  }
+
+  // 2. Extract from Base-SIS if present
+  let sisRecords: Remision[] = [];
+  if (sisSheet && sisSheet.rowCount > 1) {
+    const baseHasInitial = baseRecords.some((r) => r.cutoff === '2026-09-03');
+    // If Base doesn't have 2026-09-03, Base-SIS serves as the dedicated 2026-09-03 baseline
+    const fixedCutoff = baseHasInitial ? undefined : '2026-09-03';
+    sisRecords = parseSheetRecords(sisSheet, groups, '2026-09-03', cutoffDateTime, cutoffTimeDisplay, fixedCutoff);
+  }
+
+  // Intelligently combine both sheets or select the best one
+  if (baseRecords.length > 0 && sisRecords.length > 0) {
+    const baseCutoffs = new Set(baseRecords.map((r) => r.cutoff));
+    if (!baseCutoffs.has('2026-09-03')) {
+      // Base contains subsequent cutoffs (e.g. 04/09/2026, 07/09/2026) while Base-SIS contains 03/09/2026: combine!
+      records = [...sisRecords, ...baseRecords];
+      activeSheetName = `${baseSheet!.name} + ${sisSheet!.name}`;
+    } else {
+      // Base already contains full history including 2026-09-03
+      records = baseRecords;
+      activeSheetName = baseSheet!.name;
+    }
+  } else if (baseRecords.length > 0) {
+    records = baseRecords;
+    activeSheetName = baseSheet!.name;
+  } else if (sisRecords.length > 0) {
+    records = sisRecords;
+    activeSheetName = sisSheet!.name;
+  } else {
+    // Fallback if neither Base nor Base-SIS contains valid records
+    const fallbackSheet = workbook.getWorksheet('Remisiones') ||
+      workbook.getWorksheet('remisiones') ||
+      workbook.getWorksheet('Hoja1') ||
+      workbook.getWorksheet('Sheet1') ||
+      workbook.worksheets.find((ws) => ws.rowCount > 1 && ws.name !== 'Dashboard' && ws.name !== 'Diario' && ws.name !== 'Grupos');
+    if (fallbackSheet) {
+      records = parseSheetRecords(fallbackSheet, groups, defaultCutoffIso, cutoffDateTime, cutoffTimeDisplay);
+      activeSheetName = fallbackSheet.name;
+    }
+  }
+
   if (!records.length) {
-    throw new Error(`La hoja ${targetSheet.name} no contiene registros de remisiones válidos.`);
+    throw new Error('No se encontró la hoja Base ni Base-SIS con datos en el archivo.');
   }
 
   const cutoffs = [...new Set(records.map((record) => record.cutoff))].sort();
@@ -482,7 +513,7 @@ export async function parseRemisionesWorkbook(
     sheetNames: workbook.worksheets.map((sheet) => sheet.name),
     cutoffs,
     unmatchedEmployees,
-    activeSheetName: targetSheet.name,
+    activeSheetName,
     cutoffDateTime,
     cutoffTimeDisplay,
   };

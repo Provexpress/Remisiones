@@ -302,12 +302,12 @@ function Dashboard({
   onRefresh: () => void;
   onLogout: () => void;
 }) {
-  const [view, setView] = useState<View>('evolucion');
-  const [detailTab, setDetailTab] = useState<'open' | 'withdrawn' | 'new'>('open');
   const EVOLUCION_CUTOFF = '2026-09-03';
   const latestCutoff = data.cutoffs.at(-1) || '';
   // Gestión only uses cutoffs AFTER the base date
   const gestionCutoffs = data.cutoffs.filter((c) => c > EVOLUCION_CUTOFF);
+  const [view, setView] = useState<View>(() => (gestionCutoffs.length > 0 ? 'gestion' : 'evolucion'));
+  const [detailTab, setDetailTab] = useState<'open' | 'withdrawn' | 'new'>('open');
   const [cutoff, setCutoff] = useState(latestCutoff);
   const [director, setDirector] = useState('Todos');
   const [employee, setEmployee] = useState('Todos');
@@ -320,8 +320,10 @@ function Dashboard({
   const refreshRef = useRef(onRefresh);
 
   useEffect(() => {
-    if (data.cutoffs.length && (!cutoff || !data.cutoffs.includes(cutoff))) {
-      setCutoff(latestCutoff);
+    if (data.cutoffs.length) {
+      if (!cutoff || !data.cutoffs.includes(cutoff) || latestCutoff > cutoff) {
+        setCutoff(latestCutoff);
+      }
     }
   }, [data.cutoffs, cutoff, latestCutoff]);
 
@@ -823,7 +825,13 @@ function Dashboard({
               onClick={() => handleSelectView('gestion')}
               title="Gestión operativa día a día desde 04/09/2026 (Ingresos y Salidas)"
             >
-              <CalendarRange size={16} /> Gestión (Desde 04/09)
+              <CalendarRange size={16} />
+              <span>Gestión (Desde 04/09)</span>
+              {gestionCutoffs.length > 0 && (
+                <span className="nav-tab-badge green">
+                  {formatCutoff(latestCutoff, { day: '2-digit', month: '2-digit', year: undefined })}
+                </span>
+              )}
             </button>
             <button
               className={view === 'detail' ? 'active' : ''}
@@ -845,6 +853,41 @@ function Dashboard({
       </header>
 
       <main className="dashboard-main">
+        {gestionCutoffs.length > 0 && latestCutoff > EVOLUCION_CUTOFF && (
+          <section className="new-cutoff-notification-banner" aria-label="Notificación de nuevo corte">
+            <div className="new-cutoff-banner-left">
+              <span className="new-cutoff-pulse" />
+              <CalendarRange size={18} />
+              <div>
+                <strong>Nuevo corte detectado: {formatCutoff(latestCutoff)}</strong>
+                <span>
+                  {data.records.filter((r) => r.cutoff === latestCutoff).length} remisiones en el portafolio actual
+                  {view === 'evolucion' ? ' · Estás en la vista de Evolución de la Base Inicial (03/09)' : ' · Viendo la operación diaria'}
+                </span>
+              </div>
+            </div>
+            <div className="new-cutoff-banner-actions">
+              {view === 'evolucion' ? (
+                <button
+                  type="button"
+                  className="button button-primary cutoff-cta-btn"
+                  onClick={() => { setView('gestion'); setCutoff(latestCutoff); }}
+                >
+                  <CalendarRange size={14} /> Ver Gestión Operativa ({formatCutoff(latestCutoff)}) →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="button button-outline-purple cutoff-cta-btn"
+                  onClick={() => { setView('evolucion'); setCutoff(latestCutoff); }}
+                >
+                  <TrendingUp size={14} /> Ver Desmonte en Evolución →
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
         <section className="hero-row">
           <div>
             {view === 'evolucion' ? (
