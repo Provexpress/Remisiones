@@ -958,6 +958,7 @@ function Dashboard({
                   <option value="">👑 Acceso Total (Admin / Todos)</option>
                   <optgroup label="👑 Equipo de Gerencia (Acceso Total)">
                     <option value="juannovoa@provexpress.com.co">Juan Novoa — Gerencia General</option>
+                    <option value="oscar.perez@provexpress.com.co">Óscar Pérez — Gerencia General</option>
                     <option value="rafael.novoa@provexpress.com.co">Rafael Novoa — Gerencia / Grupo Novoa</option>
                     <option value="c.estrategica@provexpress.com.co">Cuentas Estratégicas — Gerencia</option>
                     <option value="preventa.software@provexpress.com.co">Preventa Software — Gerencia</option>

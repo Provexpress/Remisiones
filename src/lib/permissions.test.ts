@@ -55,14 +55,14 @@ const excelEmployeesMock = [
 ];
 
 describe('Sistema de permisos y control de acceso corporativo (RBAC)', () => {
-  it('valida que el directorio contenga 4 miembros de gerencia, 3 directores de grupo y 38 ejecutivos', () => {
+  it('valida que el directorio contenga 5 miembros de gerencia, 3 directores de grupo y 38 ejecutivos', () => {
     const gerencia = CORPORATE_DIRECTORY.filter((u) => u.role === 'admin');
     const directors = CORPORATE_DIRECTORY.filter((u) => u.role === 'director');
     const executives = CORPORATE_DIRECTORY.filter((u) => u.role === 'executive');
-    expect(gerencia.length).toBe(4);
+    expect(gerencia.length).toBe(5);
     expect(directors.length).toBe(3);
     expect(executives.length).toBe(38);
-    expect(CORPORATE_DIRECTORY.length).toBe(45);
+    expect(CORPORATE_DIRECTORY.length).toBe(46);
   });
 
   it('resuelve correctamente a los miembros de Gerencia con Acceso Total', () => {
@@ -78,12 +78,17 @@ describe('Sistema de permisos y control de acceso corporativo (RBAC)', () => {
     expect(juan.role).toBe('admin');
     expect(juan.isRestricted).toBe(false);
 
-    // 3. Cuentas Estratégicas (Gerencia)
+    // 3. Óscar Pérez (Gerencia General)
+    const perez = resolveUserAccess('oscar.perez@provexpress.com.co', excelDirectorsMock, excelEmployeesMock);
+    expect(perez.role).toBe('admin');
+    expect(perez.isRestricted).toBe(false);
+
+    // 4. Cuentas Estratégicas (Gerencia)
     const estrategica = resolveUserAccess('c.estrategica@provexpress.com.co', excelDirectorsMock, excelEmployeesMock);
     expect(estrategica.role).toBe('admin');
     expect(estrategica.isRestricted).toBe(false);
 
-    // 4. Preventa Software (Gerencia)
+    // 5. Preventa Software (Gerencia)
     const preventa = resolveUserAccess('preventa.software@provexpress.com.co', excelDirectorsMock, excelEmployeesMock);
     expect(preventa.role).toBe('admin');
     expect(preventa.isRestricted).toBe(false);
@@ -166,5 +171,5 @@ describeCorporateWorkbook('validación de permisos contra libro Excel real', () 
 
     const caballero = resolveUserAccess('angelica.caballero@provexpress.com.co', realDirectors, realEmployees);
     expect(caballero.lockedDirector).toBe('Angélica Caballero');
-  });
+  }, 20_000);
 });

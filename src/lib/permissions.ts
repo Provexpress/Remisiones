@@ -74,6 +74,14 @@ export const CORPORATE_DIRECTORY: DirectoryUser[] = [
     groupName: 'Gerencia / Preventa',
     directorName: 'Gerencia General',
   },
+  {
+    email: 'oscar.perez@provexpress.com.co',
+    name: 'Óscar Pérez',
+    role: 'admin',
+    group: 0,
+    groupName: 'Gerencia General',
+    directorName: 'Gerencia General',
+  },
 
   // ══ DIRECTORES COMERCIALES DE GRUPO ════════════════════════════════════════
   {
