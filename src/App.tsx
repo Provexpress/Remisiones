@@ -12,12 +12,14 @@ import {
   CircleDollarSign,
   Cloud,
   Download,
+  Eye,
   FileSpreadsheet,
   FileText,
   LayoutDashboard,
   Filter,
   ListChecks,
   LoaderCircle,
+  Lock,
   LogIn,
   LogOut,
   PackageCheck,
@@ -52,6 +54,7 @@ import {
   YAxis,
 } from 'recharts';
 import { getExistingProfile, loadSharePointWorkbook, signIn, signOut } from './lib/auth';
+import { CORPORATE_DIRECTORY, resolveUserAccess } from './lib/permissions';
 import {
   AGE_ORDER,
   aggregateBy,
@@ -351,18 +354,110 @@ function Dashboard({
     return amountStatus === filter;
   };
 
+  // ── Control de acceso y visibilidad por roles (RBAC) ──────────────────────
+  const [simulatedEmail, setSimulatedEmail] = useState<string | null>(null);
+
+  const rawDirectors = useMemo(
+    () => [...new Set(data.records.map((record) => record.director))].sort((a, b) => a.localeCompare(b, 'es')),
+    [data.records],
+  );
+  const rawEmployees = useMemo(
+    () => [...new Set(data.records.map((record) => record.employee))].sort((a, b) => a.localeCompare(b, 'es')),
+    [data.records],
+  );
+
+  const realAccess = useMemo(
+    () => resolveUserAccess(user?.email, rawDirectors, rawEmployees),
+    [user?.email, rawDirectors, rawEmployees],
+  );
+
+  const activeEmail = simulatedEmail !== null ? simulatedEmail : user?.email || null;
+  const userAccess = useMemo(
+    () => resolveUserAccess(activeEmail, rawDirectors, rawEmployees),
+    [activeEmail, rawDirectors, rawEmployees],
+  );
+
+  const isRealAdmin = !user || realAccess.role === 'admin' || source === 'local';
+
+  // Sincronización automática de filtros al cambiar de rol o simulación
+  const prevSimulatedEmailRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (prevSimulatedEmailRef.current !== simulatedEmail) {
+      if (userAccess.role === 'director' && userAccess.lockedDirector) {
+        setDirector(userAccess.lockedDirector);
+        setEmployee('Todos');
+      } else if (userAccess.role === 'executive') {
+        if (userAccess.lockedDirector) setDirector(userAccess.lockedDirector);
+        if (userAccess.lockedEmployee) setEmployee(userAccess.lockedEmployee);
+      } else if (userAccess.role === 'admin') {
+        setDirector('Todos');
+        setEmployee('Todos');
+      }
+      prevSimulatedEmailRef.current = simulatedEmail;
+    }
+  }, [simulatedEmail, userAccess]);
+
+  // Mantener filtros bloqueados según el rol activo
+  useEffect(() => {
+    if (userAccess.role === 'director' && userAccess.lockedDirector && director !== userAccess.lockedDirector) {
+      setDirector(userAccess.lockedDirector);
+    }
+    if (userAccess.role === 'executive') {
+      if (userAccess.lockedDirector && director !== userAccess.lockedDirector) {
+        setDirector(userAccess.lockedDirector);
+      }
+      if (userAccess.lockedEmployee && employee !== userAccess.lockedEmployee) {
+        setEmployee(userAccess.lockedEmployee);
+      }
+    }
+  }, [userAccess, director, employee]);
+
+  const availableDirectors = useMemo(() => {
+    if (userAccess.lockedDirector) {
+      return [userAccess.lockedDirector];
+    }
+    return ['Todos', ...rawDirectors];
+  }, [userAccess.lockedDirector, rawDirectors]);
+
+  const availableEmployees = useMemo(() => {
+    if (userAccess.lockedEmployee) {
+      return [userAccess.lockedEmployee];
+    }
+    if (userAccess.role === 'director') {
+      return ['Todos', ...userAccess.allowedEmployees];
+    }
+    const scoped = director === 'Todos' ? data.records : data.records.filter((record) => record.director === director);
+    return ['Todos', ...[...new Set(scoped.map((record) => record.employee))].sort((a, b) => a.localeCompare(b, 'es'))];
+  }, [userAccess, director, data.records]);
+
+  const handleDirectorChange = (nextDirector: string) => {
+    if (userAccess.lockedDirector) return;
+    setDirector(nextDirector);
+  };
+
+  const handleEmployeeChange = (nextEmployee: string) => {
+    if (userAccess.lockedEmployee) return;
+    if (userAccess.role === 'director' && nextEmployee !== 'Todos' && !userAccess.allowedEmployees.includes(nextEmployee)) {
+      return;
+    }
+    setEmployee(nextEmployee);
+  };
+
   const resetAllFilters = () => {
-    setDirector('Todos');
-    setEmployee('Todos');
+    setDirector(userAccess.lockedDirector || 'Todos');
+    setEmployee(userAccess.lockedEmployee || 'Todos');
     setStatusFilter('Todos');
     setAgeFilter('Todos');
     setAmountFilter('Todos');
     setQuery('');
   };
 
+  const hasDirectorFilter = !userAccess.lockedDirector && director !== 'Todos';
+  const hasEmployeeFilter = !userAccess.lockedEmployee && employee !== 'Todos';
+
   const activeFiltersCount =
-    (director !== 'Todos' ? 1 : 0) +
-    (employee !== 'Todos' ? 1 : 0) +
+    (hasDirectorFilter ? 1 : 0) +
+    (hasEmployeeFilter ? 1 : 0) +
     (statusFilter !== 'Todos' ? 1 : 0) +
     (ageFilter !== 'Todos' ? 1 : 0) +
     (amountFilter !== 'Todos' ? 1 : 0) +
@@ -370,14 +465,8 @@ function Dashboard({
 
   const hasActiveFilters = activeFiltersCount > 0;
 
-  const directors = useMemo(
-    () => [...new Set(data.records.map((record) => record.director))].sort((a, b) => a.localeCompare(b, 'es')),
-    [data.records],
-  );
-  const employees = useMemo(() => {
-    const scoped = director === 'Todos' ? data.records : data.records.filter((record) => record.director === director);
-    return [...new Set(scoped.map((record) => record.employee))].sort((a, b) => a.localeCompare(b, 'es'));
-  }, [data.records, director]);
+  const directors = rawDirectors;
+  const employees = availableEmployees;
 
   const baseCutoffRecords = useMemo(
     () => data.records.filter((record) => record.cutoff === cutoff),
@@ -485,12 +574,14 @@ function Dashboard({
   const evolucionDirectorData = useMemo(
     () => aggregateBy(
       evolucionCutoffRecords.filter((r) =>
+        (userAccess.lockedDirector ? r.director === userAccess.lockedDirector : (director === 'Todos' || r.director === director)) &&
+        (userAccess.lockedEmployee ? r.employee === userAccess.lockedEmployee : (employee === 'Todos' || r.employee === employee)) &&
         (statusFilter === 'Todos' || r.alert === statusFilter) &&
         matchesAmountFilter(r.amountStatus, amountFilter) &&
         matchesAgeFilter(r.age, r.ageRange, ageFilter)),
       (r) => r.director,
     ),
-    [evolucionCutoffRecords, statusFilter, amountFilter, ageFilter],
+    [evolucionCutoffRecords, userAccess.lockedDirector, userAccess.lockedEmployee, director, employee, statusFilter, amountFilter, ageFilter],
   );
 
   const initialCohortRecords = useMemo(
@@ -507,12 +598,13 @@ function Dashboard({
     return initialCohortRecords.filter((record) => {
       if (openKeysAtCutoff.has(record.stableKey)) return false;
       if (director !== 'Todos' && record.director !== director) return false;
+      if (employee !== 'Todos' && record.employee !== employee) return false;
       if (statusFilter !== 'Todos' && record.alert !== statusFilter) return false;
       if (!matchesAmountFilter(record.amountStatus, amountFilter)) return false;
       if (!matchesAgeFilter(record.age, record.ageRange, ageFilter)) return false;
       return true;
     });
-  }, [cutoff, initialCohortRecords, data.records, director, statusFilter, amountFilter, ageFilter]);
+  }, [cutoff, initialCohortRecords, data.records, director, employee, statusFilter, amountFilter, ageFilter]);
 
   const evolucionClosedBySeller = useMemo(() => {
     const map = new Map<string, { name: string; director: string; total: number; count: number }>();
@@ -529,11 +621,12 @@ function Dashboard({
   const evolucionOpenAllSellers = useMemo(() => {
     return evolucionCutoffRecords.filter((r) =>
       (director === 'Todos' || r.director === director) &&
+      (employee === 'Todos' || r.employee === employee) &&
       (statusFilter === 'Todos' || r.alert === statusFilter) &&
       matchesAmountFilter(r.amountStatus, amountFilter) &&
       matchesAgeFilter(r.age, r.ageRange, ageFilter),
     );
-  }, [evolucionCutoffRecords, director, statusFilter, amountFilter, ageFilter]);
+  }, [evolucionCutoffRecords, director, employee, statusFilter, amountFilter, ageFilter]);
 
   const evolucionOpenBySeller = useMemo(() => {
     const map = new Map<string, { name: string; director: string; total: number; count: number }>();
@@ -582,24 +675,26 @@ function Dashboard({
     return previousCutoffRecords.filter((record) => {
       if (currentKeysSet.has(record.stableKey)) return false;
       if (director !== 'Todos' && record.director !== director) return false;
+      if (employee !== 'Todos' && record.employee !== employee) return false;
       if (statusFilter !== 'Todos' && record.alert !== statusFilter) return false;
       if (!matchesAmountFilter(record.amountStatus, amountFilter)) return false;
       if (!matchesAgeFilter(record.age, record.ageRange, ageFilter)) return false;
       return true;
     });
-  }, [previousCutoff, previousCutoffRecords, currentKeysSet, director, statusFilter, amountFilter, ageFilter]);
+  }, [previousCutoff, previousCutoffRecords, currentKeysSet, director, employee, statusFilter, amountFilter, ageFilter]);
 
   const managementNew = useMemo(() => {
     if (!previousCutoff) return [];
     return baseCutoffRecords.filter((record) => {
       if (previousKeysSet.has(record.stableKey)) return false;
       if (director !== 'Todos' && record.director !== director) return false;
+      if (employee !== 'Todos' && record.employee !== employee) return false;
       if (statusFilter !== 'Todos' && record.alert !== statusFilter) return false;
       if (!matchesAmountFilter(record.amountStatus, amountFilter)) return false;
       if (!matchesAgeFilter(record.age, record.ageRange, ageFilter)) return false;
       return true;
     });
-  }, [baseCutoffRecords, previousCutoff, previousKeysSet, director, statusFilter, amountFilter, ageFilter]);
+  }, [baseCutoffRecords, previousCutoff, previousKeysSet, director, employee, statusFilter, amountFilter, ageFilter]);
 
   const withdrawnFromInitialCohort = useMemo(() => {
     return managementWithdrawn.filter((r) => initialCohortKeys.has(r.stableKey));
@@ -655,10 +750,12 @@ function Dashboard({
 
   const directorFilterRecords = useMemo(
     () => baseCutoffRecords.filter((r) =>
+      (userAccess.lockedDirector ? r.director === userAccess.lockedDirector : (director === 'Todos' || r.director === director)) &&
+      (userAccess.lockedEmployee ? r.employee === userAccess.lockedEmployee : (employee === 'Todos' || r.employee === employee)) &&
       (statusFilter === 'Todos' || r.alert === statusFilter) &&
       matchesAmountFilter(r.amountStatus, amountFilter) &&
       matchesAgeFilter(r.age, r.ageRange, ageFilter)),
-    [baseCutoffRecords, statusFilter, amountFilter, ageFilter],
+    [baseCutoffRecords, userAccess.lockedDirector, userAccess.lockedEmployee, director, employee, statusFilter, amountFilter, ageFilter],
   );
   const directorData = useMemo(() => aggregateBy(directorFilterRecords, (record) => record.director), [directorFilterRecords]);
 
@@ -715,8 +812,10 @@ function Dashboard({
     return () => window.clearInterval(interval);
   }, [source]);
   useEffect(() => {
-    if (employee !== 'Todos' && !employees.includes(employee)) setEmployee('Todos');
-  }, [director, employee, employees]);
+    if (!userAccess.lockedEmployee && employee !== 'Todos' && !employees.includes(employee)) {
+      setEmployee('Todos');
+    }
+  }, [director, employee, employees, userAccess.lockedEmployee]);
 
   useEffect(() => {
     if (!currentRecords.length) return;
@@ -844,10 +943,55 @@ function Dashboard({
             </button>
           </nav>
           <div className="topbar-actions">
+            {isRealAdmin && (
+              <div
+                className="role-simulator-wrapper"
+                title="Simulador de perfiles: permite auditar la vista exacta de cualquier director o comercial"
+              >
+                <UsersRound size={14} className="simulator-icon" />
+                <select
+                  value={simulatedEmail || ''}
+                  onChange={(e) => setSimulatedEmail(e.target.value || null)}
+                  aria-label="Simular rol de usuario"
+                  className="role-simulator-select"
+                >
+                  <option value="">👑 Acceso Total (Admin / Todos)</option>
+                  <optgroup label="👔 Directores Comerciales (4)">
+                    <option value="rafael.novoa@provexpress.com.co">Rafael Novoa — Grupo Novoa (9)</option>
+                    <option value="angelica.caballero@provexpress.com.co">Angélica Caballero — Grupo Caballero (11)</option>
+                    <option value="oscar.beltran@provexpress.com.co">Óscar Beltrán — Grupo Beltrán (10)</option>
+                    <option value="miller.romero@provexpress.com.co">Miller Romero — Grupo Romero (8)</option>
+                  </optgroup>
+                  <optgroup label="💼 Grupo Novoa (9 Comerciales)">
+                    {CORPORATE_DIRECTORY.filter((u) => u.group === 1 && u.role === 'executive').map((u) => (
+                      <option key={u.email} value={u.email}>{u.name} ({u.category || 'Ejecutivo'})</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="💼 Grupo Caballero (11 Comerciales)">
+                    {CORPORATE_DIRECTORY.filter((u) => u.group === 2 && u.role === 'executive').map((u) => (
+                      <option key={u.email} value={u.email}>{u.name} ({u.category || 'Ejecutivo'})</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="💼 Grupo Beltrán (10 Comerciales)">
+                    {CORPORATE_DIRECTORY.filter((u) => u.group === 3 && u.role === 'executive').map((u) => (
+                      <option key={u.email} value={u.email}>{u.name} ({u.category || 'Ejecutivo'})</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="💼 Grupo Romero (8 Comerciales)">
+                    {CORPORATE_DIRECTORY.filter((u) => u.group === 4 && u.role === 'executive').map((u) => (
+                      <option key={u.email} value={u.email}>{u.name} ({u.category || 'Ejecutivo'})</option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+            )}
             <button className="icon-button" onClick={onRefresh} title="Actualizar datos"><RefreshCw size={18} /></button>
             <div className="user-chip">
-              <span className="avatar">{initials(user?.name || 'Archivo local')}</span>
-              <div><strong>{user?.name?.split(' ')[0] || 'Vista local'}</strong><small>{source === 'sharepoint' ? 'Microsoft 365' : 'Excel local'}</small></div>
+              <span className="avatar">{initials(userAccess.name || user?.name || 'Local')}</span>
+              <div>
+                <strong>{userAccess.name?.split(' ')[0] || user?.name?.split(' ')[0] || 'Vista local'}</strong>
+                <small>{userAccess.role === 'admin' ? (source === 'sharepoint' ? 'Microsoft 365' : 'Excel local') : userAccess.label}</small>
+              </div>
             </div>
             <button className="icon-button" onClick={onLogout} title="Salir"><LogOut size={18} /></button>
           </div>
@@ -855,6 +999,30 @@ function Dashboard({
       </header>
 
       <main className="dashboard-main">
+        {simulatedEmail !== null && (
+          <aside className="simulation-banner" aria-label="Modo auditoría activo">
+            <div className="simulation-banner-info">
+              <Eye size={18} />
+              <div>
+                <strong>Modo Auditoría Activo: Simulando vista de {userAccess.name}</strong>
+                <span>
+                  {userAccess.label}
+                  {userAccess.monthlyQuota ? ` · Cuota: ${currency.format(userAccess.monthlyQuota)}` : ''}
+                  {userAccess.lockedEmployee ? ` · En Excel: "${userAccess.lockedEmployee}"` : ''}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="simulation-banner-exit"
+              onClick={() => setSimulatedEmail(null)}
+              title="Regresar a la vista de Administrador General"
+            >
+              <X size={13} /> Volver a Acceso Total
+            </button>
+          </aside>
+        )}
+
         {gestionCutoffs.length > 0 && latestCutoff > EVOLUCION_CUTOFF && (
           <section className="new-cutoff-notification-banner" aria-label="Notificación de nuevo corte">
             <div className="new-cutoff-banner-left">
@@ -892,6 +1060,18 @@ function Dashboard({
 
         <section className="hero-row">
           <div>
+            {userAccess.isRestricted && (
+              <div className={`user-access-info-badge ${userAccess.role}`}>
+                <ShieldCheck size={14} />
+                <span>
+                  {userAccess.role === 'director' ? (
+                    <>Dirección Comercial: <b>{userAccess.groupName}</b> ({userAccess.allowedEmployees.length} comerciales a cargo)</>
+                  ) : (
+                    <>Portafolio Comercial: <b>{userAccess.name}</b> · Categoría <b>{userAccess.category || 'Ejecutivo'}</b>{userAccess.monthlyQuota ? ` · Cuota: ${currency.format(userAccess.monthlyQuota)}` : ''}</>
+                  )}
+                </span>
+              </div>
+            )}
             {view === 'evolucion' ? (
               <>
                 <div className="eyebrow purple"><TrendingUp size={16} /> Base Inicial 03/09/2026</div>
@@ -936,8 +1116,22 @@ function Dashboard({
         </section>
 
         <section className="filter-bar" aria-label="Filtros del tablero">
-          <SelectFilter label="Director" value={director} onChange={setDirector} options={['Todos', ...directors]} />
-          <SelectFilter label="Ejecutivo" value={employee} onChange={setEmployee} options={['Todos', ...employees]} />
+          <SelectFilter
+            label="Director"
+            value={userAccess.lockedDirector || director}
+            onChange={handleDirectorChange}
+            options={availableDirectors}
+            disabled={Boolean(userAccess.lockedDirector)}
+            hint={userAccess.lockedDirector ? `Restringido por rol: ${userAccess.lockedDirector}` : undefined}
+          />
+          <SelectFilter
+            label="Ejecutivo"
+            value={userAccess.lockedEmployee || employee}
+            onChange={handleEmployeeChange}
+            options={availableEmployees}
+            disabled={Boolean(userAccess.lockedEmployee)}
+            hint={userAccess.lockedEmployee ? `Restringido por rol: ${userAccess.lockedEmployee}` : undefined}
+          />
           <div className="filter-date-badge">
             <span className="filter-date-label">
               {view === 'evolucion' ? 'Corte evaluado:' : 'Fecha activa:'}
@@ -965,7 +1159,7 @@ function Dashboard({
               <span>Filtros activos ({activeFiltersCount}):</span>
             </div>
             <div className="active-pills-wrap">
-              {director !== 'Todos' && (
+              {hasDirectorFilter && (
                 <button
                   type="button"
                   className="filter-pill-chip"
@@ -976,7 +1170,7 @@ function Dashboard({
                   <X size={13} />
                 </button>
               )}
-              {employee !== 'Todos' && (
+              {hasEmployeeFilter && (
                 <button
                   type="button"
                   className="filter-pill-chip"
@@ -1125,7 +1319,7 @@ function Dashboard({
               {/* Comerciales — base 03/09 */}
               <ChartCard
                 title="Ejecutivos comerciales con mayor saldo pendiente"
-                subtitle={employee !== 'Todos' ? `Filtrado por: ${employee} · Toca para quitar` : 'Toca una barra para filtrar por comercial'}
+                subtitle={employee !== 'Todos' ? (userAccess.lockedEmployee ? `Comercial asignado: ${userAccess.lockedEmployee}` : `Filtrado por: ${employee} · Toca para quitar`) : 'Toca una barra para filtrar por comercial'}
               >
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart
@@ -1133,16 +1327,16 @@ function Dashboard({
                     margin={{ top: 8, right: 8, left: 0, bottom: 45 }}
                     onClick={(state: any) => {
                       const name = state?.activePayload?.[0]?.payload?.name;
-                      if (name) setEmployee((c) => c === String(name) ? 'Todos' : String(name));
+                      if (name) handleEmployeeChange(employee === String(name) ? 'Todos' : String(name));
                     }}
                   >
                     <CartesianGrid stroke="#e8e8ed" vertical={false} />
                     <XAxis dataKey="name" interval={0} angle={-32} textAnchor="end" height={80}
                       tickFormatter={(v) => String(v).split(' ').slice(0, 2).join(' ')}
-                      tickLine={false} axisLine={false} cursor="pointer" />
+                      tickLine={false} axisLine={false} cursor={userAccess.lockedEmployee ? 'default' : 'pointer'} />
                     <YAxis tickFormatter={(v) => compactCurrency.format(v)} tickLine={false} axisLine={false} width={72} />
                     <Tooltip content={<CurrencyTooltip />} />
-                    <Bar dataKey="value" name="Pendiente" radius={[7, 7, 0, 0]} maxBarSize={34} cursor="pointer">
+                    <Bar dataKey="value" name="Pendiente" radius={[7, 7, 0, 0]} maxBarSize={34} cursor={userAccess.lockedEmployee ? 'default' : 'pointer'}>
                       {evolucionSellerData.map((entry) => {
                         const isSelected = employee === entry.name;
                         return <Cell key={entry.name} fill={isSelected ? '#7928ca' : '#af52de'} opacity={employee !== 'Todos' && !isSelected ? 0.35 : 1} />;
@@ -1155,15 +1349,15 @@ function Dashboard({
               {/* Dirección — base 03/09 */}
               <ChartCard
                 title="Pendiente por dirección"
-                subtitle={director !== 'Todos' ? `Filtrado por: ${director} · Toca para quitar` : 'Toca una dirección para filtrar todo el tablero'}
+                subtitle={userAccess.lockedDirector ? `Dirección asignada: ${userAccess.lockedDirector}` : director !== 'Todos' ? `Filtrado por: ${director} · Toca para quitar` : 'Toca una dirección para filtrar todo el tablero'}
               >
                 <div className="donut-layout">
                   <ResponsiveContainer width="48%" height={260}>
                     <PieChart>
                       <Pie data={evolucionDirectorData} dataKey="value" nameKey="name"
-                        innerRadius={64} outerRadius={94} paddingAngle={2} stroke="none" cursor="pointer"
+                        innerRadius={64} outerRadius={94} paddingAngle={2} stroke="none" cursor={userAccess.lockedDirector ? 'default' : 'pointer'}
                         onClick={(entry: any) => {
-                          if (entry?.name) setDirector((c) => c === String(entry.name) ? 'Todos' : String(entry.name));
+                          if (entry?.name) handleDirectorChange(director === String(entry.name) ? 'Todos' : String(entry.name));
                         }}
                       >
                         {evolucionDirectorData.map((entry, index) => (
@@ -1182,7 +1376,8 @@ function Dashboard({
                     {evolucionDirectorData.map((entry, index) => (
                       <button key={entry.name} type="button"
                         className={`legend-btn ${director === entry.name ? 'active' : ''}`}
-                        onClick={() => setDirector((c) => c === entry.name ? 'Todos' : entry.name)}
+                        onClick={() => handleDirectorChange(director === entry.name ? 'Todos' : entry.name)}
+                        disabled={Boolean(userAccess.lockedDirector)}
                       >
                         <i style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
                         <span>{entry.name}<small>{entry.count} remisiones</small></span>
@@ -1212,11 +1407,11 @@ function Dashboard({
                           : 'No hay retiros registrados para los filtros seleccionados'}
                     </p>
                   </div>
-                  {employee !== 'Todos' && (
+                  {!userAccess.lockedEmployee && employee !== 'Todos' && (
                     <button
                       type="button"
                       className="mgmt-reset-filter-btn"
-                      onClick={() => setEmployee('Todos')}
+                      onClick={() => handleEmployeeChange('Todos')}
                       title="Quitar filtro de comercial"
                     >
                       Ver todos
@@ -1243,7 +1438,7 @@ function Dashboard({
                         <div
                           key={seller.name}
                           className={`mgmt-seller-row green-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
-                          onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
+                          onClick={() => handleEmployeeChange(employee === seller.name ? 'Todos' : seller.name)}
                           role="button"
                           tabIndex={0}
                           title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
@@ -1285,11 +1480,11 @@ function Dashboard({
                         : 'No hay saldo abierto registrado para los filtros seleccionados'}
                     </p>
                   </div>
-                  {employee !== 'Todos' && (
+                  {!userAccess.lockedEmployee && employee !== 'Todos' && (
                     <button
                       type="button"
                       className="mgmt-reset-filter-btn"
-                      onClick={() => setEmployee('Todos')}
+                      onClick={() => handleEmployeeChange('Todos')}
                       title="Quitar filtro de comercial"
                     >
                       Ver todos
@@ -1312,7 +1507,7 @@ function Dashboard({
                         <div
                           key={seller.name}
                           className={`mgmt-seller-row purple-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
-                          onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
+                          onClick={() => handleEmployeeChange(employee === seller.name ? 'Todos' : seller.name)}
                           role="button"
                           tabIndex={0}
                           title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
@@ -1633,21 +1828,21 @@ function Dashboard({
             <section className="chart-grid">
               <ChartCard
                 title="Ejecutivos comerciales con mayor saldo pendiente"
-                subtitle={employee !== 'Todos' ? `Filtrado por: ${employee} · Toca para quitar` : 'Toca una barra para filtrar por comercial'}
+                subtitle={employee !== 'Todos' ? (userAccess.lockedEmployee ? `Comercial asignado: ${userAccess.lockedEmployee}` : `Filtrado por: ${employee} · Toca para quitar`) : 'Toca una barra para filtrar por comercial'}
               >
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={sellerData} margin={{ top: 8, right: 8, left: 0, bottom: 45 }}
                     onClick={(state: any) => {
                       const name = state?.activePayload?.[0]?.payload?.name;
-                      if (name) setEmployee((c) => c === String(name) ? 'Todos' : String(name));
+                      if (name) handleEmployeeChange(employee === String(name) ? 'Todos' : String(name));
                     }}>
                     <CartesianGrid stroke="#e8e8ed" vertical={false} />
                     <XAxis dataKey="name" interval={0} angle={-32} textAnchor="end" height={80}
                       tickFormatter={(v) => String(v).split(' ').slice(0, 2).join(' ')}
-                      tickLine={false} axisLine={false} cursor="pointer" />
+                      tickLine={false} axisLine={false} cursor={userAccess.lockedEmployee ? 'default' : 'pointer'} />
                     <YAxis tickFormatter={(v) => compactCurrency.format(v)} tickLine={false} axisLine={false} width={72} />
                     <Tooltip content={<CurrencyTooltip />} />
-                    <Bar dataKey="value" name="Pendiente" radius={[7, 7, 0, 0]} maxBarSize={34} cursor="pointer">
+                    <Bar dataKey="value" name="Pendiente" radius={[7, 7, 0, 0]} maxBarSize={34} cursor={userAccess.lockedEmployee ? 'default' : 'pointer'}>
                       {sellerData.map((entry) => (
                         <Cell key={entry.name} fill={employee === entry.name ? '#7928ca' : '#af52de'}
                           opacity={employee !== 'Todos' && employee !== entry.name ? 0.35 : 1} />
@@ -1659,15 +1854,15 @@ function Dashboard({
 
               <ChartCard
                 title="Pendiente por dirección"
-                subtitle={director !== 'Todos' ? `Filtrado por: ${director} · Toca para quitar` : 'Toca una dirección para filtrar todo el tablero'}
+                subtitle={userAccess.lockedDirector ? `Dirección asignada: ${userAccess.lockedDirector}` : director !== 'Todos' ? `Filtrado por: ${director} · Toca para quitar` : 'Toca una dirección para filtrar todo el tablero'}
               >
                 <div className="donut-layout">
                   <ResponsiveContainer width="48%" height={260}>
                     <PieChart>
                       <Pie data={directorData} dataKey="value" nameKey="name"
-                        innerRadius={64} outerRadius={94} paddingAngle={2} stroke="none" cursor="pointer"
+                        innerRadius={64} outerRadius={94} paddingAngle={2} stroke="none" cursor={userAccess.lockedDirector ? 'default' : 'pointer'}
                         onClick={(entry: any) => {
-                          if (entry?.name) setDirector((c) => c === String(entry.name) ? 'Todos' : String(entry.name));
+                          if (entry?.name) handleDirectorChange(director === String(entry.name) ? 'Todos' : String(entry.name));
                         }}>
                         {directorData.map((entry, index) => (
                           <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]}
@@ -1683,7 +1878,9 @@ function Dashboard({
                     {directorData.map((entry, index) => (
                       <button key={entry.name} type="button"
                         className={`legend-btn ${director === entry.name ? 'active' : ''}`}
-                        onClick={() => setDirector((c) => c === entry.name ? 'Todos' : entry.name)}>
+                        onClick={() => handleDirectorChange(director === entry.name ? 'Todos' : entry.name)}
+                        disabled={Boolean(userAccess.lockedDirector)}
+                      >
                         <i style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
                         <span>{entry.name}<small>{entry.count} remisiones</small></span>
                         <strong>{compactCurrency.format(entry.value)}</strong>
@@ -1710,11 +1907,11 @@ function Dashboard({
                         : 'No hay retiros registrados para los filtros seleccionados'}
                     </p>
                   </div>
-                  {employee !== 'Todos' && (
+                  {!userAccess.lockedEmployee && employee !== 'Todos' && (
                     <button
                       type="button"
                       className="mgmt-reset-filter-btn"
-                      onClick={() => setEmployee('Todos')}
+                      onClick={() => handleEmployeeChange('Todos')}
                       title="Quitar filtro de comercial"
                     >
                       Ver todos
@@ -1737,7 +1934,7 @@ function Dashboard({
                         <div
                           key={seller.name}
                           className={`mgmt-seller-row green-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
-                          onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
+                          onClick={() => handleEmployeeChange(employee === seller.name ? 'Todos' : seller.name)}
                           role="button"
                           tabIndex={0}
                           title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
@@ -1747,7 +1944,7 @@ function Dashboard({
                             <div className="mgmt-seller-top">
                               <strong className="mgmt-seller-name">{seller.name}</strong>
                               <span className="mgmt-seller-count green">
-                                {seller.count} remisi{seller.count === 1 ? 'ón facturada' : 'ones facturadas'}
+                                {seller.count} remisi{seller.count === 1 ? 'ón cerrada' : 'ones cerradas'}
                               </span>
                             </div>
                             <div className="mgmt-seller-bar-track">
@@ -1779,11 +1976,11 @@ function Dashboard({
                         : 'No hay nuevas aperturas registradas para los filtros seleccionados'}
                     </p>
                   </div>
-                  {employee !== 'Todos' && (
+                  {!userAccess.lockedEmployee && employee !== 'Todos' && (
                     <button
                       type="button"
                       className="mgmt-reset-filter-btn"
-                      onClick={() => setEmployee('Todos')}
+                      onClick={() => handleEmployeeChange('Todos')}
                       title="Quitar filtro de comercial"
                     >
                       Ver todos
@@ -1806,7 +2003,7 @@ function Dashboard({
                         <div
                           key={seller.name}
                           className={`mgmt-seller-row orange-row ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
-                          onClick={() => setEmployee((cur) => cur === seller.name ? 'Todos' : seller.name)}
+                          onClick={() => handleEmployeeChange(employee === seller.name ? 'Todos' : seller.name)}
                           role="button"
                           tabIndex={0}
                           title={isSelected ? `Toca para quitar filtro de ${seller.name}` : `Toca para filtrar por ${seller.name}`}
@@ -1979,8 +2176,8 @@ function Dashboard({
                       record={record}
                       isWithdrawn={detailTab === 'withdrawn'}
                       isNew={Boolean((detailTab === 'open' || detailTab === 'new') && previousCutoff && !previousKeysSet.has(record.stableKey))}
-                      onSelectDirector={(dir) => setDirector((current) => current === dir ? 'Todos' : dir)}
-                      onSelectEmployee={(emp) => setEmployee((current) => current === emp ? 'Todos' : emp)}
+                      onSelectDirector={(dir) => handleDirectorChange(director === dir ? 'Todos' : dir)}
+                      onSelectEmployee={(emp) => handleEmployeeChange(employee === emp ? 'Todos' : emp)}
                       onSelectAge={(age) => setAgeFilter((current) => current === age ? 'Todos' : age)}
                       onSelectAmount={(amt) => setAmountFilter((current) => current === amt ? 'Todos' : amt)}
                       onSelectStatus={(st) => setStatusFilter((current) => current === st ? 'Todos' : st)}
@@ -2033,6 +2230,8 @@ function SelectFilter({
   onChange,
   format,
   compact = false,
+  disabled = false,
+  hint,
 }: {
   label: string;
   value: string;
@@ -2040,12 +2239,22 @@ function SelectFilter({
   onChange: (value: string) => void;
   format?: (value: string) => string;
   compact?: boolean;
+  disabled?: boolean;
+  hint?: string;
 }) {
   return (
-    <label className={`select-filter ${compact ? 'compact' : ''}`}>
-      <span>{label}</span>
+    <label className={`select-filter ${compact ? 'compact' : ''} ${disabled ? 'disabled' : ''}`} title={hint}>
+      <span>
+        {label}
+        {disabled && <span className="filter-lock-badge">🔒</span>}
+      </span>
       <div>
-        <select value={value} onChange={(event) => onChange(event.target.value)}>
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          disabled={disabled}
+          aria-disabled={disabled}
+        >
           {options.map((option) => (
             <option key={option} value={option}>
               {format ? format(option) : option}
