@@ -890,6 +890,34 @@ function Dashboard({
     URL.revokeObjectURL(url);
   };
 
+  const selectedEmployeeDirectoryInfo = useMemo(() => {
+    if (employee === 'Todos') return null;
+    const norm = normalizeText(employee);
+    return (
+      CORPORATE_DIRECTORY.find(
+        (u) =>
+          normalizeText(u.name) === norm ||
+          u.aliases?.some((a) => normalizeText(a) === norm),
+      ) || null
+    );
+  }, [employee]);
+
+  const selectedEmployeeStats = useMemo(() => {
+    if (employee === 'Todos') return null;
+    const activeList = view === 'evolucion' ? evolucionRecords : currentRecords;
+    const total = activeList.reduce((sum, r) => sum + r.total, 0);
+    const count = activeList.length;
+    const directorName =
+      activeList[0]?.director ||
+      selectedEmployeeDirectoryInfo?.directorName ||
+      (director !== 'Todos' ? director : '');
+    return {
+      total,
+      count,
+      director: directorName,
+    };
+  }, [employee, view, evolucionRecords, currentRecords, selectedEmployeeDirectoryInfo, director]);
+
   const formattedCutoffWithTime = useMemo(() => {
     const dateLabel = formatCutoff(cutoff);
     return data.cutoffTimeDisplay ? `${dateLabel} · ${data.cutoffTimeDisplay}` : dateLabel;
@@ -1243,6 +1271,67 @@ function Dashboard({
           </section>
         )}
 
+        {/* Banner destacado al enfocar un comercial */}
+        {employee !== 'Todos' && selectedEmployeeStats && (
+          <section className="selected-employee-banner" aria-label="Comercial enfocado">
+            <div className="selected-employee-left">
+              <div className="selected-employee-avatar">
+                <UsersRound size={22} />
+              </div>
+              <div className="selected-employee-text">
+                <div className="selected-employee-tag">
+                  <span className="pill-dot" />
+                  <span>Comercial enfocado</span>
+                  {selectedEmployeeDirectoryInfo?.groupName && (
+                    <small>· {selectedEmployeeDirectoryInfo.groupName}</small>
+                  )}
+                  {selectedEmployeeStats.director && (
+                    <small> (Director: {selectedEmployeeStats.director})</small>
+                  )}
+                </div>
+                <h3 className="selected-employee-name">{employee}</h3>
+                <p className="selected-employee-metrics">
+                  Saldo pendiente en este corte: <strong>{currency.format(selectedEmployeeStats.total)}</strong>
+                  <span>·</span>
+                  <strong>{number.format(selectedEmployeeStats.count)}</strong> {selectedEmployeeStats.count === 1 ? 'remisión abierta' : 'remisiones abiertas'}
+                  {selectedEmployeeDirectoryInfo?.category && (
+                    <>
+                      <span>·</span>
+                      <span>Categoría: <b>{selectedEmployeeDirectoryInfo.category}</b></span>
+                    </>
+                  )}
+                  {selectedEmployeeDirectoryInfo?.monthlyQuota ? (
+                    <>
+                      <span>·</span>
+                      <span>Cuota: <b>{currency.format(selectedEmployeeDirectoryInfo.monthlyQuota)}</b></span>
+                    </>
+                  ) : null}
+                </p>
+              </div>
+            </div>
+            <div className="selected-employee-actions">
+              <button
+                type="button"
+                className="button button-primary button-small"
+                onClick={() => { setView('detail'); setDetailTab('open'); }}
+                title={`Ver las ${selectedEmployeeStats.count} remisiones de ${employee} en la tabla detallada`}
+              >
+                <FileText size={15} /> Ver sus {number.format(selectedEmployeeStats.count)} remisiones en tabla →
+              </button>
+              {!userAccess.lockedEmployee && (
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  onClick={() => handleEmployeeChange('Todos')}
+                  title="Quitar filtro y ver todos los comerciales"
+                >
+                  <X size={15} /> Ver todos los comerciales
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
         {view === 'evolucion' && (
           <>
             {/* ══ TABLERO 1: EVOLUCIÓN — BASE INICIAL 03/09/2026 ══════════════ */}
@@ -1267,16 +1356,16 @@ function Dashboard({
 
               {/* Top 10 — base 03/09 */}
               <ChartCard
-                title="Top 10 remisiones de mayor valor"
-                subtitle="Remisiones abiertas con mayor importe pendiente por facturar"
+                title={employee !== 'Todos' ? `Top remisiones de ${employee}` : "Top 10 remisiones de mayor valor"}
+                subtitle={employee !== 'Todos' ? `Remisiones pendientes de ${employee} en la base inicial` : "Remisiones abiertas con mayor importe pendiente por facturar"}
                 action={
                   <button
                     type="button"
                     className="top-remisiones-header-action"
                     onClick={() => { setView('detail'); setDetailTab('open'); setSortBy('total-desc'); }}
-                    title="Ver todas las remisiones ordenadas por mayor valor"
+                    title={employee !== 'Todos' ? `Ver todas las remisiones de ${employee} en tabla` : "Ver todas las remisiones ordenadas por mayor valor"}
                   >
-                    Ver todas en detalle →
+                    {employee !== 'Todos' ? `Ver todas las de ${employee.split(' ').slice(0, 2).join(' ')} en tabla →` : 'Ver todas en detalle →'}
                   </button>
                 }
               >
@@ -1325,27 +1414,99 @@ function Dashboard({
               {/* Comerciales — base 03/09 */}
               <ChartCard
                 title="Ejecutivos comerciales con mayor saldo pendiente"
-                subtitle={employee !== 'Todos' ? (userAccess.lockedEmployee ? `Comercial asignado: ${userAccess.lockedEmployee}` : `Filtrado por: ${employee} · Toca para quitar`) : 'Toca una barra para filtrar por comercial'}
+                subtitle={employee !== 'Todos' ? (userAccess.lockedEmployee ? `Comercial asignado: ${userAccess.lockedEmployee}` : `Filtrado por: ${employee} · Toca la barra seleccionada para quitar`) : 'Toca una barra para filtrar por comercial'}
+                action={
+                  employee !== 'Todos' && !userAccess.lockedEmployee ? (
+                    <button
+                      type="button"
+                      className="top-remisiones-header-action"
+                      onClick={() => handleEmployeeChange('Todos')}
+                      title="Quitar filtro de comercial"
+                    >
+                      Quitar filtro ({employee.split(' ').slice(0, 2).join(' ')}) ✕
+                    </button>
+                  ) : undefined
+                }
               >
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart
                     data={evolucionSellerData}
                     margin={{ top: 8, right: 8, left: 0, bottom: 45 }}
                     onClick={(state: any) => {
-                      const name = state?.activePayload?.[0]?.payload?.name;
+                      const name =
+                        state?.activeLabel ||
+                        (typeof state?.activeIndex === 'number' ? evolucionSellerData[state.activeIndex]?.name : undefined) ||
+                        (typeof state?.activeTooltipIndex === 'number' ? evolucionSellerData[state.activeTooltipIndex]?.name : undefined) ||
+                        state?.activePayload?.[0]?.payload?.name;
                       if (name) handleEmployeeChange(employee === String(name) ? 'Todos' : String(name));
                     }}
                   >
                     <CartesianGrid stroke="#e8e8ed" vertical={false} />
-                    <XAxis dataKey="name" interval={0} angle={-32} textAnchor="end" height={80}
-                      tickFormatter={(v) => String(v).split(' ').slice(0, 2).join(' ')}
-                      tickLine={false} axisLine={false} cursor={userAccess.lockedEmployee ? 'default' : 'pointer'} />
+                    <XAxis
+                      dataKey="name"
+                      interval={0}
+                      angle={-32}
+                      textAnchor="end"
+                      height={80}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={(props: any) => {
+                        const { x, y, payload } = props;
+                        const fullName = String(payload?.value || '');
+                        const isSelected = employee === fullName;
+                        const shortName = fullName.split(' ').slice(0, 2).join(' ');
+                        return (
+                          <g transform={`translate(${x},${y})`}>
+                            <text
+                              x={0}
+                              y={0}
+                              dy={14}
+                              textAnchor="end"
+                              transform="rotate(-32)"
+                              fill={isSelected ? '#7928ca' : '#475569'}
+                              fontWeight={isSelected ? 700 : 500}
+                              fontSize={11}
+                              style={{ cursor: userAccess.lockedEmployee ? 'default' : 'pointer', userSelect: 'none' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!userAccess.lockedEmployee) {
+                                  handleEmployeeChange(employee === fullName ? 'Todos' : fullName);
+                                }
+                              }}
+                            >
+                              {shortName}
+                            </text>
+                          </g>
+                        );
+                      }}
+                    />
                     <YAxis tickFormatter={(v) => compactCurrency.format(v)} tickLine={false} axisLine={false} width={72} />
                     <Tooltip content={<CurrencyTooltip />} />
-                    <Bar dataKey="value" name="Pendiente" radius={[7, 7, 0, 0]} maxBarSize={34} cursor={userAccess.lockedEmployee ? 'default' : 'pointer'}>
+                    <Bar
+                      dataKey="value"
+                      name="Pendiente"
+                      radius={[7, 7, 0, 0]}
+                      maxBarSize={34}
+                      cursor={userAccess.lockedEmployee ? 'default' : 'pointer'}
+                      onClick={(data: any) => {
+                        const name = data?.name || data?.payload?.name;
+                        if (name) handleEmployeeChange(employee === String(name) ? 'Todos' : String(name));
+                      }}
+                    >
                       {evolucionSellerData.map((entry) => {
                         const isSelected = employee === entry.name;
-                        return <Cell key={entry.name} fill={isSelected ? '#7928ca' : '#af52de'} opacity={employee !== 'Todos' && !isSelected ? 0.35 : 1} />;
+                        return (
+                          <Cell
+                            key={entry.name}
+                            fill={isSelected ? '#7928ca' : '#af52de'}
+                            opacity={employee !== 'Todos' && !isSelected ? 0.35 : 1}
+                            style={{ cursor: userAccess.lockedEmployee ? 'default' : 'pointer' }}
+                            onClick={(e: any) => {
+                              e?.stopPropagation?.();
+                              handleEmployeeChange(employee === entry.name ? 'Todos' : entry.name);
+                            }}
+                          />
+                        );
                       })}
                     </Bar>
                   </BarChart>
@@ -1786,12 +1947,12 @@ function Dashboard({
               />
 
               <ChartCard
-                title="Top 10 remisiones de mayor valor"
-                subtitle="Remisiones abiertas con mayor importe pendiente por facturar"
+                title={employee !== 'Todos' ? `Top remisiones de ${employee}` : "Top 10 remisiones de mayor valor"}
+                subtitle={employee !== 'Todos' ? `Remisiones pendientes de ${employee} en este corte` : "Remisiones abiertas con mayor importe pendiente por facturar"}
                 action={
                   <button type="button" className="top-remisiones-header-action"
                     onClick={() => { setView('detail'); setDetailTab('open'); setSortBy('total-desc'); }}>
-                    Ver todas en detalle →
+                    {employee !== 'Todos' ? `Ver todas las de ${employee.split(' ').slice(0, 2).join(' ')} en tabla →` : 'Ver todas en detalle →'}
                   </button>
                 }
               >
@@ -1834,24 +1995,93 @@ function Dashboard({
             <section className="chart-grid">
               <ChartCard
                 title="Ejecutivos comerciales con mayor saldo pendiente"
-                subtitle={employee !== 'Todos' ? (userAccess.lockedEmployee ? `Comercial asignado: ${userAccess.lockedEmployee}` : `Filtrado por: ${employee} · Toca para quitar`) : 'Toca una barra para filtrar por comercial'}
+                subtitle={employee !== 'Todos' ? (userAccess.lockedEmployee ? `Comercial asignado: ${userAccess.lockedEmployee}` : `Filtrado por: ${employee} · Toca la barra seleccionada para quitar`) : 'Toca una barra para filtrar por comercial'}
+                action={
+                  employee !== 'Todos' && !userAccess.lockedEmployee ? (
+                    <button
+                      type="button"
+                      className="top-remisiones-header-action"
+                      onClick={() => handleEmployeeChange('Todos')}
+                      title="Quitar filtro de comercial"
+                    >
+                      Quitar filtro ({employee.split(' ').slice(0, 2).join(' ')}) ✕
+                    </button>
+                  ) : undefined
+                }
               >
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={sellerData} margin={{ top: 8, right: 8, left: 0, bottom: 45 }}
                     onClick={(state: any) => {
-                      const name = state?.activePayload?.[0]?.payload?.name;
+                      const name =
+                        state?.activeLabel ||
+                        (typeof state?.activeIndex === 'number' ? sellerData[state.activeIndex]?.name : undefined) ||
+                        (typeof state?.activeTooltipIndex === 'number' ? sellerData[state.activeTooltipIndex]?.name : undefined) ||
+                        state?.activePayload?.[0]?.payload?.name;
                       if (name) handleEmployeeChange(employee === String(name) ? 'Todos' : String(name));
                     }}>
                     <CartesianGrid stroke="#e8e8ed" vertical={false} />
-                    <XAxis dataKey="name" interval={0} angle={-32} textAnchor="end" height={80}
-                      tickFormatter={(v) => String(v).split(' ').slice(0, 2).join(' ')}
-                      tickLine={false} axisLine={false} cursor={userAccess.lockedEmployee ? 'default' : 'pointer'} />
+                    <XAxis
+                      dataKey="name"
+                      interval={0}
+                      angle={-32}
+                      textAnchor="end"
+                      height={80}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={(props: any) => {
+                        const { x, y, payload } = props;
+                        const fullName = String(payload?.value || '');
+                        const isSelected = employee === fullName;
+                        const shortName = fullName.split(' ').slice(0, 2).join(' ');
+                        return (
+                          <g transform={`translate(${x},${y})`}>
+                            <text
+                              x={0}
+                              y={0}
+                              dy={14}
+                              textAnchor="end"
+                              transform="rotate(-32)"
+                              fill={isSelected ? '#7928ca' : '#475569'}
+                              fontWeight={isSelected ? 700 : 500}
+                              fontSize={11}
+                              style={{ cursor: userAccess.lockedEmployee ? 'default' : 'pointer', userSelect: 'none' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!userAccess.lockedEmployee) {
+                                  handleEmployeeChange(employee === fullName ? 'Todos' : fullName);
+                                }
+                              }}
+                            >
+                              {shortName}
+                            </text>
+                          </g>
+                        );
+                      }}
+                    />
                     <YAxis tickFormatter={(v) => compactCurrency.format(v)} tickLine={false} axisLine={false} width={72} />
                     <Tooltip content={<CurrencyTooltip />} />
-                    <Bar dataKey="value" name="Pendiente" radius={[7, 7, 0, 0]} maxBarSize={34} cursor={userAccess.lockedEmployee ? 'default' : 'pointer'}>
+                    <Bar
+                      dataKey="value"
+                      name="Pendiente"
+                      radius={[7, 7, 0, 0]}
+                      maxBarSize={34}
+                      cursor={userAccess.lockedEmployee ? 'default' : 'pointer'}
+                      onClick={(data: any) => {
+                        const name = data?.name || data?.payload?.name;
+                        if (name) handleEmployeeChange(employee === String(name) ? 'Todos' : String(name));
+                      }}
+                    >
                       {sellerData.map((entry) => (
-                        <Cell key={entry.name} fill={employee === entry.name ? '#7928ca' : '#af52de'}
-                          opacity={employee !== 'Todos' && employee !== entry.name ? 0.35 : 1} />
+                        <Cell
+                          key={entry.name}
+                          fill={employee === entry.name ? '#7928ca' : '#af52de'}
+                          opacity={employee !== 'Todos' && employee !== entry.name ? 0.35 : 1}
+                          style={{ cursor: userAccess.lockedEmployee ? 'default' : 'pointer' }}
+                          onClick={(e: any) => {
+                            e?.stopPropagation?.();
+                            handleEmployeeChange(employee === entry.name ? 'Todos' : entry.name);
+                          }}
+                        />
                       ))}
                     </Bar>
                   </BarChart>
@@ -3721,7 +3951,23 @@ function DetailRow({
 
 function CurrencyTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value?: number; name?: string; color?: string }>; label?: string }) {
   if (!active || !payload?.length) return null;
-  return <div className="chart-tooltip"><strong>{label ? (String(label).match(/^\d{4}-/) ? formatCutoff(label) : label) : ''}</strong>{payload.map((item) => <span key={item.name}><i style={{ background: item.color }} />{item.name}: <b>{currency.format(Number(item.value || 0))}</b></span>)}</div>;
+  const isDate = Boolean(label && String(label).match(/^\d{4}-/));
+  return (
+    <div className="chart-tooltip">
+      <strong>{label ? (isDate ? formatCutoff(label) : label) : ''}</strong>
+      {payload.map((item) => (
+        <span key={item.name}>
+          <i style={{ background: item.color }} />
+          {item.name}: <b>{currency.format(Number(item.value || 0))}</b>
+        </span>
+      ))}
+      {!isDate && label && (
+        <small style={{ display: 'block', fontSize: '10px', color: '#7928ca', marginTop: '4px', borderTop: '1px solid rgba(121,40,202,0.12)', paddingTop: '3px', fontWeight: 600 }}>
+          Toca para filtrar por este comercial
+        </small>
+      )}
+    </div>
+  );
 }
 
 function initials(name: string): string {
