@@ -471,15 +471,22 @@ export async function parseRemisionesWorkbook(
   // Intelligently combine both sheets or select the best one
   if (baseRecords.length > 0 && sisRecords.length > 0) {
     const baseCutoffs = new Set(baseRecords.map((r) => r.cutoff));
-    if (!baseCutoffs.has('2026-09-03')) {
-      // Base contains subsequent cutoffs (e.g. 04/09/2026, 07/09/2026) while Base-SIS contains 03/09/2026: combine!
-      records = [...sisRecords, ...baseRecords];
-      activeSheetName = `${baseSheet!.name} + ${sisSheet!.name}`;
-    } else {
-      // Base already contains full history including 2026-09-03
-      records = baseRecords;
-      activeSheetName = baseSheet!.name;
+    const sisCutoffs = new Set(sisRecords.map((r) => r.cutoff));
+    const allCutoffs = [...new Set([...baseCutoffs, ...sisCutoffs])].sort();
+
+    // Base-SIS is the pure baseline for 2026-09-03; other daily cuts are taken from whichever sheet contains them
+    const merged: Remision[] = [];
+    for (const c of allCutoffs) {
+      if (c === '2026-09-03' && sisCutoffs.has(c)) {
+        merged.push(...sisRecords.filter((r) => r.cutoff === c));
+      } else if (baseCutoffs.has(c)) {
+        merged.push(...baseRecords.filter((r) => r.cutoff === c));
+      } else {
+        merged.push(...sisRecords.filter((r) => r.cutoff === c));
+      }
     }
+    records = merged;
+    activeSheetName = `${baseSheet!.name} + ${sisSheet!.name}`;
   } else if (baseRecords.length > 0) {
     records = baseRecords;
     activeSheetName = baseSheet!.name;
@@ -640,13 +647,14 @@ export function buildInitialCohortSeries(
   records: Remision[],
   preferredInitialCutoff?: string,
 ): InitialCohortPoint[] {
-  const cutoffs = [...new Set(records.map((r) => r.cutoff))].sort();
-  if (!cutoffs.length) return [];
+  const allCutoffs = [...new Set(records.map((r) => r.cutoff))].sort();
+  if (!allCutoffs.length) return [];
 
-  const initialCutoff = preferredInitialCutoff && cutoffs.includes(preferredInitialCutoff)
+  const initialCutoff = preferredInitialCutoff && allCutoffs.includes(preferredInitialCutoff)
     ? preferredInitialCutoff
-    : cutoffs[0];
+    : allCutoffs[0];
 
+  const cutoffs = allCutoffs.filter((c) => c >= initialCutoff);
   const initialRecords = records.filter((r) => r.cutoff === initialCutoff);
   const initialPending = initialRecords.reduce((sum, r) => sum + r.total, 0);
   const initialCount = initialRecords.length;

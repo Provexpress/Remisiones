@@ -1404,6 +1404,7 @@ th.numeric, td.numeric { text-align: right; }
 }
 
 .evolution-unified-chart-card {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1608,6 +1609,9 @@ th.numeric, td.numeric { text-align: right; }
 
 .evolution-chart-wrap {
   width: 100%;
+  min-width: 0;
+  min-height: 210px;
+  position: relative;
   margin-top: 2px;
 }
 
@@ -2524,12 +2528,13 @@ th.numeric, td.numeric { text-align: right; }
 /* ── Management 3 Visuals Grid (Dinero, Remisiones, Salidas) ── */
 .management-three-visuals-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-top: 14px;
 }
 
 .management-sub-visual-card {
+  min-width: 0;
   background: #fbfbfd;
   border: 1px solid #e8e8ed;
   border-radius: 14px;

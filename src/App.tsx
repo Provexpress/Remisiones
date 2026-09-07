@@ -319,11 +319,13 @@ function Dashboard({
   const [page, setPage] = useState(1);
   const refreshRef = useRef(onRefresh);
 
+  const prevLatestCutoffRef = useRef(latestCutoff);
   useEffect(() => {
     if (data.cutoffs.length) {
-      if (!cutoff || !data.cutoffs.includes(cutoff) || latestCutoff > cutoff) {
+      if (!cutoff || !data.cutoffs.includes(cutoff) || (latestCutoff && latestCutoff !== prevLatestCutoffRef.current)) {
         setCutoff(latestCutoff);
       }
+      prevLatestCutoffRef.current = latestCutoff;
     }
   }, [data.cutoffs, cutoff, latestCutoff]);
 
@@ -1459,6 +1461,13 @@ function Dashboard({
                     </div>
                   </div>
 
+                  {/* Gráfica Unificada de Gestión: Dinero ($), Salidas ($) y Remisiones (#) */}
+                  <ManagementUnifiedChartCard
+                    daily={daily}
+                    currentCutoff={cutoff}
+                    onSelectCutoff={setCutoff}
+                  />
+
                   {/* Day Cards — seguimiento cronológico */}
                   <div className="management-daily-history-card">
                     <div className="management-table-header">
@@ -1565,13 +1574,6 @@ function Dashboard({
                 </div>
               )}
             </section>
-
-            {/* Gráfica Unificada de Gestión: Dinero ($) y Remisiones (#) del portafolio activo */}
-            <ManagementUnifiedChartCard
-              daily={daily}
-              currentCutoff={cutoff}
-              onSelectCutoff={setCutoff}
-            />
 
             {/* 4 módulos aplicados al portafolio activo (cutoff seleccionado de gestión) */}
             <section className="chart-grid">
@@ -2245,15 +2247,27 @@ function InitialCohortEvolutionSection({
   const yDomainCohortValue = useMemo(() => {
     const vals = cohort.map((d) => d.stillOpenPending).filter((v) => Number.isFinite(v) && v > 0);
     if (vals.length === 0) return [0, 1000];
+    const min = Math.min(...vals);
     const max = Math.max(...vals);
-    return [0, Math.ceil(max * 1.15)];
+    if (min === max) {
+      return [Math.max(0, Math.floor(min * 0.85)), Math.ceil(max * 1.15)];
+    }
+    const diff = max - min;
+    const padding = Math.max(diff * 0.35, max * 0.04);
+    return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
   }, [cohort]);
 
   const yDomainCohortDocs = useMemo(() => {
     const vals = cohort.map((d) => d.stillOpenCount).filter((v) => Number.isFinite(v) && v > 0);
     if (vals.length === 0) return [0, 100];
+    const min = Math.min(...vals);
     const max = Math.max(...vals);
-    return [0, Math.ceil(max * 1.15)];
+    if (min === max) {
+      return [Math.max(0, Math.floor(min * 0.85)), Math.ceil(max * 1.15)];
+    }
+    const diff = max - min;
+    const padding = Math.max(Math.ceil(diff * 0.35), 6);
+    return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
   }, [cohort]);
 
   if (!cohort.length || !initialPoint) return null;
@@ -2776,36 +2790,54 @@ function ManagementUnifiedChartCard({
   currentCutoff: string;
   onSelectCutoff: (cutoff: string) => void;
 }) {
-  const [viewLayout, setViewLayout] = useState<'three' | 'unified'>('three');
-  const [chartMode, setChartMode] = useState<'all' | 'money' | 'docs' | 'withdrawn'>('all');
+  const [viewLayout, setViewLayout] = useState<'unified' | 'three'>('unified');
+  const [chartMode, setChartMode] = useState<'both' | 'all' | 'money' | 'docs' | 'withdrawn'>('both');
   const currentPoint = daily.find((d) => d.cutoff === currentCutoff) || daily.at(-1);
 
   const yDomainManagementValue = useMemo(() => {
     const vals = daily.map((d) => d.pending).filter((v) => Number.isFinite(v) && v > 0);
     if (vals.length === 0) return [0, 1000];
+    const min = Math.min(...vals);
     const max = Math.max(...vals);
-    return [0, Math.ceil(max * 1.15)];
+    if (min === max) {
+      return [Math.max(0, Math.floor(min * 0.85)), Math.ceil(max * 1.15)];
+    }
+    const diff = max - min;
+    const padding = Math.max(diff * 0.35, max * 0.04);
+    return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
   }, [daily]);
 
   const yDomainManagementDocs = useMemo(() => {
     const vals = daily.map((d) => d.remissions).filter((v) => Number.isFinite(v) && v > 0);
     if (vals.length === 0) return [0, 100];
+    const min = Math.min(...vals);
     const max = Math.max(...vals);
-    return [0, Math.ceil(max * 1.15)];
+    if (min === max) {
+      return [Math.max(0, Math.floor(min * 0.85)), Math.ceil(max * 1.15)];
+    }
+    const diff = max - min;
+    const padding = Math.max(Math.ceil(diff * 0.35), 6);
+    return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
   }, [daily]);
 
   const yDomainManagementWithdrawn = useMemo(() => {
     const vals = daily.map((d) => d.withdrawn).filter((v) => Number.isFinite(v) && v > 0);
     if (vals.length === 0) return [0, 1000];
     const max = Math.max(...vals);
-    return [0, Math.ceil(max * 1.15)];
+    return [0, Math.ceil(max * 1.2)];
   }, [daily]);
 
   const yDomainUnifiedMoney = useMemo(() => {
-    const vals = daily.flatMap((d) => [d.pending, d.withdrawn]).filter((v) => Number.isFinite(v) && v > 0);
+    const vals = daily.map((d) => d.pending).filter((v) => Number.isFinite(v) && v > 0);
     if (vals.length === 0) return [0, 1000];
+    const min = Math.min(...vals);
     const max = Math.max(...vals);
-    return [0, Math.ceil(max * 1.15)];
+    if (min === max) {
+      return [Math.max(0, Math.floor(min * 0.85)), Math.ceil(max * 1.15)];
+    }
+    const diff = max - min;
+    const padding = Math.max(diff * 0.35, max * 0.04);
+    return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
   }, [daily]);
 
   if (!daily.length) return null;
@@ -2826,19 +2858,19 @@ function ManagementUnifiedChartCard({
             <div className="evolution-chart-type-pill">
               <button
                 type="button"
+                className={viewLayout === 'unified' ? 'active' : ''}
+                onClick={() => setViewLayout('unified')}
+                title="Ver 1 sola visual unificada con las dimensiones principales"
+              >
+                1 Sola Visual (Unificada)
+              </button>
+              <button
+                type="button"
                 className={viewLayout === 'three' ? 'active' : ''}
                 onClick={() => setViewLayout('three')}
                 title="Ver 3 visuales separadas: Dinero, Remisiones y Salidas"
               >
                 3 Visuales (Dinero · Remisiones · Salidas)
-              </button>
-              <button
-                type="button"
-                className={viewLayout === 'unified' ? 'active' : ''}
-                onClick={() => setViewLayout('unified')}
-                title="Ver 1 sola visual unificada con las 3 dimensiones"
-              >
-                1 Sola Visual (3 en 1)
               </button>
             </div>
           </div>
@@ -3109,6 +3141,14 @@ function ManagementUnifiedChartCard({
             <div className="evolution-chart-type-pill">
               <button
                 type="button"
+                className={chartMode === 'both' ? 'active' : ''}
+                onClick={() => setChartMode('both')}
+                title="Ver 2 barras agrupadas: Dinero ($) y Remisiones (#)"
+              >
+                Ambas Barras ($ y #)
+              </button>
+              <button
+                type="button"
                 className={chartMode === 'all' ? 'active' : ''}
                 onClick={() => setChartMode('all')}
                 title="Ver las 3 métricas agrupadas: Dinero ($), Salidas ($) y Remisiones (#)"
@@ -3159,11 +3199,11 @@ function ManagementUnifiedChartCard({
                   tick={{ fontSize: 11, fill: '#636366' }}
                 />
 
-                {(chartMode === 'all' || chartMode === 'money' || chartMode === 'withdrawn') && (
+                {(chartMode === 'both' || chartMode === 'all' || chartMode === 'money' || chartMode === 'withdrawn') && (
                   <YAxis
                     yAxisId="moneyAxis"
                     orientation="left"
-                    domain={chartMode === 'money' ? yDomainManagementValue : chartMode === 'withdrawn' ? yDomainManagementWithdrawn : yDomainUnifiedMoney}
+                    domain={chartMode === 'money' || chartMode === 'both' ? yDomainManagementValue : chartMode === 'withdrawn' ? yDomainManagementWithdrawn : yDomainUnifiedMoney}
                     tickFormatter={(val) => compactCurrency.format(val)}
                     tickLine={false}
                     axisLine={false}
@@ -3172,10 +3212,10 @@ function ManagementUnifiedChartCard({
                   />
                 )}
 
-                {(chartMode === 'all' || chartMode === 'docs') && (
+                {(chartMode === 'both' || chartMode === 'all' || chartMode === 'docs') && (
                   <YAxis
                     yAxisId="docsAxis"
-                    orientation={chartMode === 'all' ? 'right' : 'left'}
+                    orientation={chartMode === 'both' || chartMode === 'all' ? 'right' : 'left'}
                     domain={yDomainManagementDocs}
                     tickFormatter={(val) => `${number.format(val)} rem.`}
                     tickLine={false}
@@ -3187,7 +3227,7 @@ function ManagementUnifiedChartCard({
 
                 <Tooltip content={<ManagementUnifiedTooltip />} />
 
-                {(chartMode === 'all' || chartMode === 'money') && (
+                {(chartMode === 'both' || chartMode === 'all' || chartMode === 'money') && (
                   <Bar
                     yAxisId="moneyAxis"
                     dataKey="pending"
@@ -3237,7 +3277,7 @@ function ManagementUnifiedChartCard({
                   </Bar>
                 )}
 
-                {(chartMode === 'all' || chartMode === 'docs') && (
+                {(chartMode === 'both' || chartMode === 'all' || chartMode === 'docs') && (
                   <Bar
                     yAxisId="docsAxis"
                     dataKey="remissions"
@@ -3267,7 +3307,7 @@ function ManagementUnifiedChartCard({
 
           <div className="evolution-unified-footer">
             <div className="evolution-footer-legend">
-              {(chartMode === 'all' || chartMode === 'money') && (
+              {(chartMode === 'both' || chartMode === 'all' || chartMode === 'money') && (
                 <span className="legend-badge blue">
                   <span className="legend-indicator bar-indicator blue" />
                   <b>Saldo en Dinero ($)</b>: Barra azul (Eje Izquierdo)
@@ -3279,7 +3319,7 @@ function ManagementUnifiedChartCard({
                   <b>Salidas Facturadas ($)</b>: Barra verde (Eje Izquierdo)
                 </span>
               )}
-              {(chartMode === 'all' || chartMode === 'docs') && (
+              {(chartMode === 'both' || chartMode === 'all' || chartMode === 'docs') && (
                 <span className="legend-badge purple">
                   <span className="legend-indicator bar-indicator purple" />
                   <b>Remisiones Abiertas (#)</b>: Barra morada (Eje Derecho)
