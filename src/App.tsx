@@ -450,7 +450,19 @@ function Dashboard({
     [evolucionCutoffRecords, director, employee, statusFilter, amountFilter, ageFilter],
   );
   const evolucionSummary = useMemo(() => summarize(evolucionRecords), [evolucionRecords]);
-  const evolucionAgeBreakdown = useMemo(() => buildAgeBreakdown(evolucionRecords), [evolucionRecords]);
+  const evolucionAgeBreakdownRecords = useMemo(
+    () => evolucionCutoffRecords.filter((r) =>
+      (director === 'Todos' || r.director === director) &&
+      (employee === 'Todos' || r.employee === employee) &&
+      (statusFilter === 'Todos' || r.alert === statusFilter) &&
+      matchesAmountFilter(r.amountStatus, amountFilter)),
+    [evolucionCutoffRecords, director, employee, statusFilter, amountFilter],
+  );
+  const evolucionAgeBreakdown = useMemo(() => buildAgeBreakdown(evolucionAgeBreakdownRecords), [evolucionAgeBreakdownRecords]);
+  const evolucionAgeTotal = useMemo(
+    () => evolucionAgeBreakdownRecords.reduce((sum, r) => sum + r.total, 0),
+    [evolucionAgeBreakdownRecords],
+  );
   const evolucionTop10 = useMemo(
     () => [...evolucionRecords].sort((a, b) => b.total - a.total).slice(0, 10),
     [evolucionRecords],
@@ -632,6 +644,10 @@ function Dashboard({
     [baseCutoffRecords, director, employee, statusFilter, amountFilter],
   );
   const ageBreakdown = useMemo(() => buildAgeBreakdown(ageBreakdownRecords), [ageBreakdownRecords]);
+  const ageTotalPending = useMemo(
+    () => ageBreakdownRecords.reduce((sum, r) => sum + r.total, 0),
+    [ageBreakdownRecords],
+  );
 
   const directorFilterRecords = useMemo(
     () => baseCutoffRecords.filter((r) =>
@@ -997,7 +1013,7 @@ function Dashboard({
             <section className="chart-grid">
               <AgeCompositionCard
                 ageData={evolucionAgeBreakdown}
-                totalPending={evolucionSummary.pending}
+                totalPending={evolucionAgeTotal}
                 activeRange={ageFilter}
                 onSelectRange={(range) => {
                   setAgeFilter((current) => current === range ? 'Todos' : range);
@@ -1419,14 +1435,15 @@ function Dashboard({
                       </div>
                     </div>
                     <div className="mgmt-day-cards-list">
-                      {daily.filter((pt) => pt.cutoff > EVOLUCION_CUTOFF).map((pt, idx, arr) => {
+                      {daily.map((pt, idx, arr) => {
                         const isSelected = pt.cutoff === cutoff;
                         const isLatest = idx === arr.length - 1 && arr.length > 1;
+                        const isInitial = pt.cutoff === EVOLUCION_CUTOFF;
                         const deltaVal = pt.pendingDelta ?? 0;
                         const pctVal = pt.pendingDeltaPct ?? 0;
                         const isValDown = deltaVal < 0;
                         const isValUp = deltaVal > 0;
-                        const tone = isValDown ? 'favorable' : isValUp ? 'alert' : 'neutral';
+                        const tone = isInitial ? 'base' : isValDown ? 'favorable' : isValUp ? 'alert' : 'neutral';
                         return (
                           <div key={pt.cutoff}
                             className={`mgmt-day-card tone-${tone} ${isSelected ? 'selected' : ''}`}
@@ -1438,6 +1455,7 @@ function Dashboard({
                               <strong>{formatCutoff(pt.cutoff)}</strong>
                               <div className="mgmt-day-chips">
                                 {isSelected && <span className="evolution-chip active">Activo</span>}
+                                {isInitial && <span className="evolution-chip initial">Base inicial</span>}
                                 {isLatest && !isSelected && <span className="evolution-chip latest">Hoy</span>}
                               </div>
                             </div>
@@ -1448,30 +1466,43 @@ function Dashboard({
                             </div>
                             <div className="mgmt-day-card-flow new">
                               <small className="mgmt-day-card-sublabel">⬆ Entraron</small>
-                              {pt.newCount > 0 ? (
+                              {isInitial ? (
+                                <span className="text-muted" style={{ fontSize: '11px' }}>Base de partida</span>
+                              ) : pt.newCount > 0 ? (
                                 <><strong className="mgmt-flow-new">+{number.format(pt.newCount)} rem.</strong>
-                                  <small style={{ color: '#c2410c', fontSize: '10px', fontWeight: 650 }}>+{compactCurrency.format(pt.newValue)}</small></>
+                                  <small style={{ color: '#c2410c', fontSize: '10px', fontWeight: 650 }}>+{currency.format(pt.newValue)}</small></>
                               ) : <span className="text-muted" style={{ fontSize: '11px' }}>Sin nuevas</span>}
                             </div>
                             <div className="mgmt-day-card-flow out">
                               <small className="mgmt-day-card-sublabel">⬇ Salieron</small>
-                              {pt.withdrawnCount > 0 ? (
+                              {isInitial ? (
+                                <span className="text-muted" style={{ fontSize: '11px' }}>Punto cero</span>
+                              ) : pt.withdrawnCount > 0 ? (
                                 <><strong className="mgmt-flow-out">-{number.format(pt.withdrawnCount)} rem.</strong>
-                                  <small style={{ color: '#15803d', fontSize: '10px', fontWeight: 650 }}>-{compactCurrency.format(pt.withdrawn)}</small></>
+                                  <small style={{ color: '#15803d', fontSize: '10px', fontWeight: 650 }}>-{currency.format(pt.withdrawn)}</small></>
                               ) : <span className="text-muted" style={{ fontSize: '11px' }}>Sin salidas</span>}
                             </div>
                             <div className={`mgmt-day-card-balance tone-${tone}`}>
-                              <span className={`mgmt-balance-icon ${isValDown ? 'down-icon' : isValUp ? 'up-icon' : 'neutral-icon'}`}>
-                                {isValDown ? '▼' : isValUp ? '▲' : '—'}
-                              </span>
-                              <div className="mgmt-balance-body">
-                                <strong className="mgmt-balance-amount">
-                                  {isValDown ? '-' : isValUp ? '+' : ''}{currency.format(Math.abs(deltaVal))}
-                                </strong>
-                                <small className="mgmt-balance-pct">
-                                  {isValDown ? 'Bajó ' : isValUp ? 'Subió ' : ''}{percent.format(Math.abs(pctVal))}
-                                </small>
-                              </div>
+                              {isInitial ? (
+                                <div className="mgmt-balance-body">
+                                  <strong className="mgmt-balance-amount">$ 0</strong>
+                                  <small className="mgmt-balance-pct">Línea base</small>
+                                </div>
+                              ) : (
+                                <>
+                                  <span className={`mgmt-balance-icon ${isValDown ? 'down-icon' : isValUp ? 'up-icon' : 'neutral-icon'}`}>
+                                    {isValDown ? '▼' : isValUp ? '▲' : '—'}
+                                  </span>
+                                  <div className="mgmt-balance-body">
+                                    <strong className="mgmt-balance-amount">
+                                      {isValDown ? '-' : isValUp ? '+' : ''}{currency.format(Math.abs(deltaVal))}
+                                    </strong>
+                                    <small className="mgmt-balance-pct">
+                                      {isValDown ? 'Bajó ' : isValUp ? 'Subió ' : ''}{percent.format(Math.abs(pctVal))}
+                                    </small>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </div>
                         );
@@ -1503,7 +1534,7 @@ function Dashboard({
             <section className="chart-grid">
               <AgeCompositionCard
                 ageData={ageBreakdown}
-                totalPending={currentSummary.pending}
+                totalPending={ageTotalPending}
                 activeRange={ageFilter}
                 onSelectRange={(range) => setAgeFilter((c) => c === range ? 'Todos' : range)}
               />
@@ -2171,27 +2202,15 @@ function InitialCohortEvolutionSection({
   const yDomainCohortValue = useMemo(() => {
     const vals = cohort.map((d) => d.stillOpenPending).filter((v) => Number.isFinite(v) && v > 0);
     if (vals.length === 0) return [0, 1000];
-    const min = Math.min(...vals);
     const max = Math.max(...vals);
-    if (min === max) {
-      return [Math.max(0, Math.floor(min * 0.9)), Math.ceil(max * 1.1)];
-    }
-    const diff = max - min;
-    const padding = Math.max(diff * 0.4, max * 0.04);
-    return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
+    return [0, Math.ceil(max * 1.15)];
   }, [cohort]);
 
   const yDomainCohortDocs = useMemo(() => {
     const vals = cohort.map((d) => d.stillOpenCount).filter((v) => Number.isFinite(v) && v > 0);
     if (vals.length === 0) return [0, 100];
-    const min = Math.min(...vals);
     const max = Math.max(...vals);
-    if (min === max) {
-      return [Math.max(0, Math.floor(min * 0.85)), Math.ceil(max * 1.15)];
-    }
-    const diff = max - min;
-    const padding = Math.max(Math.ceil(diff * 0.4), 6);
-    return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
+    return [0, Math.ceil(max * 1.15)];
   }, [cohort]);
 
   if (!cohort.length || !initialPoint) return null;
@@ -2220,7 +2239,7 @@ function InitialCohortEvolutionSection({
               <span className="cohort-kpi-label">Base Inicial Entregada</span>
               <span className="cohort-kpi-badge blue">Base fija</span>
             </div>
-            <strong className="cohort-kpi-value">{compactCurrency.format(initialPoint.initialPending)}</strong>
+            <strong className="cohort-kpi-value">{currency.format(initialPoint.initialPending)}</strong>
             <span className="cohort-kpi-sub">
               <strong>{number.format(initialPoint.initialCount)}</strong> remisiones entregadas el {formatCutoff(initialPoint.cutoff)}
             </span>
@@ -2232,7 +2251,7 @@ function InitialCohortEvolutionSection({
               <span className="cohort-kpi-badge purple">{currentCutoff === initialPoint.cutoff ? 'Inicio' : 'Actual'}</span>
             </div>
             <strong className="cohort-kpi-value text-blue">
-              {compactCurrency.format(currentCohortPoint?.stillOpenPending || 0)}
+              {currency.format(currentCohortPoint?.stillOpenPending || 0)}
             </strong>
             <span className="cohort-kpi-sub">
               <strong>{number.format(currentCohortPoint?.stillOpenCount || 0)}</strong> remisiones aún abiertas de la base
@@ -2246,7 +2265,7 @@ function InitialCohortEvolutionSection({
             </div>
             <strong className="cohort-kpi-value text-green">
               {(currentCohortPoint?.withdrawnPending || 0) > 0
-                ? `▼ -${compactCurrency.format(currentCohortPoint!.withdrawnPending)}`
+                ? `▼ -${currency.format(currentCohortPoint!.withdrawnPending)}`
                 : '$ 0'}
             </strong>
             <span className="cohort-kpi-sub">
@@ -2465,6 +2484,90 @@ function InitialCohortEvolutionSection({
         </div>
       </article>
 
+      {isMultipleDays && (
+        <div className="management-daily-history-card" style={{ marginTop: '16px' }}>
+          <div className="management-table-header">
+            <div>
+              <div className="evolution-tag purple">
+                <CalendarRange size={13} />
+                <span>Desmonte de la Base Inicial Día a Día</span>
+              </div>
+              <h3>Seguimiento Cronológico del Desmonte ({formatCutoff(initialPoint.cutoff)})</h3>
+              <small>Evolución corte a corte de las remisiones entregadas inicialmente: saldo restante y remisiones salientes.</small>
+            </div>
+            <div className="mgmt-legend-row">
+              <span className="mgmt-legend-item favorable-legend">▼ Saldo bajó (Facturado)</span>
+              <span className="mgmt-legend-item blue-legend">Saldo restante</span>
+            </div>
+          </div>
+          <div className="mgmt-day-cards-list">
+            {cohort.map((pt, idx, arr) => {
+              const isSelected = pt.cutoff === currentCutoff;
+              const isInitial = pt.cutoff === initialPoint.cutoff;
+              const isLatest = idx === arr.length - 1 && arr.length > 1;
+              const hasWithdrawn = (pt.withdrawnPending || 0) > 0;
+              return (
+                <div
+                  key={pt.cutoff}
+                  className={`mgmt-day-card tone-${isInitial ? 'base' : hasWithdrawn ? 'favorable' : 'neutral'} ${isSelected ? 'selected' : ''}`}
+                  onClick={() => onSelectCutoff(pt.cutoff)}
+                  role="button"
+                  tabIndex={0}
+                  title={`Ver desmonte al ${formatCutoff(pt.cutoff)}`}
+                >
+                  <div className="mgmt-day-card-date">
+                    <strong>{formatCutoff(pt.cutoff)}</strong>
+                    <div className="mgmt-day-chips">
+                      {isSelected && <span className="evolution-chip active">Activo</span>}
+                      {isInitial && <span className="evolution-chip initial">Base inicial</span>}
+                      {isLatest && !isSelected && <span className="evolution-chip latest">Hoy</span>}
+                    </div>
+                  </div>
+                  <div className="mgmt-day-card-saldo">
+                    <small className="mgmt-day-card-sublabel">Saldo restante</small>
+                    <strong className="mgmt-day-card-money">{currency.format(pt.stillOpenPending)}</strong>
+                    <small className="text-muted">{number.format(pt.stillOpenCount)} rem. abiertas</small>
+                  </div>
+                  <div className="mgmt-day-card-flow out">
+                    <small className="mgmt-day-card-sublabel">⬇ Facturadas / Salidas</small>
+                    {pt.withdrawnCount > 0 ? (
+                      <>
+                        <strong className="mgmt-flow-out">-{number.format(pt.withdrawnCount)} rem.</strong>
+                        <small style={{ color: '#15803d', fontSize: '10px', fontWeight: 650 }}>
+                          -{currency.format(pt.withdrawnPending)}
+                        </small>
+                      </>
+                    ) : (
+                      <span className="text-muted" style={{ fontSize: '11px' }}>0 rem. salieron</span>
+                    )}
+                  </div>
+                  <div className={`mgmt-day-card-balance tone-${isInitial ? 'base' : hasWithdrawn ? 'favorable' : 'neutral'}`}>
+                    {isInitial ? (
+                      <div className="mgmt-balance-body">
+                        <strong className="mgmt-balance-amount">$ 0</strong>
+                        <small className="mgmt-balance-pct">Línea base</small>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="mgmt-balance-icon down-icon">▼</span>
+                        <div className="mgmt-balance-body">
+                          <strong className="mgmt-balance-amount">
+                            -{currency.format(pt.withdrawnPending)}
+                          </strong>
+                          <small className="mgmt-balance-pct">
+                            Bajó {percent.format(pt.recoveryPct || 0)}
+                          </small>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {!isMultipleDays && (
         <div className="evolution-single-notice" style={{ marginTop: '14px' }}>
           <CalendarClock size={22} />
@@ -2637,34 +2740,22 @@ function ManagementUnifiedChartCard({
   const yDomainManagementValue = useMemo(() => {
     const vals = daily.map((d) => d.pending).filter((v) => Number.isFinite(v) && v > 0);
     if (vals.length === 0) return [0, 1000];
-    const min = Math.min(...vals);
     const max = Math.max(...vals);
-    if (min === max) {
-      return [Math.max(0, Math.floor(min * 0.9)), Math.ceil(max * 1.1)];
-    }
-    const diff = max - min;
-    const padding = Math.max(diff * 0.4, max * 0.04);
-    return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
+    return [0, Math.ceil(max * 1.15)];
   }, [daily]);
 
   const yDomainManagementDocs = useMemo(() => {
     const vals = daily.map((d) => d.remissions).filter((v) => Number.isFinite(v) && v > 0);
     if (vals.length === 0) return [0, 100];
-    const min = Math.min(...vals);
     const max = Math.max(...vals);
-    if (min === max) {
-      return [Math.max(0, Math.floor(min * 0.85)), Math.ceil(max * 1.15)];
-    }
-    const diff = max - min;
-    const padding = Math.max(Math.ceil(diff * 0.4), 6);
-    return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
+    return [0, Math.ceil(max * 1.15)];
   }, [daily]);
 
   const yDomainManagementWithdrawn = useMemo(() => {
     const vals = daily.map((d) => d.withdrawn).filter((v) => Number.isFinite(v) && v > 0);
     if (vals.length === 0) return [0, 1000];
     const max = Math.max(...vals);
-    return [0, Math.ceil(max * 1.25)];
+    return [0, Math.ceil(max * 1.15)];
   }, [daily]);
 
   const yDomainUnifiedMoney = useMemo(() => {
@@ -2779,7 +2870,7 @@ function ManagementUnifiedChartCard({
                 </div>
               </div>
               <div className="management-sub-visual-metric">
-                <strong className="blue">{compactCurrency.format(currentPoint?.pending || 0)}</strong>
+                <strong className="blue">{currency.format(currentPoint?.pending || 0)}</strong>
                 {delta !== 0 ? (
                   <span className={isDown ? 'green' : 'orange'}>
                     {isDown ? '▼ -' : '▲ +'}{compactCurrency.format(Math.abs(delta))}
@@ -2915,7 +3006,7 @@ function ManagementUnifiedChartCard({
                 </div>
               </div>
               <div className="management-sub-visual-metric">
-                <strong className="green">{compactCurrency.format(currentPoint?.withdrawn || 0)}</strong>
+                <strong className="green">{currency.format(currentPoint?.withdrawn || 0)}</strong>
                 <span className="green">
                   {number.format(currentPoint?.withdrawnCount || 0)} rem. facturadas
                 </span>
