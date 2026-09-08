@@ -2356,6 +2356,51 @@ th.numeric, td.numeric { text-align: right; }
   color: var(--muted);
 }
 
+/* Selector de pestañas en cabeceras de tarjetas (Remisiones / Por dirección) */
+.chart-header-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chart-header-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #f1f2f6;
+  padding: 3px;
+  border-radius: 9px;
+  border: 1px solid #e2e4ea;
+}
+
+.chart-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #636366;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.chart-tab-btn:hover {
+  color: #1d1d1f;
+}
+
+.chart-tab-btn.active {
+  background: #ffffff;
+  color: #7928ca;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
 /* ─── GESTIÓN: DAY CARDS LIST ───────────────────────────────────────────────── */
 .mgmt-legend-row {
   display: flex;

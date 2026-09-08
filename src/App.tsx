@@ -320,6 +320,8 @@ function Dashboard({
   const [sortBy, setSortBy] = useState<'total-desc' | 'total-asc' | 'age-desc' | 'age-asc'>('total-desc');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [evolucionRightTab, setEvolucionRightTab] = useState<'remisiones' | 'pie'>('pie');
+  const [gestionRightTab, setGestionRightTab] = useState<'remisiones' | 'pie'>('pie');
   const refreshRef = useRef(onRefresh);
 
   const prevLatestCutoffRef = useRef(latestCutoff);
@@ -441,6 +443,13 @@ function Dashboard({
       return;
     }
     setEmployee(nextEmployee);
+    if (nextEmployee !== 'Todos') {
+      setEvolucionRightTab('remisiones');
+      setGestionRightTab('remisiones');
+    } else {
+      setEvolucionRightTab('pie');
+      setGestionRightTab('pie');
+    }
   };
 
   const resetAllFilters = () => {
@@ -450,6 +459,8 @@ function Dashboard({
     setAgeFilter('Todos');
     setAmountFilter('Todos');
     setQuery('');
+    setEvolucionRightTab('pie');
+    setGestionRightTab('pie');
   };
 
   const hasDirectorFilter = !userAccess.lockedDirector && director !== 'Todos';
@@ -556,9 +567,13 @@ function Dashboard({
     () => evolucionAgeBreakdownRecords.reduce((sum, r) => sum + r.total, 0),
     [evolucionAgeBreakdownRecords],
   );
-  const evolucionTop10 = useMemo(
-    () => [...evolucionRecords].sort((a, b) => b.total - a.total).slice(0, 10),
+  const sortedEvolucionRecords = useMemo(
+    () => [...evolucionRecords].sort((a, b) => b.total - a.total),
     [evolucionRecords],
+  );
+  const evolucionTop10 = useMemo(
+    () => sortedEvolucionRecords.slice(0, 10),
+    [sortedEvolucionRecords],
   );
   const evolucionSellerData = useMemo(
     () => aggregateBy(
@@ -769,11 +784,13 @@ function Dashboard({
   );
   const sellerData = useMemo(() => aggregateBy(sellerFilterRecords, (record) => record.employee).slice(0, 12), [sellerFilterRecords]);
 
+  const sortedCurrentRecords = useMemo(
+    () => [...currentRecords].sort((a, b) => b.total - a.total),
+    [currentRecords],
+  );
   const top10Remisiones = useMemo(() => {
-    return [...currentRecords]
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
-  }, [currentRecords]);
+    return sortedCurrentRecords.slice(0, 10);
+  }, [sortedCurrentRecords]);
 
   const targetRecords = useMemo(() => {
     if (detailTab === 'withdrawn') return withdrawnRecords;
@@ -1513,46 +1530,143 @@ function Dashboard({
                 </ResponsiveContainer>
               </ChartCard>
 
-              {/* Dirección — base 03/09 */}
+              {/* Tarjeta dinámica: Remisiones de mayor valor / Dirección (Pie) */}
               <ChartCard
-                title="Pendiente por dirección"
-                subtitle={userAccess.lockedDirector ? `Dirección asignada: ${userAccess.lockedDirector}` : director !== 'Todos' ? `Filtrado por: ${director} · Toca para quitar` : 'Toca una dirección para filtrar todo el tablero'}
-              >
-                <div className="donut-layout">
-                  <ResponsiveContainer width="48%" height={260}>
-                    <PieChart>
-                      <Pie data={evolucionDirectorData} dataKey="value" nameKey="name"
-                        innerRadius={64} outerRadius={94} paddingAngle={2} stroke="none" cursor={userAccess.lockedDirector ? 'default' : 'pointer'}
-                        onClick={(entry: any) => {
-                          if (entry?.name) handleDirectorChange(director === String(entry.name) ? 'Todos' : String(entry.name));
-                        }}
+                title={
+                  evolucionRightTab === 'remisiones'
+                    ? employee !== 'Todos'
+                      ? `Remisiones de mayor valor · ${employee}`
+                      : 'Remisiones de mayor valor'
+                    : 'Pendiente por dirección'
+                }
+                subtitle={
+                  evolucionRightTab === 'remisiones'
+                    ? employee !== 'Todos'
+                      ? `${sortedEvolucionRecords.length} remisiones ordenadas por mayor importe pendiente`
+                      : 'Remisiones abiertas de mayor importe en la base inicial'
+                    : userAccess.lockedDirector
+                      ? `Dirección asignada: ${userAccess.lockedDirector}`
+                      : director !== 'Todos'
+                        ? `Filtrado por: ${director} · Toca para quitar`
+                        : 'Toca una dirección para filtrar todo el tablero'
+                }
+                action={
+                  <div className="chart-header-actions-group">
+                    <div className="chart-header-tabs">
+                      <button
+                        type="button"
+                        className={`chart-tab-btn ${evolucionRightTab === 'remisiones' ? 'active' : ''}`}
+                        onClick={() => setEvolucionRightTab('remisiones')}
+                        title="Ver lista de remisiones de mayor valor"
                       >
-                        {evolucionDirectorData.map((entry, index) => (
-                          <Cell key={entry.name}
-                            fill={PIE_COLORS[index % PIE_COLORS.length]}
-                            opacity={director !== 'Todos' && director !== entry.name ? 0.35 : 1}
-                            stroke={director === entry.name ? '#1d1d1f' : 'none'}
-                            strokeWidth={director === entry.name ? 2 : 0}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => currency.format(Number(value))} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="legend-list">
-                    {evolucionDirectorData.map((entry, index) => (
-                      <button key={entry.name} type="button"
-                        className={`legend-btn ${director === entry.name ? 'active' : ''}`}
-                        onClick={() => handleDirectorChange(director === entry.name ? 'Todos' : entry.name)}
-                        disabled={Boolean(userAccess.lockedDirector)}
-                      >
-                        <i style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
-                        <span>{entry.name}<small>{entry.count} remisiones</small></span>
-                        <strong>{compactCurrency.format(entry.value)}</strong>
+                        <FileText size={12} />
+                        <span>Remisiones {sortedEvolucionRecords.length > 0 ? `(${number.format(sortedEvolucionRecords.length)})` : ''}</span>
                       </button>
-                    ))}
+                      <button
+                        type="button"
+                        className={`chart-tab-btn ${evolucionRightTab === 'pie' ? 'active' : ''}`}
+                        onClick={() => setEvolucionRightTab('pie')}
+                        title="Ver gráfico circular por dirección"
+                      >
+                        <Boxes size={12} />
+                        <span>Por dirección</span>
+                      </button>
+                    </div>
+                    {evolucionRightTab === 'remisiones' && (
+                      <button
+                        type="button"
+                        className="top-remisiones-header-action"
+                        onClick={() => { setView('detail'); setDetailTab('open'); setSortBy('total-desc'); }}
+                        title="Ver todas en la tabla de detalle"
+                      >
+                        Ver en tabla →
+                      </button>
+                    )}
                   </div>
-                </div>
+                }
+              >
+                {evolucionRightTab === 'remisiones' ? (
+                  <div className="top-remisiones-list" style={{ maxHeight: '280px' }}>
+                    {sortedEvolucionRecords.length === 0 ? (
+                      <div className="empty-state"><Search size={20} />No hay remisiones abiertas para los filtros seleccionados</div>
+                    ) : (
+                      sortedEvolucionRecords.map((record, idx) => {
+                        const ageClass = record.age > 30 ? 'critical' : record.age > 15 ? 'warning' : 'ok';
+                        return (
+                          <div
+                            key={record.id}
+                            className="top-remision-item"
+                            onClick={() => { setView('detail'); setDetailTab('open'); setQuery(record.document); }}
+                            role="button"
+                            tabIndex={0}
+                            title={`Ver remisión ${record.document}`}
+                          >
+                            <div className="top-remision-left">
+                              <span className={`top-remision-rank rank-${idx + 1}`}>#{idx + 1}</span>
+                              <div className="top-remision-info">
+                                <div className="top-remision-primary">
+                                  <strong className="top-remision-doc">{record.document}</strong>
+                                  <span className="top-remision-company" title={record.company}>{record.company}</span>
+                                </div>
+                                <div className="top-remision-meta">
+                                  {employee === 'Todos' && (
+                                    <>
+                                      <span className="top-remision-seller">{record.employee}</span>
+                                      <span>·</span>
+                                    </>
+                                  )}
+                                  <span className={`top-remision-age ${ageClass}`}>{record.age} días</span>
+                                  <span>·</span>
+                                  <span>{formatCutoff(record.issuedAt)}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="top-remision-right">
+                              <strong className="top-remision-value">{currency.format(record.total)}</strong>
+                              <span className="top-remision-action-hint">Ver detalle →</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                ) : (
+                  <div className="donut-layout">
+                    <ResponsiveContainer width="48%" height={260}>
+                      <PieChart>
+                        <Pie data={evolucionDirectorData} dataKey="value" nameKey="name"
+                          innerRadius={64} outerRadius={94} paddingAngle={2} stroke="none" cursor={userAccess.lockedDirector ? 'default' : 'pointer'}
+                          onClick={(entry: any) => {
+                            if (entry?.name) handleDirectorChange(director === String(entry.name) ? 'Todos' : String(entry.name));
+                          }}
+                        >
+                          {evolucionDirectorData.map((entry, index) => (
+                            <Cell key={entry.name}
+                              fill={PIE_COLORS[index % PIE_COLORS.length]}
+                              opacity={director !== 'Todos' && director !== entry.name ? 0.35 : 1}
+                              stroke={director === entry.name ? '#1d1d1f' : 'none'}
+                              strokeWidth={director === entry.name ? 2 : 0}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => currency.format(Number(value))} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="legend-list">
+                      {evolucionDirectorData.map((entry, index) => (
+                        <button key={entry.name} type="button"
+                          className={`legend-btn ${director === entry.name ? 'active' : ''}`}
+                          onClick={() => handleDirectorChange(director === entry.name ? 'Todos' : entry.name)}
+                          disabled={Boolean(userAccess.lockedDirector)}
+                        >
+                          <i style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
+                          <span>{entry.name}<small>{entry.count} remisiones</small></span>
+                          <strong>{compactCurrency.format(entry.value)}</strong>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </ChartCard>
             </section>
 
@@ -2088,42 +2202,140 @@ function Dashboard({
                 </ResponsiveContainer>
               </ChartCard>
 
+              {/* Tarjeta dinámica: Remisiones de mayor valor / Dirección (Pie) */}
               <ChartCard
-                title="Pendiente por dirección"
-                subtitle={userAccess.lockedDirector ? `Dirección asignada: ${userAccess.lockedDirector}` : director !== 'Todos' ? `Filtrado por: ${director} · Toca para quitar` : 'Toca una dirección para filtrar todo el tablero'}
-              >
-                <div className="donut-layout">
-                  <ResponsiveContainer width="48%" height={260}>
-                    <PieChart>
-                      <Pie data={directorData} dataKey="value" nameKey="name"
-                        innerRadius={64} outerRadius={94} paddingAngle={2} stroke="none" cursor={userAccess.lockedDirector ? 'default' : 'pointer'}
-                        onClick={(entry: any) => {
-                          if (entry?.name) handleDirectorChange(director === String(entry.name) ? 'Todos' : String(entry.name));
-                        }}>
-                        {directorData.map((entry, index) => (
-                          <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]}
-                            opacity={director !== 'Todos' && director !== entry.name ? 0.35 : 1}
-                            stroke={director === entry.name ? '#1d1d1f' : 'none'}
-                            strokeWidth={director === entry.name ? 2 : 0} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => currency.format(Number(value))} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="legend-list">
-                    {directorData.map((entry, index) => (
-                      <button key={entry.name} type="button"
-                        className={`legend-btn ${director === entry.name ? 'active' : ''}`}
-                        onClick={() => handleDirectorChange(director === entry.name ? 'Todos' : entry.name)}
-                        disabled={Boolean(userAccess.lockedDirector)}
+                title={
+                  gestionRightTab === 'remisiones'
+                    ? employee !== 'Todos'
+                      ? `Remisiones de mayor valor · ${employee}`
+                      : 'Remisiones de mayor valor'
+                    : 'Pendiente por dirección'
+                }
+                subtitle={
+                  gestionRightTab === 'remisiones'
+                    ? employee !== 'Todos'
+                      ? `${sortedCurrentRecords.length} remisiones ordenadas por mayor importe pendiente`
+                      : 'Remisiones abiertas de mayor importe en este corte'
+                    : userAccess.lockedDirector
+                      ? `Dirección asignada: ${userAccess.lockedDirector}`
+                      : director !== 'Todos'
+                        ? `Filtrado por: ${director} · Toca para quitar`
+                        : 'Toca una dirección para filtrar todo el tablero'
+                }
+                action={
+                  <div className="chart-header-actions-group">
+                    <div className="chart-header-tabs">
+                      <button
+                        type="button"
+                        className={`chart-tab-btn ${gestionRightTab === 'remisiones' ? 'active' : ''}`}
+                        onClick={() => setGestionRightTab('remisiones')}
+                        title="Ver lista de remisiones de mayor valor"
                       >
-                        <i style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
-                        <span>{entry.name}<small>{entry.count} remisiones</small></span>
-                        <strong>{compactCurrency.format(entry.value)}</strong>
+                        <FileText size={12} />
+                        <span>Remisiones {sortedCurrentRecords.length > 0 ? `(${number.format(sortedCurrentRecords.length)})` : ''}</span>
                       </button>
-                    ))}
+                      <button
+                        type="button"
+                        className={`chart-tab-btn ${gestionRightTab === 'pie' ? 'active' : ''}`}
+                        onClick={() => setGestionRightTab('pie')}
+                        title="Ver gráfico circular por dirección"
+                      >
+                        <Boxes size={12} />
+                        <span>Por dirección</span>
+                      </button>
+                    </div>
+                    {gestionRightTab === 'remisiones' && (
+                      <button
+                        type="button"
+                        className="top-remisiones-header-action"
+                        onClick={() => { setView('detail'); setDetailTab('open'); setSortBy('total-desc'); }}
+                        title="Ver todas en la tabla de detalle"
+                      >
+                        Ver en tabla →
+                      </button>
+                    )}
                   </div>
-                </div>
+                }
+              >
+                {gestionRightTab === 'remisiones' ? (
+                  <div className="top-remisiones-list" style={{ maxHeight: '280px' }}>
+                    {sortedCurrentRecords.length === 0 ? (
+                      <div className="empty-state"><Search size={20} />No hay remisiones abiertas para los filtros seleccionados</div>
+                    ) : (
+                      sortedCurrentRecords.map((record, idx) => {
+                        const ageClass = record.age > 30 ? 'critical' : record.age > 15 ? 'warning' : 'ok';
+                        return (
+                          <div
+                            key={record.id}
+                            className="top-remision-item"
+                            onClick={() => { setView('detail'); setDetailTab('open'); setQuery(record.document); }}
+                            role="button"
+                            tabIndex={0}
+                            title={`Ver remisión ${record.document}`}
+                          >
+                            <div className="top-remision-left">
+                              <span className={`top-remision-rank rank-${idx + 1}`}>#{idx + 1}</span>
+                              <div className="top-remision-info">
+                                <div className="top-remision-primary">
+                                  <strong className="top-remision-doc">{record.document}</strong>
+                                  <span className="top-remision-company" title={record.company}>{record.company}</span>
+                                </div>
+                                <div className="top-remision-meta">
+                                  {employee === 'Todos' && (
+                                    <>
+                                      <span className="top-remision-seller">{record.employee}</span>
+                                      <span>·</span>
+                                    </>
+                                  )}
+                                  <span className={`top-remision-age ${ageClass}`}>{record.age} días</span>
+                                  <span>·</span>
+                                  <span>{formatCutoff(record.issuedAt)}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="top-remision-right">
+                              <strong className="top-remision-value">{currency.format(record.total)}</strong>
+                              <span className="top-remision-action-hint">Ver detalle →</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                ) : (
+                  <div className="donut-layout">
+                    <ResponsiveContainer width="48%" height={260}>
+                      <PieChart>
+                        <Pie data={directorData} dataKey="value" nameKey="name"
+                          innerRadius={64} outerRadius={94} paddingAngle={2} stroke="none" cursor={userAccess.lockedDirector ? 'default' : 'pointer'}
+                          onClick={(entry: any) => {
+                            if (entry?.name) handleDirectorChange(director === String(entry.name) ? 'Todos' : String(entry.name));
+                          }}>
+                          {directorData.map((entry, index) => (
+                            <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]}
+                              opacity={director !== 'Todos' && director !== entry.name ? 0.35 : 1}
+                              stroke={director === entry.name ? '#1d1d1f' : 'none'}
+                              strokeWidth={director === entry.name ? 2 : 0} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => currency.format(Number(value))} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="legend-list">
+                      {directorData.map((entry, index) => (
+                        <button key={entry.name} type="button"
+                          className={`legend-btn ${director === entry.name ? 'active' : ''}`}
+                          onClick={() => handleDirectorChange(director === entry.name ? 'Todos' : entry.name)}
+                          disabled={Boolean(userAccess.lockedDirector)}
+                        >
+                          <i style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
+                          <span>{entry.name}<small>{entry.count} remisiones</small></span>
+                          <strong>{compactCurrency.format(entry.value)}</strong>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </ChartCard>
             </section>
 
