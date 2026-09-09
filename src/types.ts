@@ -133,3 +133,25 @@ export interface AgeBreakdownItem {
   badge?: string;
 }
 
+export interface WithdrawnRemisionDetail {
+  document: string;
+  order: string;
+  employee: string;
+  director: string;
+  group: number | null;
+  nit: string;
+  company: string;
+  merchandise: number;
+  tax: number;
+  total: number;
+  issuedAt: string;
+  initialCutoff: string;
+  exitCutoff: string;
+  daysToClose: number;
+  daysInDesmonte: number;
+  initialAge: number;
+  amountStatus: AmountStatus;
+  daysStatus: DaysStatus;
+  alert: AlertLevel;
+}
+

@@ -827,6 +827,62 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   background: #d8ebff;
 }
 
+.mgmt-sellers-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mgmt-header-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-download-excel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #107c41;
+  color: #ffffff;
+  border: 1px solid #0e6b37;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(16, 124, 65, 0.2);
+}
+
+.btn-download-excel:hover:not(:disabled) {
+  background: #0b5e30;
+  border-color: #084824;
+  box-shadow: 0 2px 6px rgba(16, 124, 65, 0.3);
+  transform: translateY(-0.5px);
+}
+
+.btn-download-excel:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-download-excel:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: #889988;
+  border-color: #778877;
+  box-shadow: none;
+}
+
+.btn-download-excel.small {
+  padding: 4px 9px;
+  font-size: 10.5px;
+  border-radius: 6px;
+}
+
 .mgmt-sellers-list {
   display: flex;
   flex-direction: column;

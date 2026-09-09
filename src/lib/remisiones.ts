@@ -10,6 +10,7 @@ import type {
   ParsedWorkbook,
   Remision,
   Summary,
+  WithdrawnRemisionDetail,
 } from '../types';
 
 const DAY_MS = 86_400_000;
@@ -797,3 +798,247 @@ export function formatTimeOnly(isoOrDate: string | Date | undefined): string {
     return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
   }
 }
+
+export function getInitialCohortWithdrawnRecords(
+  records: Remision[],
+  preferredInitialCutoff?: string,
+): WithdrawnRemisionDetail[] {
+  const allCutoffs = [...new Set(records.map((r) => r.cutoff))].sort();
+  if (!allCutoffs.length) return [];
+
+  const initialCutoff = preferredInitialCutoff && allCutoffs.includes(preferredInitialCutoff)
+    ? preferredInitialCutoff
+    : allCutoffs[0];
+
+  const initialRecords = records.filter((r) => r.cutoff === initialCutoff);
+  if (!initialRecords.length) return [];
+
+  const subsequentCutoffs = allCutoffs.filter((c) => c > initialCutoff);
+  if (!subsequentCutoffs.length) return [];
+
+  const keysByCutoff = new Map<string, Set<string>>();
+  for (const c of subsequentCutoffs) {
+    keysByCutoff.set(
+      c,
+      new Set(records.filter((r) => r.cutoff === c).map((r) => r.stableKey)),
+    );
+  }
+
+  const withdrawnList: WithdrawnRemisionDetail[] = [];
+
+  for (const item of initialRecords) {
+    let exitCutoff: string | null = null;
+    for (const c of subsequentCutoffs) {
+      const activeKeys = keysByCutoff.get(c);
+      if (activeKeys && !activeKeys.has(item.stableKey)) {
+        exitCutoff = c;
+        break;
+      }
+    }
+
+    if (exitCutoff) {
+      const daysToClose = diffDays(exitCutoff, item.issuedAt);
+      const daysInDesmonte = diffDays(exitCutoff, initialCutoff);
+
+      withdrawnList.push({
+        document: item.document,
+        order: item.order,
+        employee: item.employee,
+        director: item.director,
+        group: item.group,
+        nit: item.nit,
+        company: item.company,
+        merchandise: item.merchandise,
+        tax: item.tax,
+        total: item.total,
+        issuedAt: item.issuedAt,
+        initialCutoff,
+        exitCutoff,
+        daysToClose,
+        daysInDesmonte,
+        initialAge: item.age,
+        amountStatus: item.amountStatus,
+        daysStatus: item.daysStatus,
+        alert: item.alert,
+      });
+    }
+  }
+
+  return withdrawnList.sort((a, b) => {
+    if (a.exitCutoff !== b.exitCutoff) return a.exitCutoff.localeCompare(b.exitCutoff);
+    return b.total - a.total;
+  });
+}
+
+export async function exportWithdrawnRemisionesToExcel(
+  items: WithdrawnRemisionDetail[],
+  filename?: string,
+): Promise<ArrayBuffer> {
+  const { default: ExcelJSRuntime } = await import('exceljs');
+  const workbook = new ExcelJSRuntime.Workbook();
+  workbook.creator = 'Provexpress - Control de Remisiones';
+  workbook.created = new Date();
+
+  const worksheet = workbook.addWorksheet('Remisiones Salidas');
+
+  worksheet.columns = [
+    { header: 'No. Remisión', key: 'document', width: 16 },
+    { header: 'No. Pedido', key: 'order', width: 14 },
+    { header: 'Comercial', key: 'employee', width: 28 },
+    { header: 'Director Comercial', key: 'director', width: 26 },
+    { header: 'Grupo', key: 'group', width: 12 },
+    { header: 'NIT Cliente', key: 'nit', width: 16 },
+    { header: 'Empresa / Cliente', key: 'company', width: 34 },
+    { header: 'Vr. Mercancía', key: 'merchandise', width: 18 },
+    { header: 'Vr. IVA', key: 'tax', width: 16 },
+    { header: 'Vr. Total', key: 'total', width: 18 },
+    { header: 'Fecha Emisión (Ingreso)', key: 'issuedAt', width: 22 },
+    { header: 'Fecha Base (Entrega)', key: 'initialCutoff', width: 20 },
+    { header: 'Fecha de Salida / Cierre', key: 'exitCutoff', width: 22 },
+    { header: 'Días hasta Cierre (desde Emisión)', key: 'daysToClose', width: 26 },
+    { header: 'Días en Desmonte (desde Base)', key: 'daysInDesmonte', width: 24 },
+    { header: 'Antigüedad Inicial (Días)', key: 'initialAge', width: 22 },
+    { header: 'Categoría Antigüedad', key: 'daysStatus', width: 24 },
+    { header: 'Categoría Monto', key: 'amountStatus', width: 24 },
+    { header: 'Nivel de Alerta', key: 'alert', width: 24 },
+  ];
+
+  const headerRow = worksheet.getRow(1);
+  headerRow.height = 28;
+  headerRow.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF1E293B' },
+  };
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+
+  let sumMerchandise = 0;
+  let sumTax = 0;
+  let sumTotal = 0;
+  let sumDaysToClose = 0;
+  let sumDaysInDesmonte = 0;
+
+  for (const item of items) {
+    sumMerchandise += item.merchandise || 0;
+    sumTax += item.tax || 0;
+    sumTotal += item.total || 0;
+    sumDaysToClose += item.daysToClose || 0;
+    sumDaysInDesmonte += item.daysInDesmonte || 0;
+
+    const row = worksheet.addRow({
+      document: item.document,
+      order: item.order,
+      employee: item.employee,
+      director: item.director,
+      group: item.group ? `Grupo ${item.group}` : 'Sin asignar',
+      nit: item.nit,
+      company: item.company,
+      merchandise: item.merchandise,
+      tax: item.tax,
+      total: item.total,
+      issuedAt: item.issuedAt,
+      initialCutoff: item.initialCutoff,
+      exitCutoff: item.exitCutoff,
+      daysToClose: item.daysToClose,
+      daysInDesmonte: item.daysInDesmonte,
+      initialAge: item.initialAge,
+      daysStatus: item.daysStatus,
+      amountStatus: item.amountStatus,
+      alert: item.alert,
+    });
+
+    row.height = 20;
+    row.font = { name: 'Segoe UI', size: 9.5 };
+
+    row.getCell('merchandise').numFmt = '"$"#,##0;[Red]-"$"#,##0;"$0"';
+    row.getCell('tax').numFmt = '"$"#,##0;[Red]-"$"#,##0;"$0"';
+    row.getCell('total').numFmt = '"$"#,##0;[Red]-"$"#,##0;"$0"';
+    row.getCell('total').font = { name: 'Segoe UI', size: 9.5, bold: true };
+
+    row.getCell('daysToClose').numFmt = '#,##0';
+    row.getCell('daysToClose').font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF15803D' } };
+    row.getCell('daysInDesmonte').numFmt = '#,##0';
+    row.getCell('initialAge').numFmt = '#,##0';
+
+    row.getCell('document').alignment = { horizontal: 'center' };
+    row.getCell('order').alignment = { horizontal: 'center' };
+    row.getCell('group').alignment = { horizontal: 'center' };
+    row.getCell('issuedAt').alignment = { horizontal: 'center' };
+    row.getCell('initialCutoff').alignment = { horizontal: 'center' };
+    row.getCell('exitCutoff').alignment = { horizontal: 'center' };
+    row.getCell('daysToClose').alignment = { horizontal: 'center' };
+    row.getCell('daysInDesmonte').alignment = { horizontal: 'center' };
+    row.getCell('initialAge').alignment = { horizontal: 'center' };
+  }
+
+  // Summary row at the bottom
+  if (items.length > 0) {
+    const avgDaysToClose = Math.round(sumDaysToClose / items.length);
+    const avgDaysInDesmonte = Math.round(sumDaysInDesmonte / items.length);
+
+    const totalRow = worksheet.addRow({
+      document: 'TOTALES',
+      order: `${items.length} rem.`,
+      employee: '',
+      director: '',
+      group: '',
+      nit: '',
+      company: 'Consolidado de Remisiones Salidas',
+      merchandise: sumMerchandise,
+      tax: sumTax,
+      total: sumTotal,
+      issuedAt: '',
+      initialCutoff: '',
+      exitCutoff: '',
+      daysToClose: avgDaysToClose,
+      daysInDesmonte: avgDaysInDesmonte,
+      initialAge: '',
+      daysStatus: '',
+      amountStatus: '',
+      alert: '',
+    });
+
+    totalRow.height = 24;
+    totalRow.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+    totalRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF1F5F9' },
+    };
+
+    totalRow.getCell('merchandise').numFmt = '"$"#,##0;[Red]-"$"#,##0;"$0"';
+    totalRow.getCell('tax').numFmt = '"$"#,##0;[Red]-"$"#,##0;"$0"';
+    totalRow.getCell('total').numFmt = '"$"#,##0;[Red]-"$"#,##0;"$0"';
+    totalRow.getCell('daysToClose').numFmt = '#,##0';
+    totalRow.getCell('daysInDesmonte').numFmt = '#,##0';
+
+    totalRow.getCell('document').alignment = { horizontal: 'center' };
+    totalRow.getCell('order').alignment = { horizontal: 'center' };
+    totalRow.getCell('daysToClose').alignment = { horizontal: 'center' };
+    totalRow.getCell('daysInDesmonte').alignment = { horizontal: 'center' };
+  }
+
+  worksheet.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: 1, column: 19 },
+  };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || `remisiones-salidas-evolucion-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  return buffer as ArrayBuffer;
+}
+

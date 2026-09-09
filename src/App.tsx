@@ -61,14 +61,17 @@ import {
   buildAgeBreakdown,
   buildDailySeries,
   buildInitialCohortSeries,
+  diffDays,
+  exportWithdrawnRemisionesToExcel,
   formatCutoff,
   formatDateTime,
   formatTimeOnly,
+  getInitialCohortWithdrawnRecords,
   normalizeText,
   parseRemisionesWorkbook,
   summarize,
 } from './lib/remisiones';
-import type { AgeBreakdownItem, DailyPoint, DataSource, FileMetadata, InitialCohortPoint, ParsedWorkbook, Remision, Summary, UserProfile } from './types';
+import type { AgeBreakdownItem, DailyPoint, DataSource, FileMetadata, InitialCohortPoint, ParsedWorkbook, Remision, Summary, UserProfile, WithdrawnRemisionDetail } from './types';
 
 type Phase = 'welcome' | 'loading' | 'ready' | 'error';
 type View = 'evolucion' | 'gestion' | 'detail';
@@ -547,6 +550,21 @@ function Dashboard({
     [periodRecords, initialCutoffDate],
   );
 
+  const allInitialCohortWithdrawnDetails = useMemo(
+    () => getInitialCohortWithdrawnRecords(data.records, initialCutoffDate),
+    [data.records, initialCutoffDate],
+  );
+
+  const filteredWithdrawnDetails = useMemo(() => {
+    return allInitialCohortWithdrawnDetails.filter((r) => {
+      if (director !== 'Todos' && r.director !== director) return false;
+      if (employee !== 'Todos' && r.employee !== employee) return false;
+      if (statusFilter !== 'Todos' && r.alert !== statusFilter) return false;
+      if (!matchesAmountFilter(r.amountStatus, amountFilter)) return false;
+      return true;
+    });
+  }, [allInitialCohortWithdrawnDetails, director, employee, statusFilter, amountFilter]);
+
   // ── Evolución: seguimiento dinámico a la base inicial entregada (03/09/2026) ──
   const initialCohortKeys = useMemo(() => {
     const baseRecs = data.records.filter((r) => r.cutoff === EVOLUCION_CUTOFF);
@@ -922,6 +940,56 @@ function Dashboard({
     anchor.download = `remisiones-${cutoff}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
+  };
+
+  const [isExportingWithdrawn, setIsExportingWithdrawn] = useState(false);
+
+  const handleDownloadWithdrawnExcel = async () => {
+    if (!filteredWithdrawnDetails.length) return;
+    try {
+      setIsExportingWithdrawn(true);
+      const cleanEmp = employee !== 'Todos' ? `-${normalizeText(employee).replace(/\s+/g, '_')}` : '';
+      const filename = `remisiones-salidas-evolucion-${cutoff}${cleanEmp}.xlsx`;
+      await exportWithdrawnRemisionesToExcel(filteredWithdrawnDetails, filename);
+    } catch (err) {
+      console.error('Error al exportar remisiones salidas a Excel:', err);
+    } finally {
+      setIsExportingWithdrawn(false);
+    }
+  };
+
+  const handleDownloadDailyWithdrawnExcel = async () => {
+    if (!managementWithdrawn.length) return;
+    try {
+      setIsExportingWithdrawn(true);
+      const details: WithdrawnRemisionDetail[] = managementWithdrawn.map((r) => ({
+        document: r.document,
+        order: r.order,
+        employee: r.employee,
+        director: r.director,
+        group: r.group,
+        nit: r.nit,
+        company: r.company,
+        merchandise: r.merchandise,
+        tax: r.tax,
+        total: r.total,
+        issuedAt: r.issuedAt,
+        initialCutoff: EVOLUCION_CUTOFF,
+        exitCutoff: cutoff,
+        daysToClose: diffDays(cutoff, r.issuedAt),
+        daysInDesmonte: diffDays(cutoff, EVOLUCION_CUTOFF),
+        initialAge: r.age,
+        amountStatus: r.amountStatus,
+        daysStatus: r.daysStatus,
+        alert: r.alert,
+      }));
+      const cleanEmp = employee !== 'Todos' ? `-${normalizeText(employee).replace(/\s+/g, '_')}` : '';
+      await exportWithdrawnRemisionesToExcel(details, `remisiones-cerradas-gestion-${cutoff}${cleanEmp}.xlsx`);
+    } catch (err) {
+      console.error('Error al exportar remisiones de gestión a Excel:', err);
+    } finally {
+      setIsExportingWithdrawn(false);
+    }
   };
 
   const selectedEmployeeDirectoryInfo = useMemo(() => {
@@ -1375,6 +1443,9 @@ function Dashboard({
               cohort={initialCohortSeries}
               currentCutoff={cutoff}
               onSelectCutoff={setCutoff}
+              withdrawnCount={filteredWithdrawnDetails.length}
+              onDownloadExcel={handleDownloadWithdrawnExcel}
+              isExportingExcel={isExportingWithdrawn}
             />
 
             {/* 4 Módulos de análisis aplicados a la BASE INICIAL */}
@@ -1705,16 +1776,28 @@ function Dashboard({
                           : 'No hay retiros registrados para los filtros seleccionados'}
                     </p>
                   </div>
-                  {!userAccess.lockedEmployee && employee !== 'Todos' && (
+                  <div className="mgmt-sellers-actions">
                     <button
                       type="button"
-                      className="mgmt-reset-filter-btn"
-                      onClick={() => handleEmployeeChange('Todos')}
-                      title="Quitar filtro de comercial"
+                      className="btn-download-excel small"
+                      onClick={handleDownloadWithdrawnExcel}
+                      disabled={isExportingWithdrawn || filteredWithdrawnDetails.length === 0}
+                      title="Descargar archivo Excel con las remisiones facturadas y cerradas de la base inicial"
                     >
-                      Ver todos
+                      <Download size={13} />
+                      <span>{isExportingWithdrawn ? 'Generando...' : `Excel Salidas (${number.format(filteredWithdrawnDetails.length)})`}</span>
                     </button>
-                  )}
+                    {!userAccess.lockedEmployee && employee !== 'Todos' && (
+                      <button
+                        type="button"
+                        className="mgmt-reset-filter-btn"
+                        onClick={() => handleEmployeeChange('Todos')}
+                        title="Quitar filtro de comercial"
+                      >
+                        Ver todos
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mgmt-sellers-list">
@@ -2419,16 +2502,28 @@ function Dashboard({
                         : 'No hay retiros registrados para los filtros seleccionados'}
                     </p>
                   </div>
-                  {!userAccess.lockedEmployee && employee !== 'Todos' && (
+                  <div className="mgmt-sellers-actions">
                     <button
                       type="button"
-                      className="mgmt-reset-filter-btn"
-                      onClick={() => handleEmployeeChange('Todos')}
-                      title="Quitar filtro de comercial"
+                      className="btn-download-excel small"
+                      onClick={handleDownloadDailyWithdrawnExcel}
+                      disabled={isExportingWithdrawn || managementWithdrawn.length === 0}
+                      title="Descargar archivo Excel con las remisiones facturadas y cerradas en este corte"
                     >
-                      Ver todos
+                      <Download size={13} />
+                      <span>{isExportingWithdrawn ? 'Generando...' : `Excel Salidas (${number.format(managementWithdrawn.length)})`}</span>
                     </button>
-                  )}
+                    {!userAccess.lockedEmployee && employee !== 'Todos' && (
+                      <button
+                        type="button"
+                        className="mgmt-reset-filter-btn"
+                        onClick={() => handleEmployeeChange('Todos')}
+                        title="Quitar filtro de comercial"
+                      >
+                        Ver todos
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mgmt-sellers-list">
@@ -2955,10 +3050,16 @@ function InitialCohortEvolutionSection({
   cohort,
   currentCutoff,
   onSelectCutoff,
+  withdrawnCount,
+  onDownloadExcel,
+  isExportingExcel,
 }: {
   cohort: InitialCohortPoint[];
   currentCutoff: string;
   onSelectCutoff: (cutoff: string) => void;
+  withdrawnCount?: number;
+  onDownloadExcel?: () => void;
+  isExportingExcel?: boolean;
 }) {
   const [chartMode, setChartMode] = useState<'both' | 'money' | 'docs'>('both');
   const initialPoint = cohort[0];
@@ -3274,9 +3375,23 @@ function InitialCohortEvolutionSection({
               <h3>Seguimiento Cronológico del Desmonte ({formatCutoff(initialPoint.cutoff)})</h3>
               <small>Evolución corte a corte de las remisiones entregadas inicialmente: saldo restante y remisiones salientes.</small>
             </div>
-            <div className="mgmt-legend-row">
-              <span className="mgmt-legend-item favorable-legend">▼ Saldo bajó ese día (Facturado)</span>
-              <span className="mgmt-legend-item blue-legend">Saldo restante</span>
+            <div className="mgmt-header-actions-row">
+              <div className="mgmt-legend-row">
+                <span className="mgmt-legend-item favorable-legend">▼ Saldo bajó ese día (Facturado)</span>
+                <span className="mgmt-legend-item blue-legend">Saldo restante</span>
+              </div>
+              {onDownloadExcel && (
+                <button
+                  type="button"
+                  className="btn-download-excel"
+                  onClick={onDownloadExcel}
+                  disabled={isExportingExcel || (withdrawnCount ?? 0) === 0}
+                  title="Descargar archivo Excel con detalle de fechas de emisión, fechas de salida y días transcurridos hasta el cierre"
+                >
+                  <Download size={14} />
+                  <span>{isExportingExcel ? 'Generando Excel...' : `Descargar Excel de Salidas (${number.format(withdrawnCount || 0)})`}</span>
+                </button>
+              )}
             </div>
           </div>
 

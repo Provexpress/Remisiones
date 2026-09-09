@@ -6,7 +6,9 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDailySeries,
   buildInitialCohortSeries,
+  exportWithdrawnRemisionesToExcel,
   getAgeRange,
+  getInitialCohortWithdrawnRecords,
   matchGroup,
   normalizeText,
   parseRemisionesWorkbook,
@@ -233,6 +235,51 @@ describe('parser del libro', () => {
     expect(parsed.records.filter((r) => r.cutoff === '2026-09-03')).toHaveLength(2);
     expect(parsed.records.filter((r) => r.cutoff === '2026-09-04')).toHaveLength(1);
     expect(parsed.records.filter((r) => r.cutoff === '2026-09-07')).toHaveLength(2);
+  });
+
+  it('extrae remisiones que salieron con fecha de ingreso, fecha de salida y días de cierre, y genera Excel', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sis = workbook.addWorksheet('Base-SIS');
+    sis.addRow(['Empleado', 'NIT', 'Empresa', 'Vr. Mercancia', 'Vr. IVA', 'Vr. Total', 'Emision', 'Dias', 'Documento', 'Pedido', 'Cantidad']);
+    // R1: emitida 2026-08-20, sigue en 04/09, sale en 07/09
+    sis.addRow(['Dayana Marcela Chala', '9001', 'Empresa 1', 1000, 190, 1190, '2026-08-20', 14, 'R1', 'P1', 1]);
+    // R2: emitida 2026-08-15, sale en 04/09
+    sis.addRow(['Dayana Marcela Chala', '9002', 'Empresa 2', 2000, 380, 2380, '2026-08-15', 19, 'R2', 'P2', 1]);
+
+    const base = workbook.addWorksheet('Base');
+    base.addRow(['Fecha de corte', 'Empleado', 'NIT', 'Empresa', 'Vr. Mercancia', 'Vr. IVA', 'Vr. Total', 'Emision', 'Dias', 'Documento', 'Pedido', 'Cantidad']);
+    // 04/09: Solo R1 sigue abierta
+    base.addRow(['2026-09-04', 'Dayana Marcela Chala', '9001', 'Empresa 1', 1000, 190, 1190, '2026-08-20', 15, 'R1', 'P1', 1]);
+    // 07/09: Ninguna de la base inicial sigue abierta (R1 salió en 07/09), solo una nueva R3
+    base.addRow(['2026-09-07', 'Dayana Marcela Chala', '9003', 'Empresa 3', 500, 95, 595, '2026-09-05', 2, 'R3', 'P3', 1]);
+
+    const output = await workbook.xlsx.writeBuffer();
+    const parsed = await parseRemisionesWorkbook(output as ArrayBuffer);
+
+    const withdrawn = getInitialCohortWithdrawnRecords(parsed.records, '2026-09-03');
+    expect(withdrawn).toHaveLength(2);
+
+    // R2 salió en 04/09
+    const itemR2 = withdrawn.find((w) => w.document === 'R2');
+    expect(itemR2).toBeDefined();
+    expect(itemR2?.issuedAt).toBe('2026-08-15');
+    expect(itemR2?.initialCutoff).toBe('2026-09-03');
+    expect(itemR2?.exitCutoff).toBe('2026-09-04');
+    expect(itemR2?.daysToClose).toBe(20);
+    expect(itemR2?.daysInDesmonte).toBe(1);
+
+    // R1 salió en 07/09
+    const itemR1 = withdrawn.find((w) => w.document === 'R1');
+    expect(itemR1).toBeDefined();
+    expect(itemR1?.issuedAt).toBe('2026-08-20');
+    expect(itemR1?.initialCutoff).toBe('2026-09-03');
+    expect(itemR1?.exitCutoff).toBe('2026-09-07');
+    expect(itemR1?.daysToClose).toBe(18);
+    expect(itemR1?.daysInDesmonte).toBe(4);
+
+    // Generación del Excel
+    const excelBuffer = await exportWithdrawnRemisionesToExcel(withdrawn, 'test-export.xlsx');
+    expect(excelBuffer.byteLength).toBeGreaterThan(1000);
   });
 });
 
