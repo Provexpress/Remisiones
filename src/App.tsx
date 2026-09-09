@@ -521,6 +521,23 @@ function Dashboard({
     [daily, cutoff],
   );
 
+  const managementTimelineTotals = useMemo(() => {
+    const operationalDays = daily.filter((d) => d.cutoff !== EVOLUCION_CUTOFF);
+    const totalMoneyEntered = operationalDays.reduce((sum, d) => sum + (d.newValue || 0), 0);
+    const totalDocsEntered = operationalDays.reduce((sum, d) => sum + (d.newCount || 0), 0);
+    const totalMoneyExited = operationalDays.reduce((sum, d) => sum + (d.withdrawn || 0), 0);
+    const totalDocsExited = operationalDays.reduce((sum, d) => sum + (d.withdrawnCount || 0), 0);
+    const netPeriodDelta = totalMoneyEntered - totalMoneyExited;
+    return {
+      totalMoneyEntered,
+      totalDocsEntered,
+      totalMoneyExited,
+      totalDocsExited,
+      netPeriodDelta,
+      isNetPeriodDown: netPeriodDelta < 0,
+    };
+  }, [daily, EVOLUCION_CUTOFF]);
+
   const initialCutoffDate = useMemo(() => {
     return data.cutoffs.find((c) => c === '2026-09-03') || data.cutoffs[0];
   }, [data.cutoffs]);
@@ -1962,6 +1979,53 @@ function Dashboard({
                         <span className="mgmt-legend-item out-legend">⬇ Salieron</span>
                       </div>
                     </div>
+
+                    {/* Tarjetas de Resumen Operativo: Total Dinero Entrado y Total Dinero Salido */}
+                    <div className="timeline-summary-cards">
+                      <div className="timeline-summary-card tone-orange">
+                        <div className="timeline-summary-top">
+                          <span className="timeline-summary-label">Total Dinero Entrado</span>
+                          <span className="cohort-kpi-badge orange">Entradas</span>
+                        </div>
+                        <strong className="timeline-summary-value text-orange">
+                          +{currency.format(managementTimelineTotals.totalMoneyEntered)}
+                        </strong>
+                        <span className="timeline-summary-sub">
+                          <strong>+{number.format(managementTimelineTotals.totalDocsEntered)} rem.</strong> ingresadas en el periodo
+                        </span>
+                      </div>
+
+                      <div className="timeline-summary-card tone-green">
+                        <div className="timeline-summary-top">
+                          <span className="timeline-summary-label">Total Dinero Salido</span>
+                          <span className="cohort-kpi-badge green">Salidas</span>
+                        </div>
+                        <strong className="timeline-summary-value text-green">
+                          -{currency.format(managementTimelineTotals.totalMoneyExited)}
+                        </strong>
+                        <span className="timeline-summary-sub">
+                          <strong>-{number.format(managementTimelineTotals.totalDocsExited)} rem.</strong> facturadas / salidas en el periodo
+                        </span>
+                      </div>
+
+                      <div className="timeline-summary-card tone-blue">
+                        <div className="timeline-summary-top">
+                          <span className="timeline-summary-label">Variación Neta del Portafolio</span>
+                          <span className={`cohort-kpi-badge ${managementTimelineTotals.isNetPeriodDown ? 'green' : 'orange'}`}>
+                            {managementTimelineTotals.isNetPeriodDown ? 'Favorable' : 'Alerta'}
+                          </span>
+                        </div>
+                        <strong className={`timeline-summary-value ${managementTimelineTotals.isNetPeriodDown ? 'text-green' : 'text-orange'}`}>
+                          {managementTimelineTotals.isNetPeriodDown ? '▼ -' : '▲ +'}{currency.format(Math.abs(managementTimelineTotals.netPeriodDelta))}
+                        </strong>
+                        <span className="timeline-summary-sub">
+                          {managementTimelineTotals.isNetPeriodDown
+                            ? 'El dinero saliente superó las entradas (reducción neta)'
+                            : 'Las entradas superaron las salidas en el periodo'}
+                        </span>
+                      </div>
+                    </div>
+
                     <div className="mgmt-day-cards-list">
                       {daily.map((pt, idx, arr) => {
                         const isSelected = pt.cutoff === cutoff;
@@ -2899,6 +2963,7 @@ function InitialCohortEvolutionSection({
   const [chartMode, setChartMode] = useState<'both' | 'money' | 'docs'>('both');
   const initialPoint = cohort[0];
   const currentCohortPoint = cohort.find((c) => c.cutoff === currentCutoff) || cohort.at(-1);
+  const latestCohortPoint = cohort[cohort.length - 1] || initialPoint;
   const isMultipleDays = cohort.length > 1;
 
   const yDomainCohortValue = useMemo(() => {
@@ -3210,20 +3275,65 @@ function InitialCohortEvolutionSection({
               <small>Evolución corte a corte de las remisiones entregadas inicialmente: saldo restante y remisiones salientes.</small>
             </div>
             <div className="mgmt-legend-row">
-              <span className="mgmt-legend-item favorable-legend">▼ Saldo bajó (Facturado)</span>
+              <span className="mgmt-legend-item favorable-legend">▼ Saldo bajó ese día (Facturado)</span>
               <span className="mgmt-legend-item blue-legend">Saldo restante</span>
             </div>
           </div>
+
+          {/* Tarjetas de Resumen del Desmonte: Cuántas han salido y total de dinero bajado */}
+          <div className="timeline-summary-cards">
+            <div className="timeline-summary-card tone-green">
+              <div className="timeline-summary-top">
+                <span className="timeline-summary-label">Total Dinero que ha Bajado</span>
+                <span className="cohort-kpi-badge green">Facturado</span>
+              </div>
+              <strong className="timeline-summary-value text-green">
+                ▼ -{currency.format(latestCohortPoint.withdrawnPending)}
+              </strong>
+              <span className="timeline-summary-sub">
+                <strong>{percent.format(latestCohortPoint.recoveryPct)}</strong> recuperado de la base inicial
+              </span>
+            </div>
+
+            <div className="timeline-summary-card tone-green">
+              <div className="timeline-summary-top">
+                <span className="timeline-summary-label">Total Remisiones Salidas</span>
+                <span className="cohort-kpi-badge green">Cerradas</span>
+              </div>
+              <strong className="timeline-summary-value text-green">
+                ▼ -{number.format(latestCohortPoint.withdrawnCount)} rem.
+              </strong>
+              <span className="timeline-summary-sub">
+                <strong>{percent.format(initialPoint.initialCount > 0 ? latestCohortPoint.withdrawnCount / initialPoint.initialCount : 0)}</strong> de las remisiones iniciales
+              </span>
+            </div>
+
+            <div className="timeline-summary-card tone-blue">
+              <div className="timeline-summary-top">
+                <span className="timeline-summary-label">Saldo Restante de la Base</span>
+                <span className="cohort-kpi-badge purple">Pendiente</span>
+              </div>
+              <strong className="timeline-summary-value text-blue">
+                {currency.format(latestCohortPoint.stillOpenPending)}
+              </strong>
+              <span className="timeline-summary-sub">
+                <strong>{number.format(latestCohortPoint.stillOpenCount)} rem.</strong> aún abiertas de la base inicial
+              </span>
+            </div>
+          </div>
+
           <div className="mgmt-day-cards-list">
             {cohort.map((pt, idx, arr) => {
               const isSelected = pt.cutoff === currentCutoff;
               const isInitial = pt.cutoff === initialPoint.cutoff;
               const isLatest = idx === arr.length - 1 && arr.length > 1;
-              const hasWithdrawn = (pt.withdrawnPending || 0) > 0;
+              const dailyWithdrawn = pt.dailyWithdrawnPending || 0;
+              const dailyCount = pt.dailyWithdrawnCount || 0;
+              const hasDailyWithdrawn = dailyWithdrawn > 0;
               return (
                 <div
                   key={pt.cutoff}
-                  className={`mgmt-day-card tone-${isInitial ? 'base' : hasWithdrawn ? 'favorable' : 'neutral'} ${isSelected ? 'selected' : ''}`}
+                  className={`mgmt-day-card desmonte-card tone-${isInitial ? 'base' : hasDailyWithdrawn ? 'favorable' : 'neutral'} ${isSelected ? 'selected' : ''}`}
                   onClick={() => onSelectCutoff(pt.cutoff)}
                   role="button"
                   tabIndex={0}
@@ -3243,19 +3353,21 @@ function InitialCohortEvolutionSection({
                     <small className="text-muted">{number.format(pt.stillOpenCount)} rem. abiertas</small>
                   </div>
                   <div className="mgmt-day-card-flow out">
-                    <small className="mgmt-day-card-sublabel">⬇ Facturadas / Salidas</small>
-                    {pt.withdrawnCount > 0 ? (
+                    <small className="mgmt-day-card-sublabel">⬇ Salieron este día</small>
+                    {isInitial ? (
+                      <span className="text-muted" style={{ fontSize: '11px' }}>Base de partida</span>
+                    ) : dailyCount > 0 ? (
                       <>
-                        <strong className="mgmt-flow-out">-{number.format(pt.withdrawnCount)} rem.</strong>
+                        <strong className="mgmt-flow-out">-{number.format(dailyCount)} rem.</strong>
                         <small style={{ color: '#15803d', fontSize: '10px', fontWeight: 650 }}>
-                          -{currency.format(pt.withdrawnPending)}
+                          -{currency.format(dailyWithdrawn)}
                         </small>
                       </>
                     ) : (
                       <span className="text-muted" style={{ fontSize: '11px' }}>0 rem. salieron</span>
                     )}
                   </div>
-                  <div className={`mgmt-day-card-balance tone-${isInitial ? 'base' : hasWithdrawn ? 'favorable' : 'neutral'}`}>
+                  <div className={`mgmt-day-card-balance tone-${isInitial ? 'base' : hasDailyWithdrawn ? 'favorable' : 'neutral'}`}>
                     {isInitial ? (
                       <div className="mgmt-balance-body">
                         <strong className="mgmt-balance-amount">$ 0</strong>
@@ -3266,10 +3378,10 @@ function InitialCohortEvolutionSection({
                         <span className="mgmt-balance-icon down-icon">▼</span>
                         <div className="mgmt-balance-body">
                           <strong className="mgmt-balance-amount">
-                            -{currency.format(pt.withdrawnPending)}
+                            -{currency.format(dailyWithdrawn)}
                           </strong>
                           <small className="mgmt-balance-pct">
-                            Bajó {percent.format(pt.recoveryPct || 0)}
+                            Bajó {percent.format(pt.dailyDeltaPct || 0)} ese día
                           </small>
                         </div>
                       </>

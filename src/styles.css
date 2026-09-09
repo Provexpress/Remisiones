@@ -1418,6 +1418,7 @@ th.numeric, td.numeric { text-align: right; }
 .cohort-kpi-badge.blue { background: #eaf4ff; color: #0071e3; }
 .cohort-kpi-badge.green { background: #dcfce7; color: #15803d; }
 .cohort-kpi-badge.purple { background: #f3ebfc; color: #7928ca; }
+.cohort-kpi-badge.orange { background: #ffedd5; color: #c2410c; }
 .cohort-kpi-badge.gray { background: #f2f2f7; color: #636366; }
 
 .cohort-kpi-value {
@@ -2421,6 +2422,85 @@ th.numeric, td.numeric { text-align: right; }
 .mgmt-legend-item.new-legend       { background: #fff7ed; color: #b45309; }
 .mgmt-legend-item.out-legend       { background: #f0fdf4; color: #15803d; }
 
+/* ─── TARJETAS DE RESUMEN CRONOLÓGICO (GESTIÓN Y DESMONTE) ─── */
+.timeline-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+  margin-bottom: 2px;
+}
+
+.timeline-summary-card {
+  background: #fbfbfd;
+  border: 1px solid #e8e8ed;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.timeline-summary-card:hover {
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.timeline-summary-card.tone-orange {
+  background: #fffbf7;
+  border-color: #fed7aa;
+}
+
+.timeline-summary-card.tone-green {
+  background: #f6fdf9;
+  border-color: #bbf7d0;
+}
+
+.timeline-summary-card.tone-blue {
+  background: #f8faff;
+  border-color: #bfdbfe;
+}
+
+.timeline-summary-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.timeline-summary-label {
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+}
+
+.timeline-summary-value {
+  font-size: 17px;
+  font-weight: 800;
+  color: #1d1d1f;
+  letter-spacing: -0.02em;
+}
+
+.timeline-summary-value.text-green {
+  color: #15803d;
+}
+
+.timeline-summary-value.text-orange {
+  color: #c2410c;
+}
+
+.timeline-summary-value.text-blue {
+  color: #0071e3;
+}
+
+.timeline-summary-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .mgmt-day-cards-list {
   display: flex;
   flex-direction: column;
@@ -2440,6 +2520,10 @@ th.numeric, td.numeric { text-align: right; }
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
+}
+
+.mgmt-day-card.desmonte-card {
+  grid-template-columns: 140px 1.2fr 1.2fr 190px;
 }
 .mgmt-day-card:hover { background: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-color: #c8c8cf; }
 .mgmt-day-card.selected { border-color: #0071e3; background: #f5f9ff; box-shadow: 0 0 0 2px rgba(0,113,227,0.12); }

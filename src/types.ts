@@ -104,6 +104,9 @@ export interface InitialCohortPoint {
   withdrawnCount: number;
   recoveryPct: number;
   stillOpenPct: number;
+  dailyWithdrawnPending?: number;
+  dailyWithdrawnCount?: number;
+  dailyDeltaPct?: number;
 }
 
 export interface Summary {

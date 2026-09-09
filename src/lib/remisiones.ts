@@ -660,9 +660,12 @@ export function buildInitialCohortSeries(
   const initialCount = initialRecords.length;
   const initialKeys = new Set(initialRecords.map((r) => r.stableKey));
 
-  return cutoffs.map((cutoff) => {
+  const points: InitialCohortPoint[] = [];
+
+  for (let i = 0; i < cutoffs.length; i++) {
+    const cutoff = cutoffs[i];
     if (cutoff === initialCutoff) {
-      return {
+      points.push({
         cutoff,
         initialPending,
         initialCount,
@@ -672,9 +675,14 @@ export function buildInitialCohortSeries(
         withdrawnCount: 0,
         recoveryPct: 0,
         stillOpenPct: 1,
-      };
+        dailyWithdrawnPending: 0,
+        dailyWithdrawnCount: 0,
+        dailyDeltaPct: 0,
+      });
+      continue;
     }
 
+    const prevPoint = points[i - 1];
     const currentRecords = records.filter((r) => r.cutoff === cutoff);
     const stillOpen = currentRecords.filter((r) => initialKeys.has(r.stableKey));
     const stillOpenPending = stillOpen.reduce((sum, r) => sum + r.total, 0);
@@ -684,7 +692,13 @@ export function buildInitialCohortSeries(
     const recoveryPct = initialPending > 0 ? withdrawnPending / initialPending : 0;
     const stillOpenPct = initialPending > 0 ? stillOpenPending / initialPending : 0;
 
-    return {
+    const prevPending = prevPoint ? prevPoint.stillOpenPending : initialPending;
+    const prevCount = prevPoint ? prevPoint.stillOpenCount : initialCount;
+    const dailyWithdrawnPending = Math.max(0, prevPending - stillOpenPending);
+    const dailyWithdrawnCount = Math.max(0, prevCount - stillOpenCount);
+    const dailyDeltaPct = prevPending > 0 ? dailyWithdrawnPending / prevPending : 0;
+
+    points.push({
       cutoff,
       initialPending,
       initialCount,
@@ -694,8 +708,13 @@ export function buildInitialCohortSeries(
       withdrawnCount,
       recoveryPct,
       stillOpenPct,
-    };
-  });
+      dailyWithdrawnPending,
+      dailyWithdrawnCount,
+      dailyDeltaPct,
+    });
+  }
+
+  return points;
 }
 
 export function aggregateBy<T extends string>(

@@ -189,6 +189,9 @@ describe('parser del libro', () => {
     expect(cohort[0].withdrawnPending).toBe(0);
     expect(cohort[0].withdrawnCount).toBe(0);
     expect(cohort[0].recoveryPct).toBe(0);
+    expect(cohort[0].dailyWithdrawnPending).toBe(0);
+    expect(cohort[0].dailyWithdrawnCount).toBe(0);
+    expect(cohort[0].dailyDeltaPct).toBe(0);
 
     // Day 2 (Desmonte de la base inicial entregada)
     expect(cohort[1].cutoff).toBe('2026-09-04');
@@ -199,6 +202,9 @@ describe('parser del libro', () => {
     expect(cohort[1].withdrawnPending).toBe(2380); // R2 ya salió facturada de la base
     expect(cohort[1].withdrawnCount).toBe(1);
     expect(cohort[1].recoveryPct).toBeCloseTo(2380 / 3570);
+    expect(cohort[1].dailyWithdrawnPending).toBe(2380);
+    expect(cohort[1].dailyWithdrawnCount).toBe(1);
+    expect(cohort[1].dailyDeltaPct).toBeCloseTo(2380 / 3570);
   });
 
   it('combina Base-SIS (base inicial 03/09) y Base (cortes 09/04/2026 y 9/7/2026)', async () => {
