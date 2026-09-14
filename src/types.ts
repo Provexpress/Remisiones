@@ -92,6 +92,12 @@ export interface DailyPoint {
   pendingDeltaPct?: number;
   remissionsDelta?: number;
   remissionsDeltaPct?: number;
+  /** Remisiones salidas ese día que pertenecían a la base inicial (03/09) */
+  withdrawnInitialCount?: number;
+  withdrawnInitialValue?: number;
+  /** Remisiones salidas ese día que fueron nuevas (ingresaron desde 04/09 en adelante) */
+  withdrawnNewCount?: number;
+  withdrawnNewValue?: number;
 }
 
 export interface InitialCohortPoint {

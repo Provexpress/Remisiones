@@ -512,13 +512,17 @@ function Dashboard({
     [data.records, previousCutoff, director, employee, statusFilter, amountFilter, ageFilter],
   );
 
+  const initialCutoffDate = useMemo(() => {
+    return data.cutoffs.find((c) => c === '2026-09-03') || data.cutoffs[0];
+  }, [data.cutoffs]);
+
   const periodRecords = useMemo(
     () => data.records.filter((record) =>
       (director === 'Todos' || record.director === director) &&
       (employee === 'Todos' || record.employee === employee)),
     [data.records, director, employee],
   );
-  const daily = useMemo(() => buildDailySeries(periodRecords), [periodRecords]);
+  const daily = useMemo(() => buildDailySeries(periodRecords, [], initialCutoffDate), [periodRecords, initialCutoffDate]);
   const currentDailyPoint = useMemo(
     () => daily.find((d) => d.cutoff === cutoff) || daily.at(-1),
     [daily, cutoff],
@@ -530,20 +534,20 @@ function Dashboard({
     const totalDocsEntered = operationalDays.reduce((sum, d) => sum + (d.newCount || 0), 0);
     const totalMoneyExited = operationalDays.reduce((sum, d) => sum + (d.withdrawn || 0), 0);
     const totalDocsExited = operationalDays.reduce((sum, d) => sum + (d.withdrawnCount || 0), 0);
+    const totalInitialExited = operationalDays.reduce((sum, d) => sum + (d.withdrawnInitialCount || 0), 0);
+    const totalNewExited = operationalDays.reduce((sum, d) => sum + (d.withdrawnNewCount || 0), 0);
     const netPeriodDelta = totalMoneyEntered - totalMoneyExited;
     return {
       totalMoneyEntered,
       totalDocsEntered,
       totalMoneyExited,
       totalDocsExited,
+      totalInitialExited,
+      totalNewExited,
       netPeriodDelta,
       isNetPeriodDown: netPeriodDelta < 0,
     };
   }, [daily, EVOLUCION_CUTOFF]);
-
-  const initialCutoffDate = useMemo(() => {
-    return data.cutoffs.find((c) => c === '2026-09-03') || data.cutoffs[0];
-  }, [data.cutoffs]);
 
   const initialCohortSeries = useMemo(
     () => buildInitialCohortSeries(periodRecords, initialCutoffDate),
@@ -2089,6 +2093,11 @@ function Dashboard({
                         <span className="timeline-summary-sub">
                           <strong>-{number.format(managementTimelineTotals.totalDocsExited)} rem.</strong> facturadas / salidas en el periodo
                         </span>
+                        {(managementTimelineTotals.totalInitialExited > 0 || managementTimelineTotals.totalNewExited > 0) && (
+                          <span className="timeline-summary-breakdown">
+                            {number.format(managementTimelineTotals.totalInitialExited)} de base inicial&nbsp;·&nbsp;{number.format(managementTimelineTotals.totalNewExited)} nuevas
+                          </span>
+                        )}
                       </div>
 
                       <div className="timeline-summary-card tone-blue">
@@ -2153,8 +2162,15 @@ function Dashboard({
                               {isInitial ? (
                                 <span className="text-muted" style={{ fontSize: '11px' }}>Punto cero</span>
                               ) : pt.withdrawnCount > 0 ? (
-                                <><strong className="mgmt-flow-out">-{number.format(pt.withdrawnCount)} rem.</strong>
-                                  <small style={{ color: '#15803d', fontSize: '10px', fontWeight: 650 }}>-{currency.format(pt.withdrawn)}</small></>
+                                <>
+                                  <strong className="mgmt-flow-out">-{number.format(pt.withdrawnCount)} rem.</strong>
+                                  <small style={{ color: '#15803d', fontSize: '10px', fontWeight: 650 }}>-{currency.format(pt.withdrawn)}</small>
+                                  {((pt.withdrawnInitialCount ?? 0) > 0 || (pt.withdrawnNewCount ?? 0) > 0) && (
+                                    <span className="mgmt-flow-breakdown">
+                                      {number.format(pt.withdrawnInitialCount ?? 0)} base inicial&nbsp;·&nbsp;{number.format(pt.withdrawnNewCount ?? 0)} nuevas
+                                    </span>
+                                  )}
+                                </>
                               ) : <span className="text-muted" style={{ fontSize: '11px' }}>Sin salidas</span>}
                             </div>
                             <div className={`mgmt-day-card-balance tone-${tone}`}>

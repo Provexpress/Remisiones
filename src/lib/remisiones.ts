@@ -577,8 +577,15 @@ export function buildAgeBreakdown(records: Remision[]): AgeBreakdownItem[] {
   });
 }
 
-export function buildDailySeries(records: Remision[], historicalDiario: DailyPoint[] = []): DailyPoint[] {
+export function buildDailySeries(records: Remision[], historicalDiario: DailyPoint[] = [], initialCutoff?: string): DailyPoint[] {
   const cutoffs = [...new Set(records.map((record) => record.cutoff))].sort();
+
+  // Build the initial cohort key set for breakdown (base inicial vs. nuevas)
+  const resolvedInitialCutoff = initialCutoff && cutoffs.includes(initialCutoff) ? initialCutoff : cutoffs[0];
+  const initialCohortKeys = new Set(
+    records.filter((r) => r.cutoff === resolvedInitialCutoff).map((r) => r.stableKey),
+  );
+
   let previous = new Map<string, Remision>();
   const calculatedPoints = cutoffs.map((cutoff, index) => {
     const currentRecords = records.filter((record) => record.cutoff === cutoff);
@@ -589,6 +596,11 @@ export function buildDailySeries(records: Remision[], historicalDiario: DailyPoi
     const newValue = newRecords.reduce((sum, record) => sum + record.total, 0);
     const previousBalance = [...previous.values()].reduce((sum, record) => sum + record.total, 0);
     const withdrawn = withdrawnRecords.reduce((sum, record) => sum + record.total, 0);
+
+    // Desglose de salidas: base inicial vs. nuevas ingresadas
+    const withdrawnInitial = withdrawnRecords.filter((r) => initialCohortKeys.has(r.stableKey));
+    const withdrawnNew = withdrawnRecords.filter((r) => !initialCohortKeys.has(r.stableKey));
+
     const point: DailyPoint = {
       cutoff,
       pending,
@@ -603,6 +615,10 @@ export function buildDailySeries(records: Remision[], historicalDiario: DailyPoi
       grossReduction: previousBalance + newValue > 0 ? withdrawn / (previousBalance + newValue) : 0,
       overdueValue: currentRecords.filter((record) => record.age > 30).reduce((sum, record) => sum + record.total, 0),
       overdueCount: currentRecords.filter((record) => record.age > 30).length,
+      withdrawnInitialCount: withdrawnInitial.length,
+      withdrawnInitialValue: withdrawnInitial.reduce((sum, r) => sum + r.total, 0),
+      withdrawnNewCount: withdrawnNew.length,
+      withdrawnNewValue: withdrawnNew.reduce((sum, r) => sum + r.total, 0),
     };
     previous = current;
     return point;
