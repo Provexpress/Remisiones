@@ -1058,3 +1058,147 @@ export async function exportWithdrawnRemisionesToExcel(
   return buffer as ArrayBuffer;
 }
 
+/**
+ * Exporta remisiones ABIERTAS (críticas / de mayor valor) a Excel.
+ * Útil para descargar el listado actual con todos los filtros aplicados.
+ */
+export async function exportOpenRemisionesToExcel(
+  records: Remision[],
+  filename?: string,
+): Promise<ArrayBuffer> {
+  const { default: ExcelJSRuntime } = await import('exceljs');
+  const workbook = new ExcelJSRuntime.Workbook();
+  workbook.creator = 'Provexpress - Control de Remisiones';
+  workbook.created = new Date();
+
+  const worksheet = workbook.addWorksheet('Remisiones Abiertas');
+
+  worksheet.columns = [
+    { header: '#', key: 'rank', width: 6 },
+    { header: 'No. Remisión', key: 'document', width: 16 },
+    { header: 'No. Pedido', key: 'order', width: 14 },
+    { header: 'Comercial', key: 'employee', width: 28 },
+    { header: 'Director Comercial', key: 'director', width: 26 },
+    { header: 'Grupo', key: 'group', width: 12 },
+    { header: 'NIT Cliente', key: 'nit', width: 16 },
+    { header: 'Empresa / Cliente', key: 'company', width: 34 },
+    { header: 'Vr. Mercancía', key: 'merchandise', width: 18 },
+    { header: 'Vr. IVA', key: 'tax', width: 16 },
+    { header: 'Vr. Total', key: 'total', width: 18 },
+    { header: 'Fecha Emisión', key: 'issuedAt', width: 18 },
+    { header: 'Días Pendiente', key: 'age', width: 16 },
+    { header: 'Rango Antigüedad', key: 'ageRange', width: 22 },
+    { header: 'Categoría Monto', key: 'amountStatus', width: 24 },
+    { header: 'Nivel de Alerta', key: 'alert', width: 24 },
+  ];
+
+  const headerRow = worksheet.getRow(1);
+  headerRow.height = 28;
+  headerRow.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+
+  let sumMerchandise = 0;
+  let sumTax = 0;
+  let sumTotal = 0;
+
+  records.forEach((r, idx) => {
+    sumMerchandise += r.merchandise || 0;
+    sumTax += r.tax || 0;
+    sumTotal += r.total || 0;
+
+    const row = worksheet.addRow({
+      rank: idx + 1,
+      document: r.document,
+      order: r.order,
+      employee: r.employee,
+      director: r.director,
+      group: r.group ? `Grupo ${r.group}` : 'Sin asignar',
+      nit: r.nit,
+      company: r.company,
+      merchandise: r.merchandise,
+      tax: r.tax,
+      total: r.total,
+      issuedAt: r.issuedAt,
+      age: r.age,
+      ageRange: r.ageRange,
+      amountStatus: r.amountStatus,
+      alert: r.alert,
+    });
+
+    row.height = 20;
+    row.font = { name: 'Segoe UI', size: 9.5 };
+
+    // Color by criticality
+    const isCritical = r.age > 30;
+    const isWarning = r.age > 15 && r.age <= 30;
+    if (isCritical) {
+      row.getCell('age').font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FFDC2626' } };
+    } else if (isWarning) {
+      row.getCell('age').font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FFD97706' } };
+    }
+
+    row.getCell('merchandise').numFmt = '"$"#,##0;[Red]-"$"#,##0;"$0"';
+    row.getCell('tax').numFmt = '"$"#,##0;[Red]-"$"#,##0;"$0"';
+    row.getCell('total').numFmt = '"$"#,##0;[Red]-"$"#,##0;"$0"';
+    row.getCell('total').font = { name: 'Segoe UI', size: 9.5, bold: true };
+    row.getCell('age').numFmt = '#,##0';
+
+    row.getCell('rank').alignment = { horizontal: 'center' };
+    row.getCell('document').alignment = { horizontal: 'center' };
+    row.getCell('order').alignment = { horizontal: 'center' };
+    row.getCell('group').alignment = { horizontal: 'center' };
+    row.getCell('issuedAt').alignment = { horizontal: 'center' };
+    row.getCell('age').alignment = { horizontal: 'center' };
+  });
+
+  // Fila de totales
+  if (records.length > 0) {
+    const totalRow = worksheet.addRow({
+      rank: '',
+      document: 'TOTALES',
+      order: `${records.length} rem.`,
+      employee: '',
+      director: '',
+      group: '',
+      nit: '',
+      company: 'Consolidado de Remisiones Abiertas',
+      merchandise: sumMerchandise,
+      tax: sumTax,
+      total: sumTotal,
+      issuedAt: '',
+      age: '',
+      ageRange: '',
+      amountStatus: '',
+      alert: '',
+    });
+
+    totalRow.height = 24;
+    totalRow.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+    totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+    totalRow.getCell('merchandise').numFmt = '"$"#,##0;[Red]-"$"#,##0;"$0"';
+    totalRow.getCell('tax').numFmt = '"$"#,##0;[Red]-"$"#,##0;"$0"';
+    totalRow.getCell('total').numFmt = '"$"#,##0;[Red]-"$"#,##0;"$0"';
+    totalRow.getCell('document').alignment = { horizontal: 'center' };
+    totalRow.getCell('order').alignment = { horizontal: 'center' };
+  }
+
+  worksheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 16 } };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || `remisiones-abiertas-criticas-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  return buffer as ArrayBuffer;
+}

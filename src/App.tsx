@@ -62,6 +62,7 @@ import {
   buildDailySeries,
   buildInitialCohortSeries,
   diffDays,
+  exportOpenRemisionesToExcel,
   exportWithdrawnRemisionesToExcel,
   formatCutoff,
   formatDateTime,
@@ -947,6 +948,22 @@ function Dashboard({
   };
 
   const [isExportingWithdrawn, setIsExportingWithdrawn] = useState(false);
+  const [isExportingOpen, setIsExportingOpen] = useState(false);
+
+  const handleDownloadOpenExcel = async () => {
+    if (!sortedEvolucionRecords.length) return;
+    try {
+      setIsExportingOpen(true);
+      const cleanDir = director !== 'Todos' ? `-${normalizeText(director).replace(/\s+/g, '_')}` : '';
+      const cleanEmp = employee !== 'Todos' ? `-${normalizeText(employee).replace(/\s+/g, '_')}` : '';
+      const filename = `remisiones-abiertas-criticas-${cutoff}${cleanDir}${cleanEmp}.xlsx`;
+      await exportOpenRemisionesToExcel(sortedEvolucionRecords, filename);
+    } catch (err) {
+      console.error('Error al exportar remisiones abiertas a Excel:', err);
+    } finally {
+      setIsExportingOpen(false);
+    }
+  };
 
   const handleDownloadWithdrawnExcel = async () => {
     if (!filteredWithdrawnDetails.length) return;
@@ -1665,14 +1682,26 @@ function Dashboard({
                       </button>
                     </div>
                     {evolucionRightTab === 'remisiones' && (
-                      <button
-                        type="button"
-                        className="top-remisiones-header-action"
-                        onClick={() => { setView('detail'); setDetailTab('open'); setSortBy('total-desc'); }}
-                        title="Ver todas en la tabla de detalle"
-                      >
-                        Ver en tabla →
-                      </button>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn-download-excel small"
+                          onClick={handleDownloadOpenExcel}
+                          disabled={isExportingOpen || sortedEvolucionRecords.length === 0}
+                          title={`Descargar Excel con las ${sortedEvolucionRecords.length} remisiones abiertas`}
+                        >
+                          <Download size={12} />
+                          <span>{isExportingOpen ? 'Generando...' : `Excel (${number.format(sortedEvolucionRecords.length)})`}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="top-remisiones-header-action"
+                          onClick={() => { setView('detail'); setDetailTab('open'); setSortBy('total-desc'); }}
+                          title="Ver todas en la tabla de detalle"
+                        >
+                          Ver en tabla →
+                        </button>
+                      </div>
                     )}
                   </div>
                 }
@@ -2408,14 +2437,38 @@ function Dashboard({
                       </button>
                     </div>
                     {gestionRightTab === 'remisiones' && (
-                      <button
-                        type="button"
-                        className="top-remisiones-header-action"
-                        onClick={() => { setView('detail'); setDetailTab('open'); setSortBy('total-desc'); }}
-                        title="Ver todas en la tabla de detalle"
-                      >
-                        Ver en tabla →
-                      </button>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn-download-excel small"
+                          onClick={async () => {
+                            if (!sortedCurrentRecords.length) return;
+                            try {
+                              setIsExportingOpen(true);
+                              const cleanDir = director !== 'Todos' ? `-${normalizeText(director).replace(/\s+/g, '_')}` : '';
+                              const cleanEmp = employee !== 'Todos' ? `-${normalizeText(employee).replace(/\s+/g, '_')}` : '';
+                              await exportOpenRemisionesToExcel(sortedCurrentRecords, `remisiones-abiertas-gestion-${cutoff}${cleanDir}${cleanEmp}.xlsx`);
+                            } catch (err) {
+                              console.error('Error al exportar remisiones abiertas gestión a Excel:', err);
+                            } finally {
+                              setIsExportingOpen(false);
+                            }
+                          }}
+                          disabled={isExportingOpen || sortedCurrentRecords.length === 0}
+                          title={`Descargar Excel con las ${sortedCurrentRecords.length} remisiones abiertas`}
+                        >
+                          <Download size={12} />
+                          <span>{isExportingOpen ? 'Generando...' : `Excel (${number.format(sortedCurrentRecords.length)})`}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="top-remisiones-header-action"
+                          onClick={() => { setView('detail'); setDetailTab('open'); setSortBy('total-desc'); }}
+                          title="Ver todas en la tabla de detalle"
+                        >
+                          Ver en tabla →
+                        </button>
+                      </div>
                     )}
                   </div>
                 }
