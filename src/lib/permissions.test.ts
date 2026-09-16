@@ -55,14 +55,14 @@ const excelEmployeesMock = [
 ];
 
 describe('Sistema de permisos y control de acceso corporativo (RBAC)', () => {
-  it('valida que el directorio contenga 5 miembros de gerencia, 3 directores de grupo y 38 ejecutivos', () => {
+  it('valida que el directorio contenga 6 miembros de gerencia, 3 directores de grupo y 38 ejecutivos', () => {
     const gerencia = CORPORATE_DIRECTORY.filter((u) => u.role === 'admin');
     const directors = CORPORATE_DIRECTORY.filter((u) => u.role === 'director');
     const executives = CORPORATE_DIRECTORY.filter((u) => u.role === 'executive');
-    expect(gerencia.length).toBe(5);
+    expect(gerencia.length).toBe(6);
     expect(directors.length).toBe(3);
     expect(executives.length).toBe(38);
-    expect(CORPORATE_DIRECTORY.length).toBe(46);
+    expect(CORPORATE_DIRECTORY.length).toBe(47);
   });
 
   it('resuelve correctamente a los miembros de Gerencia con Acceso Total', () => {

@@ -59,6 +59,15 @@ export const CORPORATE_DIRECTORY: DirectoryUser[] = [
     aliases: ['Rafael Francisco Nov', 'Rafael Novoa'],
   },
   {
+    email: 'rafaelnovoa@provexpress.com.co',
+    name: 'Rafael Novoa',
+    role: 'admin', // Alias sin punto — mismo perfil que rafael.novoa@provexpress.com.co
+    group: 1,
+    groupName: 'Gerencia / Grupo Novoa',
+    directorName: 'Rafael Novoa',
+    aliases: ['Rafael Francisco Nov', 'Rafael Novoa'],
+  },
+  {
     email: 'c.estrategica@provexpress.com.co',
     name: 'Cuentas Estratégicas',
     role: 'admin',
