@@ -291,16 +291,18 @@ describeCorporateWorkbook('libro real de remisiones', () => {
     const file = await readFile(corporateWorkbookPath);
     const arrayBuffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
     const parsed = await parseRemisionesWorkbook(arrayBuffer);
-    const summary = summarize(parsed.records);
+    const baseRecords = parsed.records.filter((r) => r.cutoff === '2026-09-03');
+    const summary03 = summarize(baseRecords);
     const daily = buildDailySeries(parsed.records);
 
-    expect(parsed.cutoffs).toEqual(['2026-09-03']);
-    expect(parsed.records).toHaveLength(674);
-    expect(summary.pending).toBeCloseTo(3_599_705_468.61, 1);
-    expect(summary.merchandise).toBeCloseTo(3_047_575_498.03, 1);
-    expect(summary.tax).toBeCloseTo(552_129_970.58, 1);
-    expect(summary.overdueCount).toBe(105);
-    expect(daily).toHaveLength(1);
+    expect(parsed.cutoffs[0]).toBe('2026-09-03');
+    expect(parsed.cutoffs).toContain('2026-09-16');
+    expect(baseRecords).toHaveLength(674);
+    expect(summary03.pending).toBeCloseTo(3_599_705_468.61, 1);
+    expect(summary03.merchandise).toBeCloseTo(3_047_575_498.03, 1);
+    expect(summary03.tax).toBeCloseTo(552_129_970.58, 1);
+    expect(summary03.overdueCount).toBe(105);
+    expect(daily.length).toBeGreaterThanOrEqual(10);
     expect(parsed.records.find((record) => record.employee.includes('Dayana'))?.director).toBe('Angélica Caballero');
     expect(parsed.records.find((record) => record.employee.includes('Tatiana'))?.director).toBe('Óscar Beltrán');
     expect(parsed.unmatchedEmployees.length).toBeGreaterThan(0);
