@@ -104,7 +104,7 @@ export const EmailNotificationModal: React.FC<Props> = ({
 
   const activeHtml = useMemo(() => {
     if (!activeCommercialSummary) return '';
-    return generateCommercialEmailHtml(activeCommercialSummary);
+    return generateCommercialEmailHtml(activeCommercialSummary, { forWebPreview: true });
   }, [activeCommercialSummary]);
 
   if (!isOpen) return null;
@@ -166,7 +166,7 @@ export const EmailNotificationModal: React.FC<Props> = ({
         toEmail: testRecipient,
         toName: activeCommercialSummary.commercialName,
         subject,
-        htmlBody: activeHtml,
+        htmlBody: generateCommercialEmailHtml(activeCommercialSummary),
       });
 
       if (res.success) {

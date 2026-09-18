@@ -12,6 +12,8 @@ export interface SendResult {
   error?: string;
 }
 
+import { LOGO_PROVEXPRESS_BASE64, AVATAR_MAN_BASE64 } from './commercialEmailAssets';
+
 /**
  * Envía un correo electrónico a través de Microsoft Graph API (/me/sendMail).
  * Utiliza el token de autenticación de Microsoft 365.
@@ -35,6 +37,24 @@ export async function sendMailViaGraph(
             address: payload.toEmail,
             name: payload.toName,
           },
+        },
+      ],
+      attachments: [
+        {
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          name: 'logo_provexpress.png',
+          contentType: 'image/png',
+          contentBytes: LOGO_PROVEXPRESS_BASE64,
+          isInline: true,
+          contentId: 'logo_provexpress',
+        },
+        {
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          name: 'avatar_man.png',
+          contentType: 'image/png',
+          contentBytes: AVATAR_MAN_BASE64,
+          isInline: true,
+          contentId: 'avatar_man',
         },
       ],
     },
