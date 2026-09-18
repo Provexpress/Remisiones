@@ -231,9 +231,9 @@ async function main() {
              ═════════════════════════════════════════════════════════════════════ -->
         <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
           <tr>
-            <!-- LOGO PROVEXPRESS SAS (OFICIAL FORECAST / PROVEX ONE) -->
-            <td width="210" valign="middle" style="padding-right: 18px;">
-              <img src="cid:logo_provexpress" width="195" height="31" style="display: block; border: 0; max-width: 195px; height: auto;" alt="Provexpress" />
+            <!-- LOGO PROVEXPRESS OFICIAL (X ARRIBA, PROVEXPRESS ABAJO) -->
+            <td width="160" valign="middle" align="left" style="padding-right: 18px;">
+              <img src="cid:logo_provexpress" width="144" height="110" style="display: block; border: 0; width: 144px; height: 110px; max-width: 144px;" alt="Provexpress" />
             </td>
 
             <!-- TEXTO DE SALUDO Y TITULAR -->
