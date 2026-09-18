@@ -144,4 +144,17 @@ export async function signOut(): Promise<void> {
   await app.logoutPopup({ account, postLogoutRedirectUri: window.location.origin });
 }
 
+const mailScopes = ['User.Read', 'Mail.Send'];
+
+export async function acquireMailToken(): Promise<string> {
+  const account = await accountFromLogin();
+  try {
+    const res = await app.acquireTokenSilent({ scopes: mailScopes, account });
+    return res.accessToken;
+  } catch {
+    const res = await app.acquireTokenPopup({ scopes: mailScopes, account });
+    return res.accessToken;
+  }
+}
+
 export const microsoftConfig = { clientId, tenantId, sharepointUrl, scopes };

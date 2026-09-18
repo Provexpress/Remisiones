@@ -22,6 +22,7 @@ import {
   Lock,
   LogIn,
   LogOut,
+  Mail,
   PackageCheck,
   PlusCircle,
   RefreshCw,
@@ -73,6 +74,7 @@ import {
   summarize,
 } from './lib/remisiones';
 import type { AgeBreakdownItem, DailyPoint, DataSource, FileMetadata, InitialCohortPoint, ParsedWorkbook, Remision, Summary, UserProfile, WithdrawnRemisionDetail } from './types';
+import { EmailNotificationModal } from './components/EmailNotificationModal';
 
 type Phase = 'welcome' | 'loading' | 'ready' | 'error';
 type View = 'evolucion' | 'gestion' | 'detail';
@@ -326,6 +328,7 @@ function Dashboard({
   const [page, setPage] = useState(1);
   const [evolucionRightTab, setEvolucionRightTab] = useState<'remisiones' | 'pie'>('pie');
   const [gestionRightTab, setGestionRightTab] = useState<'remisiones' | 'pie'>('pie');
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const refreshRef = useRef(onRefresh);
 
   const prevLatestCutoffRef = useRef(latestCutoff);
@@ -1141,6 +1144,17 @@ function Dashboard({
                   </optgroup>
                 </select>
               </div>
+            )}
+            {userAccess.role === 'admin' && (
+              <button
+                type="button"
+                className="btn-open-email-modal"
+                onClick={() => setIsEmailModalOpen(true)}
+                title="Notificar oportunidades de facturación por correo a cada comercial"
+              >
+                <Mail size={16} />
+                <span>Notificar a Comerciales</span>
+              </button>
             )}
             <button className="icon-button" onClick={onRefresh} title="Actualizar datos"><RefreshCw size={18} /></button>
             <div className="user-chip">
@@ -2895,6 +2909,14 @@ function Dashboard({
           </span>
         </footer>
       </main>
+
+      <EmailNotificationModal
+        isOpen={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        records={data.records}
+        cutoffDate={cutoff}
+        currentUserEmail={user?.email}
+      />
     </div>
   );
 }
