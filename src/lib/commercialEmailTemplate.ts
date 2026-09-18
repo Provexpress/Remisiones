@@ -238,9 +238,9 @@ export function generateCommercialEmailHtml(
              ═════════════════════════════════════════════════════════════════════ -->
         <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
           <tr>
-            <!-- LOGO PROVEXPRESS SAS (OFICIAL FORECAST / PROVEX ONE) -->
-            <td width="115" valign="middle" align="center" style="padding-right: 14px;">
-              <img src="${logoSrc}" width="102" height="76" style="display: block; border: 0; margin: 0 auto;" alt="Provexpress SAS" />
+            <!-- LOGO PROVEXPRESS OFICIAL (SOLO X Y PROVEXPRESS) -->
+            <td width="210" valign="middle" style="padding-right: 18px;">
+              <img src="${logoSrc}" width="195" height="31" style="display: block; border: 0; max-width: 195px; height: auto;" alt="Provexpress" />
             </td>
 
             <!-- TEXTO DE SALUDO Y TITULAR -->
