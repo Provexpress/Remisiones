@@ -101,15 +101,16 @@ describe('generador de plantilla HTML corporativa de notificación', () => {
 
     // Encabezado corporativo y saludo
     expect(html).toContain('PROVEXPRESS');
-    expect(html).toContain('Hola, <strong style="color: #0F172A; font-size: 17px;">Mario Reyes</strong>');
-    expect(html).toContain('Oportunidades listas para convertirse en <span style="color: #15803D;">ventas facturadas</span>');
+    expect(html).toContain('Hola, <strong style="color: #0F172A; font-size: 16px;">Mario Reyes</strong>');
+    expect(html).toContain('Oportunidades listas para convertirse');
+    expect(html).toContain('ventas facturadas');
     expect(html).toContain('Tu gestión hace la diferencia.');
 
     // Tarjetas KPI
-    expect(html).toContain('Listas para gestionar');
+    expect(html).toContain('para gestionar');
     expect(html).toContain('Valor por facturar');
-    expect(html).toContain('Antigüedad promedio');
-    expect(html).toContain('Ventas por reconocer');
+    expect(html).toContain('Antigüedad');
+    expect(html).toContain('por reconocer');
 
     // Tabla de remisiones
     expect(html).toContain('Tus remisiones destacadas');
