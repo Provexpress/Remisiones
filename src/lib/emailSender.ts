@@ -3,6 +3,10 @@ export interface SendEmailPayload {
   toName: string;
   subject: string;
   htmlBody: string;
+  excelAttachment?: {
+    filename: string;
+    base64: string;
+  };
 }
 
 export interface SendResult {
@@ -24,6 +28,35 @@ export async function sendMailViaGraph(
 ): Promise<SendResult> {
   const endpoint = 'https://graph.microsoft.com/v1.0/me/sendMail';
 
+  const attachments: any[] = [
+    {
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: 'logo_provexpress.png',
+      contentType: 'image/png',
+      contentBytes: LOGO_PROVEXPRESS_BASE64,
+      isInline: true,
+      contentId: 'logo_provexpress',
+    },
+    {
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: 'avatar_man.png',
+      contentType: 'image/png',
+      contentBytes: AVATAR_MAN_BASE64,
+      isInline: true,
+      contentId: 'avatar_man',
+    },
+  ];
+
+  if (payload.excelAttachment) {
+    attachments.push({
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: payload.excelAttachment.filename,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      contentBytes: payload.excelAttachment.base64,
+      isInline: false,
+    });
+  }
+
   const body = {
     message: {
       subject: payload.subject,
@@ -39,24 +72,7 @@ export async function sendMailViaGraph(
           },
         },
       ],
-      attachments: [
-        {
-          '@odata.type': '#microsoft.graph.fileAttachment',
-          name: 'logo_provexpress.png',
-          contentType: 'image/png',
-          contentBytes: LOGO_PROVEXPRESS_BASE64,
-          isInline: true,
-          contentId: 'logo_provexpress',
-        },
-        {
-          '@odata.type': '#microsoft.graph.fileAttachment',
-          name: 'avatar_man.png',
-          contentType: 'image/png',
-          contentBytes: AVATAR_MAN_BASE64,
-          isInline: true,
-          contentId: 'avatar_man',
-        },
-      ],
+      attachments,
     },
     saveToSentItems: true,
   };

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   CheckCircle2,
   Copy,
+  Download,
   ExternalLink,
   Eye,
   Mail,
@@ -21,6 +22,10 @@ import {
   formatNumber,
   generateCommercialEmailHtml,
 } from '../lib/commercialEmailTemplate';
+import {
+  downloadCommercialExcel,
+  generateCommercialExcelBase64,
+} from '../lib/commercialExcelGenerator';
 import { sendBatchEmails, sendMailViaGraph, type SendEmailPayload, type SendResult } from '../lib/emailSender';
 
 interface Props {
@@ -149,6 +154,26 @@ export const EmailNotificationModal: React.FC<Props> = ({
     }
   };
 
+  const handleDownloadExcel = async () => {
+    if (!activeCommercialSummary) return;
+    try {
+      await downloadCommercialExcel(
+        activeCommercialSummary.commercialName,
+        activeCommercialSummary.cutoffDate,
+        activeCommercialSummary.allRemisiones,
+      );
+      setAlertMessage({
+        type: 'success',
+        text: `¡Archivo Excel de ${activeCommercialSummary.commercialName} descargado exitosamente!`,
+      });
+    } catch (err: any) {
+      setAlertMessage({
+        type: 'error',
+        text: `Error al descargar Excel: ${err?.message || 'Error desconocido'}`,
+      });
+    }
+  };
+
   const handleSendTest = async () => {
     if (!activeCommercialSummary) return;
     const testRecipient = currentUserEmail || activeCommercialSummary.commercialEmail;
@@ -162,17 +187,35 @@ export const EmailNotificationModal: React.FC<Props> = ({
       setAlertMessage(null);
       const token = await acquireMailToken();
       const subject = `[PRUEBA] Oportunidades de Facturación · ${activeCommercialSummary.commercialName} · ${cutoffDate}`;
+
+      let excelAttachment;
+      try {
+        const excelBase64 = await generateCommercialExcelBase64(
+          activeCommercialSummary.commercialName,
+          activeCommercialSummary.cutoffDate,
+          activeCommercialSummary.allRemisiones,
+        );
+        const cleanName = activeCommercialSummary.commercialName.replace(/\s+/g, '_');
+        excelAttachment = {
+          filename: `Remisiones_Abiertas_${cleanName}_${cutoffDate}.xlsx`,
+          base64: excelBase64,
+        };
+      } catch (e) {
+        console.warn('No se pudo generar adjunto Excel:', e);
+      }
+
       const res = await sendMailViaGraph(token, {
         toEmail: testRecipient,
         toName: activeCommercialSummary.commercialName,
         subject,
         htmlBody: generateCommercialEmailHtml(activeCommercialSummary),
+        excelAttachment,
       });
 
       if (res.success) {
         setAlertMessage({
           type: 'success',
-          text: `¡Correo de prueba enviado con éxito a ${testRecipient}! Revisa tu bandeja de entrada en Outlook.`,
+          text: `¡Correo de prueba enviado con éxito a ${testRecipient}! Incluye el archivo Excel adjunto.`,
         });
       } else {
         setAlertMessage({
@@ -204,15 +247,33 @@ export const EmailNotificationModal: React.FC<Props> = ({
 
       const token = await acquireMailToken();
 
-      const items: SendEmailPayload[] = toSend.map((t) => {
-        const sum = buildCommercialEmailSummary(t.name, records, cutoffDate);
-        return {
-          toEmail: t.email,
-          toName: t.name,
-          subject: `Oportunidades de Facturación · ${t.name} · Corte ${cutoffDate}`,
-          htmlBody: generateCommercialEmailHtml(sum),
-        };
-      });
+      const items: SendEmailPayload[] = await Promise.all(
+        toSend.map(async (t) => {
+          const sum = buildCommercialEmailSummary(t.name, records, cutoffDate);
+          let excelAttachment;
+          try {
+            const excelBase64 = await generateCommercialExcelBase64(
+              sum.commercialName,
+              sum.cutoffDate,
+              sum.allRemisiones,
+            );
+            const cleanName = sum.commercialName.replace(/\s+/g, '_');
+            excelAttachment = {
+              filename: `Remisiones_Abiertas_${cleanName}_${cutoffDate}.xlsx`,
+              base64: excelBase64,
+            };
+          } catch (e) {
+            console.warn('No se pudo generar adjunto Excel para', t.name, e);
+          }
+          return {
+            toEmail: t.email,
+            toName: t.name,
+            subject: `Oportunidades de Facturación · ${t.name} · Corte ${cutoffDate}`,
+            htmlBody: generateCommercialEmailHtml(sum),
+            excelAttachment,
+          };
+        }),
+      );
 
       // Actualizar estado a sending
       setCommercialTargets((prev) =>
@@ -407,6 +468,16 @@ export const EmailNotificationModal: React.FC<Props> = ({
                 >
                   <Copy size={13} />
                   <span>{copied ? '¡Copiado!' : 'Copiar HTML'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="email-action-btn secondary"
+                  onClick={handleDownloadExcel}
+                  title="Descargar archivo Excel con todas las remisiones abiertas del comercial"
+                >
+                  <Download size={13} />
+                  <span>Descargar Excel ({activeCommercialSummary?.totalCount || 0})</span>
                 </button>
 
                 <button

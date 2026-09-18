@@ -87,7 +87,10 @@ describe('generador de plantilla HTML corporativa de notificación', () => {
     expect(summary.totalValue).toBe(17_850_000);
     expect(summary.avgAge).toBe(17);
     expect(summary.destacadas).toHaveLength(2);
+    expect(summary.topMayorValor?.document).toBe('REM-1001');
+    expect(summary.topMayorAntiguedad?.document).toBe('REM-1001');
     expect(summary.topOpportunity?.document).toBe('REM-1001');
+    expect(summary.allRemisiones).toHaveLength(2);
   });
 
   it('formatea montos COP con separadores colombianos', () => {
@@ -100,7 +103,7 @@ describe('generador de plantilla HTML corporativa de notificación', () => {
     const html = generateCommercialEmailHtml(summary);
 
     // Encabezado corporativo y saludo
-    expect(html).toContain('PROVEXPRESS');
+    expect(html).toContain('Provexpress');
     expect(html).toContain('Hola, <strong style="color: #0F172A; font-size: 16px;">Mario Reyes</strong>');
     expect(html).toContain('Oportunidades listas para convertirse');
     expect(html).toContain('ventas facturadas');
@@ -119,7 +122,8 @@ describe('generador de plantilla HTML corporativa de notificación', () => {
     expect(html).toContain('Más de 15 días');
 
     // Hero banner y pie
-    expect(html).toContain('Top oportunidad del día');
+    expect(html).toContain('Mayor valor por facturar');
+    expect(html).toContain('Archivo adjunto');
     expect(html).toContain('Cada factura cuenta');
     expect(html).toContain('Gerencia Administrativa y Financiera');
 

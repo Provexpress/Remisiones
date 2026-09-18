@@ -102,21 +102,138 @@ async function main() {
 
   console.log(`✓ Remisiones encontradas para ${targetEmployee} en fecha ${cutoffDate}: ${items.length}`);
 
-  // Ordenar por antigüedad desc y total desc
-  items.sort((a, b) => (b.age !== a.age ? b.age - a.age : b.total - a.total));
+  // Ordenar por antigüedad desc para destacadas
+  const byAge = [...items].sort((a, b) => (b.age !== a.age ? b.age - a.age : b.total - a.total));
+  const destacadas = byAge.slice(0, 3);
+  const topMayorAntiguedad = byAge[0];
+
+  // Ordenar por valor desc para top mayor valor
+  const byValue = [...items].sort((a, b) => (b.total !== a.total ? b.total - a.total : b.age - a.age));
+  const topMayorValor = byValue[0];
+  const topOpportunity = topMayorValor || topMayorAntiguedad;
 
   const totalCount = items.length;
   const totalValue = items.reduce((s, x) => s + x.total, 0);
   const avgAge = totalCount > 0 ? Math.round(items.reduce((s, x) => s + x.age, 0) / totalCount) : 0;
-  const destacadas = items.slice(0, 3);
-  const topOpportunity = items[0];
   const onTrackCount = items.filter(x => x.age <= 15).length;
   const progressPct = totalCount > 0 ? Math.round((onTrackCount / totalCount) * 100) : 100;
 
   console.log(`   - Total Documentos: ${totalCount}`);
   console.log(`   - Total Valor: ${formatCOP(totalValue)}`);
   console.log(`   - Antigüedad Promedio: ${avgAge} días`);
-  console.log(`   - Top Oportunidad: ${topOpportunity.doc} - ${topOpportunity.company} (${formatCOP(topOpportunity.total)})`);
+  console.log(`   - Top Mayor Valor: ${topMayorValor?.doc} - ${topMayorValor?.company} (${formatCOP(topMayorValor?.total)})`);
+  console.log(`   - Top Mayor Antigüedad: ${topMayorAntiguedad?.doc} - ${topMayorAntiguedad?.company} (${topMayorAntiguedad?.age} días)`);
+
+  // Generar archivo Excel de remisiones abiertas para adjuntar
+  const excelWb = new ExcelJS.Workbook();
+  excelWb.creator = 'Provexpress SAS - Sistema de Remisiones';
+  const wsOpen = excelWb.addWorksheet('Remisiones Abiertas', {
+    views: [{ state: 'frozen', ySplit: 6 }]
+  });
+
+  // Encabezado institucional
+  wsOpen.mergeCells('A1:L1');
+  const tCell = wsOpen.getCell('A1');
+  tCell.value = 'PROVEXPRESS SAS · GESTIÓN COMERCIAL DE REMISIONES ABIERTAS';
+  tCell.font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
+  tCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+  tCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  wsOpen.getRow(1).height = 30;
+
+  // Metadata
+  wsOpen.getCell('A2').value = 'Asesor Comercial:';
+  wsOpen.getCell('A2').font = { bold: true, size: 10, color: { argb: 'FF475569' } };
+  wsOpen.getCell('B2').value = targetEmployee;
+  wsOpen.getCell('B2').font = { bold: true, size: 11, color: { argb: 'FF0F172A' } };
+
+  wsOpen.getCell('D2').value = 'Fecha de Corte:';
+  wsOpen.getCell('D2').font = { bold: true, size: 10, color: { argb: 'FF475569' } };
+  wsOpen.getCell('E2').value = cutoffDate;
+  wsOpen.getCell('E2').font = { bold: true, size: 11, color: { argb: 'FF0F172A' } };
+
+  wsOpen.getCell('G2').value = 'Total Remisiones:';
+  wsOpen.getCell('G2').font = { bold: true, size: 10, color: { argb: 'FF475569' } };
+  wsOpen.getCell('H2').value = totalCount;
+  wsOpen.getCell('H2').font = { bold: true, size: 11, color: { argb: 'FF1E3A8A' } };
+
+  wsOpen.getCell('J2').value = 'Valor Total:';
+  wsOpen.getCell('J2').font = { bold: true, size: 10, color: { argb: 'FF475569' } };
+  wsOpen.getCell('K2').value = totalValue;
+  wsOpen.getCell('K2').numFmt = '"$"#,##0';
+  wsOpen.getCell('K2').font = { bold: true, size: 11, color: { argb: 'FF15803D' } };
+
+  wsOpen.getCell('A3').value = 'Antigüedad Promedio:';
+  wsOpen.getCell('A3').font = { bold: true, size: 10, color: { argb: 'FF475569' } };
+  wsOpen.getCell('B3').value = `${avgAge} días`;
+  wsOpen.getCell('B3').font = { bold: true, size: 10, color: { argb: 'FF0F172A' } };
+
+  const headers = [
+    { title: 'N°', width: 6, align: 'center' },
+    { title: 'Remisión', width: 15, align: 'center' },
+    { title: 'Fecha Emisión', width: 14, align: 'center' },
+    { title: 'Días Abierta', width: 13, align: 'right' },
+    { title: 'Rango Antigüedad', width: 18, align: 'center' },
+    { title: 'NIT', width: 15, align: 'left' },
+    { title: 'Cliente / Razón Social', width: 36, align: 'left' },
+    { title: 'Vr. Mercancía', width: 16, align: 'right' },
+    { title: 'Vr. IVA', width: 14, align: 'right' },
+    { title: 'Vr. Total', width: 16, align: 'right' },
+    { title: 'Pedido', width: 14, align: 'left' },
+    { title: 'Cantidad', width: 11, align: 'right' }
+  ];
+
+  const hRow = wsOpen.getRow(6);
+  hRow.height = 24;
+  headers.forEach((h, i) => {
+    const c = hRow.getCell(i + 1);
+    c.value = h.title;
+    c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+    c.alignment = { vertical: 'middle', horizontal: h.align };
+    wsOpen.getColumn(i + 1).width = h.width;
+  });
+
+  items.forEach((item, idx) => {
+    const r = wsOpen.getRow(7 + idx);
+    r.height = 20;
+    const isEven = idx % 2 === 0;
+    const bgArgb = isEven ? 'FFFFFFFF' : 'FFF8FAFC';
+
+    r.getCell(1).value = idx + 1;
+    r.getCell(2).value = item.doc?.startsWith('REM-') ? item.doc : `REM-${item.doc || 'S/N'}`;
+    r.getCell(2).font = { bold: true, color: { argb: 'FF1E3A8A' } };
+    r.getCell(3).value = cutoffDate;
+    r.getCell(4).value = item.age;
+    r.getCell(4).font = { bold: true, color: item.age > 15 ? { argb: 'FFDC2626' } : { argb: 'FF0F172A' } };
+    r.getCell(5).value = item.age > 15 ? 'Más de 15 días' : (item.age >= 8 ? '8 a 15 días' : '0 a 7 días');
+    r.getCell(6).value = item.nit;
+    r.getCell(7).value = item.company;
+    r.getCell(8).value = item.total;
+    r.getCell(8).numFmt = '"$"#,##0';
+    r.getCell(9).value = 0;
+    r.getCell(9).numFmt = '"$"#,##0';
+    r.getCell(10).value = item.total;
+    r.getCell(10).numFmt = '"$"#,##0';
+    r.getCell(10).font = { bold: true, color: { argb: 'FF15803D' } };
+    r.getCell(11).value = '';
+    r.getCell(12).value = 1;
+
+    for (let col = 1; col <= 12; col++) {
+      const cell = r.getCell(col);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFF1F5F9' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFF1F5F9' } },
+        right: { style: 'thin', color: { argb: 'FFF1F5F9' } }
+      };
+    }
+  });
+
+  const excelBuffer = await excelWb.xlsx.writeBuffer();
+  const excelBase64 = Buffer.from(excelBuffer).toString('base64');
+  const excelFilename = `Remisiones_Abiertas_Dayana_Chala_${cutoffDate}.xlsx`;
+  console.log(`✓ Archivo Excel generado: ${excelFilename} (${excelBuffer.byteLength} bytes)`);
 
   // Cargar imágenes para adjuntar como CID inline
   const logoPath = path.join(__dirname, '../public/logo_provexpress_stacked.png');
@@ -260,19 +377,16 @@ async function main() {
 
             <!-- CARD "Tu gestión hace la diferencia." -->
             <td width="125" valign="middle" align="right">
-              <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 14px; padding: 12px 8px; width: 120px; text-align: center;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 14px; padding: 14px 8px; width: 120px; text-align: center;">
                 <tr>
                   <td align="center">
-                    <div style="background-color: #16A34A; color: #FFFFFF; width: 24px; height: 24px; border-radius: 50%; font-size: 13px; font-weight: 900; line-height: 24px; margin: 0 auto 6px auto;">
+                    <div style="background-color: #16A34A; color: #FFFFFF; width: 26px; height: 26px; border-radius: 50%; font-size: 14px; font-weight: 900; line-height: 26px; margin: 0 auto 8px auto;">
                       ✓
                     </div>
-                    <div style="font-size: 12px; font-weight: 700; color: #1E293B; line-height: 1.25; font-family: 'Segoe UI', Arial, sans-serif;">
+                    <div style="font-size: 12px; font-weight: 700; color: #1E293B; line-height: 1.3; font-family: 'Segoe UI', Arial, sans-serif;">
                       Tu gestión<br>
                       hace la<br>
                       <strong style="color: #16A34A; font-size: 13px;">diferencia.</strong>
-                    </div>
-                    <div style="margin-top: 6px; font-size: 15px; line-height: 1;">
-                      🌿
                     </div>
                   </td>
                 </tr>
@@ -455,64 +569,128 @@ async function main() {
                 </tbody>
               </table>
 
-              <!-- HERO BANNER: TOP OPORTUNIDAD DEL DÍA (DENTRO DE COLUMNA IZQUIERDA) -->
-              ${topOpportunity ? `
-              <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 14px 16px;">
+              <!-- HERO BANNER: TOP OPORTUNIDADES (MAYOR VALOR Y MAYOR ANTIGÜEDAD) -->
+              ${(topMayorValor || topMayorAntiguedad) ? `
+              <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;">
+                <!-- FILA 1: MAYOR VALOR -->
+                ${topMayorValor ? `
                 <tr>
-                  <!-- Trofeo dorado -->
-                  <td width="48" valign="middle" align="center" style="padding-right: 12px;">
-                    <span style="font-size: 34px;">🏆</span>
+                  <td width="42" valign="middle" align="center" style="padding-right: 10px;">
+                    <span style="font-size: 26px;">🏆</span>
                   </td>
-
-                  <!-- Info Remisión y Cliente -->
-                  <td valign="middle" style="padding-right: 12px;">
-                    <div style="font-size: 10.5px; font-weight: 700; color: #475569; font-family: 'Segoe UI', Arial, sans-serif;">
-                      Top oportunidad del día <span style="color: #D97706;">☆</span>
+                  <td valign="middle" style="padding-right: 10px;">
+                    <div style="font-size: 10px; font-weight: 700; color: #15803D; text-transform: uppercase; letter-spacing: 0.04em; font-family: 'Segoe UI', Arial, sans-serif;">
+                      Mayor valor por facturar <span style="color: #D97706;">☆</span>
                     </div>
-                    <div style="font-size: 16px; font-weight: 900; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif; margin: 1px 0;">
-                      ${topOpportunity.doc?.startsWith('REM-') ? topOpportunity.doc : `REM-${topOpportunity.doc || 'S/N'}`}
+                    <div style="font-size: 15px; font-weight: 900; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif; margin: 1px 0;">
+                      ${topMayorValor.doc?.startsWith('REM-') ? topMayorValor.doc : `REM-${topMayorValor.doc || 'S/N'}`}
                     </div>
-                    <div style="font-size: 11.5px; color: #475569; font-family: 'Segoe UI', Arial, sans-serif;">
-                      ${topOpportunity.company || 'Cliente'}
+                    <div style="font-size: 11px; color: #475569; font-family: 'Segoe UI', Arial, sans-serif; max-width: 170px;">
+                      ${topMayorValor.company || 'Cliente'}
                     </div>
                   </td>
-
-                  <!-- Valor -->
-                  <td width="115" valign="middle" style="padding-right: 12px;">
-                    <div style="font-size: 16px; font-weight: 900; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif;">
-                      ${formatCOP(topOpportunity.total)}
+                  <td width="115" valign="middle" style="padding-right: 10px;">
+                    <div style="font-size: 15px; font-weight: 900; color: #15803D; font-family: 'Segoe UI', Arial, sans-serif;">
+                      ${formatCOP(topMayorValor.total)}
                     </div>
-                    <div style="font-size: 10.5px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
-                      Valor
+                    <div style="font-size: 10px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
+                      Mayor valor
                     </div>
                   </td>
-
-                  <!-- Antigüedad -->
-                  <td width="85" valign="middle" style="padding-right: 12px;">
-                    <div style="font-size: 16px; font-weight: 900; color: #DC2626; font-family: 'Segoe UI', Arial, sans-serif;">
-                      ${topOpportunity.age} días
+                  <td width="80" valign="middle" style="padding-right: 10px;">
+                    <div style="font-size: 14.5px; font-weight: 900; color: #0F172A; font-family: 'Segoe UI', Arial, sans-serif;">
+                      ${topMayorValor.age} días
                     </div>
-                    <div style="font-size: 10.5px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
+                    <div style="font-size: 10px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
                       Antigüedad
                     </div>
                   </td>
-
-                  <!-- Flecha y Call to Action -->
                   <td valign="middle" align="right">
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td valign="middle" style="padding-right: 6px; font-size: 20px; color: #1E3A8A;">
-                          ⤷
-                        </td>
-                        <td valign="middle" style="font-size: 13px; font-weight: 850; font-style: italic; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.2;">
-                          ¡Gran impacto<br>si la gestionas hoy!
+                        <td valign="middle" style="padding-right: 4px; font-size: 16px; color: #15803D;">⤷</td>
+                        <td valign="middle" style="font-size: 11.5px; font-weight: 850; font-style: italic; color: #15803D; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.2;">
+                          ¡Mayor impacto<br>en facturación!
                         </td>
                       </tr>
                     </table>
                   </td>
                 </tr>
+                ` : ''}
+
+                ${(topMayorAntiguedad && (!topMayorValor || topMayorAntiguedad.doc !== topMayorValor.doc)) ? `
+                <!-- SEPARADOR ENTRE MAYOR VALOR Y MAYOR ANTIGÜEDAD -->
+                <tr>
+                  <td colspan="5" style="padding: 10px 0;">
+                    <div style="border-top: 1px dashed #E2E8F0; height: 1px; line-height: 1px; font-size: 0;">&nbsp;</div>
+                  </td>
+                </tr>
+
+                <!-- FILA 2: MAYOR ANTIGÜEDAD -->
+                <tr>
+                  <td width="42" valign="middle" align="center" style="padding-right: 10px;">
+                    <span style="font-size: 26px;">⏳</span>
+                  </td>
+                  <td valign="middle" style="padding-right: 10px;">
+                    <div style="font-size: 10px; font-weight: 700; color: #DC2626; text-transform: uppercase; letter-spacing: 0.04em; font-family: 'Segoe UI', Arial, sans-serif;">
+                      Mayor antigüedad pendiente <span style="color: #DC2626;">⏱</span>
+                    </div>
+                    <div style="font-size: 15px; font-weight: 900; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif; margin: 1px 0;">
+                      ${topMayorAntiguedad.doc?.startsWith('REM-') ? topMayorAntiguedad.doc : `REM-${topMayorAntiguedad.doc || 'S/N'}`}
+                    </div>
+                    <div style="font-size: 11px; color: #475569; font-family: 'Segoe UI', Arial, sans-serif; max-width: 170px;">
+                      ${topMayorAntiguedad.company || 'Cliente'}
+                    </div>
+                  </td>
+                  <td width="115" valign="middle" style="padding-right: 10px;">
+                    <div style="font-size: 15px; font-weight: 900; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif;">
+                      ${formatCOP(topMayorAntiguedad.total)}
+                    </div>
+                    <div style="font-size: 10px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
+                      Valor
+                    </div>
+                  </td>
+                  <td width="80" valign="middle" style="padding-right: 10px;">
+                    <div style="font-size: 14.5px; font-weight: 900; color: #DC2626; font-family: 'Segoe UI', Arial, sans-serif;">
+                      ${topMayorAntiguedad.age} días
+                    </div>
+                    <div style="font-size: 10px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
+                      Mayor antigüedad
+                    </div>
+                  </td>
+                  <td valign="middle" align="right">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td valign="middle" style="padding-right: 4px; font-size: 16px; color: #DC2626;">⤷</td>
+                        <td valign="middle" style="font-size: 11.5px; font-weight: 850; font-style: italic; color: #DC2626; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.2;">
+                          ¡Prioridad urgente<br>por tiempo!
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                ` : ''}
               </table>
               ` : ''}
+
+              <!-- BANNER DE ARCHIVO ADJUNTO EXCEL DE REMISIONES ABIERTAS -->
+              <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 12px 14px;">
+                <tr>
+                  <td width="38" valign="middle" align="center" style="padding-right: 10px;">
+                    <div style="background-color: #107C41; color: #FFFFFF; width: 32px; height: 32px; border-radius: 8px; text-align: center; line-height: 32px; font-size: 16px; font-weight: 900;">
+                      📊
+                    </div>
+                  </td>
+                  <td valign="middle">
+                    <div style="font-size: 12px; font-weight: 800; color: #0F172A; font-family: 'Segoe UI', Arial, sans-serif;">
+                      📎 Archivo adjunto: Remisiones_Abiertas_Dayana_Chala.xlsx
+                    </div>
+                    <div style="font-size: 11px; color: #475569; font-family: 'Segoe UI', Arial, sans-serif; margin-top: 2px;">
+                      Hemos adjuntado a este correo tu archivo Excel con el detalle completo de tus <strong>${formatNumber(totalCount)}</strong> remisiones abiertas (${formatCOP(totalValue)}) para tu gestión y descarga.
+                    </div>
+                  </td>
+                </tr>
+              </table>
 
             </td>
 
@@ -701,6 +879,13 @@ async function main() {
           contentBytes: avatarBase64,
           isInline: true,
           contentId: 'avatar_man',
+        },
+        {
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          name: excelFilename,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          contentBytes: excelBase64,
+          isInline: false,
         },
       ],
     },
