@@ -461,7 +461,7 @@ export function generateCommercialEmailHtml(
               </table>
 
               <!-- TABLA DESTACADAS (3 FILAS) -->
-              <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; border-collapse: separate; border-spacing: 0; margin-bottom: 14px;">
+              <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; border-collapse: separate; border-spacing: 0; margin-bottom: 0;">
                 <thead>
                   <tr style="background-color: #1E293B; color: #FFFFFF;">
                     <th style="padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 700; font-family: 'Segoe UI', Arial, sans-serif;">Remisión</th>
@@ -474,129 +474,6 @@ export function generateCommercialEmailHtml(
                 <tbody style="background-color: #FFFFFF;">
                   ${rowsDestacadasHtml}
                 </tbody>
-              </table>
-
-              <!-- HERO BANNER: TOP OPORTUNIDADES (MAYOR VALOR Y MAYOR ANTIGÜEDAD) -->
-              ${(topMayorValor || topMayorAntiguedad) ? `
-              <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;">
-                <!-- FILA 1: MAYOR VALOR -->
-                ${topMayorValor ? `
-                <tr>
-                  <td width="42" valign="middle" align="center" style="padding-right: 10px;">
-                    <span style="font-size: 26px;">🏆</span>
-                  </td>
-                  <td valign="middle" style="padding-right: 10px;">
-                    <div style="font-size: 10px; font-weight: 700; color: #15803D; text-transform: uppercase; letter-spacing: 0.04em; font-family: 'Segoe UI', Arial, sans-serif;">
-                      Mayor valor por facturar <span style="color: #D97706;">☆</span>
-                    </div>
-                    <div style="font-size: 15px; font-weight: 900; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif; margin: 1px 0;">
-                      ${topMayorValor.document?.startsWith('REM-') ? topMayorValor.document : `REM-${topMayorValor.document || 'S/N'}`}
-                    </div>
-                    <div style="font-size: 11px; color: #475569; font-family: 'Segoe UI', Arial, sans-serif; max-width: 170px;">
-                      ${topMayorValor.company || 'Cliente'}
-                    </div>
-                  </td>
-                  <td width="115" valign="middle" style="padding-right: 10px;">
-                    <div style="font-size: 15px; font-weight: 900; color: #15803D; font-family: 'Segoe UI', Arial, sans-serif;">
-                      ${formatCOP(topMayorValor.total)}
-                    </div>
-                    <div style="font-size: 10px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
-                      Mayor valor
-                    </div>
-                  </td>
-                  <td width="80" valign="middle" style="padding-right: 10px;">
-                    <div style="font-size: 14.5px; font-weight: 900; color: #0F172A; font-family: 'Segoe UI', Arial, sans-serif;">
-                      ${topMayorValor.age} días
-                    </div>
-                    <div style="font-size: 10px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
-                      Antigüedad
-                    </div>
-                  </td>
-                  <td valign="middle" align="right">
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td valign="middle" style="padding-right: 4px; font-size: 16px; color: #15803D;">⤷</td>
-                        <td valign="middle" style="font-size: 11.5px; font-weight: 850; font-style: italic; color: #15803D; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.2;">
-                          ¡Mayor impacto<br>en facturación!
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-                ` : ''}
-
-                ${(topMayorAntiguedad && (!topMayorValor || topMayorAntiguedad.document !== topMayorValor.document)) ? `
-                <!-- SEPARADOR ENTRE MAYOR VALOR Y MAYOR ANTIGÜEDAD -->
-                <tr>
-                  <td colspan="5" style="padding: 10px 0;">
-                    <div style="border-top: 1px dashed #E2E8F0; height: 1px; line-height: 1px; font-size: 0;">&nbsp;</div>
-                  </td>
-                </tr>
-
-                <!-- FILA 2: MAYOR ANTIGÜEDAD -->
-                <tr>
-                  <td width="42" valign="middle" align="center" style="padding-right: 10px;">
-                    <span style="font-size: 26px;">⏳</span>
-                  </td>
-                  <td valign="middle" style="padding-right: 10px;">
-                    <div style="font-size: 10px; font-weight: 700; color: #DC2626; text-transform: uppercase; letter-spacing: 0.04em; font-family: 'Segoe UI', Arial, sans-serif;">
-                      Mayor antigüedad pendiente <span style="color: #DC2626;">⏱</span>
-                    </div>
-                    <div style="font-size: 15px; font-weight: 900; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif; margin: 1px 0;">
-                      ${topMayorAntiguedad.document?.startsWith('REM-') ? topMayorAntiguedad.document : `REM-${topMayorAntiguedad.document || 'S/N'}`}
-                    </div>
-                    <div style="font-size: 11px; color: #475569; font-family: 'Segoe UI', Arial, sans-serif; max-width: 170px;">
-                      ${topMayorAntiguedad.company || 'Cliente'}
-                    </div>
-                  </td>
-                  <td width="115" valign="middle" style="padding-right: 10px;">
-                    <div style="font-size: 15px; font-weight: 900; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif;">
-                      ${formatCOP(topMayorAntiguedad.total)}
-                    </div>
-                    <div style="font-size: 10px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
-                      Valor
-                    </div>
-                  </td>
-                  <td width="80" valign="middle" style="padding-right: 10px;">
-                    <div style="font-size: 14.5px; font-weight: 900; color: #DC2626; font-family: 'Segoe UI', Arial, sans-serif;">
-                      ${topMayorAntiguedad.age} días
-                    </div>
-                    <div style="font-size: 10px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
-                      Mayor antigüedad
-                    </div>
-                  </td>
-                  <td valign="middle" align="right">
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td valign="middle" style="padding-right: 4px; font-size: 16px; color: #DC2626;">⤷</td>
-                        <td valign="middle" style="font-size: 11.5px; font-weight: 850; font-style: italic; color: #DC2626; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.2;">
-                          ¡Prioridad urgente<br>por tiempo!
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-                ` : ''}
-              </table>
-              ` : ''}
-
-              <!-- BANNER DE ARCHIVO ADJUNTO EXCEL DE REMISIONES ABIERTAS -->
-              <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 12px 14px;">
-                <tr>
-                  <td width="38" valign="middle" align="center" style="padding-right: 10px;">
-                    <div style="background-color: #107C41; color: #FFFFFF; width: 32px; height: 32px; border-radius: 8px; text-align: center; line-height: 32px; font-size: 16px; font-weight: 900;">
-                      📊
-                    </div>
-                  </td>
-                  <td valign="middle">
-                    <div style="font-size: 12px; font-weight: 800; color: #0F172A; font-family: 'Segoe UI', Arial, sans-serif;">
-                      📎 Archivo adjunto: Remisiones_Abiertas_${commercialName.replace(/\s+/g, '_')}.xlsx
-                    </div>
-                    <div style="font-size: 11px; color: #475569; font-family: 'Segoe UI', Arial, sans-serif; margin-top: 2px;">
-                      Hemos adjuntado a este correo tu archivo Excel con el detalle completo de tus <strong>${formatNumber(totalCount)}</strong> remisiones abiertas (${formatCOP(totalValue)}) para tu gestión y descarga.
-                    </div>
-                  </td>
-                </tr>
               </table>
 
             </td>
@@ -679,6 +556,133 @@ export function generateCommercialEmailHtml(
                 </tr>
               </table>
 
+            </td>
+          </tr>
+        </table>
+
+        <!-- ═════════════════════════════════════════════════════════════════════
+             TOP OPORTUNIDADES (MAYOR VALOR Y MAYOR ANTIGÜEDAD) (FULL WIDTH)
+             ═════════════════════════════════════════════════════════════════════ -->
+        ${(topMayorValor || topMayorAntiguedad) ? `
+        <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 14px 18px; margin-top: 14px; margin-bottom: 12px;">
+          <!-- FILA 1: MAYOR VALOR -->
+          ${topMayorValor ? `
+          <tr>
+            <td width="42" valign="middle" align="center" style="padding-right: 12px;">
+              <span style="font-size: 26px;">🏆</span>
+            </td>
+            <td valign="middle" style="padding-right: 14px;">
+              <div style="font-size: 10px; font-weight: 700; color: #15803D; text-transform: uppercase; letter-spacing: 0.04em; font-family: 'Segoe UI', Arial, sans-serif;">
+                Mayor valor por facturar <span style="color: #D97706;">☆</span>
+              </div>
+              <div style="font-size: 15px; font-weight: 900; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif; margin: 1px 0;">
+                ${topMayorValor.document?.startsWith('REM-') ? topMayorValor.document : `REM-${topMayorValor.document || 'S/N'}`}
+              </div>
+              <div style="font-size: 11px; color: #475569; font-family: 'Segoe UI', Arial, sans-serif; max-width: 220px;">
+                ${topMayorValor.company || 'Cliente'}
+              </div>
+            </td>
+            <td width="130" valign="middle" style="padding-right: 14px;">
+              <div style="font-size: 15px; font-weight: 900; color: #15803D; font-family: 'Segoe UI', Arial, sans-serif;">
+                ${formatCOP(topMayorValor.total)}
+              </div>
+              <div style="font-size: 10px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
+                Mayor valor
+              </div>
+            </td>
+            <td width="95" valign="middle" style="padding-right: 14px;">
+              <div style="font-size: 14.5px; font-weight: 900; color: #0F172A; font-family: 'Segoe UI', Arial, sans-serif;">
+                ${topMayorValor.age} días
+              </div>
+              <div style="font-size: 10px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
+                Antigüedad
+              </div>
+            </td>
+            <td valign="middle" align="right">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td valign="middle" style="padding-right: 4px; font-size: 16px; color: #15803D;">⤷</td>
+                  <td valign="middle" style="font-size: 11.5px; font-weight: 850; font-style: italic; color: #15803D; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.2;">
+                    ¡Mayor impacto<br>en facturación!
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          ` : ''}
+
+          ${(topMayorAntiguedad && (!topMayorValor || topMayorAntiguedad.document !== topMayorValor.document)) ? `
+          <!-- SEPARADOR ENTRE MAYOR VALOR Y MAYOR ANTIGÜEDAD -->
+          <tr>
+            <td colspan="5" style="padding: 10px 0;">
+              <div style="border-top: 1px dashed #E2E8F0; height: 1px; line-height: 1px; font-size: 0;">&nbsp;</div>
+            </td>
+          </tr>
+
+          <!-- FILA 2: MAYOR ANTIGÜEDAD -->
+          <tr>
+            <td width="42" valign="middle" align="center" style="padding-right: 12px;">
+              <span style="font-size: 26px;">⏳</span>
+            </td>
+            <td valign="middle" style="padding-right: 14px;">
+              <div style="font-size: 10px; font-weight: 700; color: #DC2626; text-transform: uppercase; letter-spacing: 0.04em; font-family: 'Segoe UI', Arial, sans-serif;">
+                Mayor antigüedad pendiente <span style="color: #DC2626;">⏱</span>
+              </div>
+              <div style="font-size: 15px; font-weight: 900; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif; margin: 1px 0;">
+                ${topMayorAntiguedad.document?.startsWith('REM-') ? topMayorAntiguedad.document : `REM-${topMayorAntiguedad.document || 'S/N'}`}
+              </div>
+              <div style="font-size: 11px; color: #475569; font-family: 'Segoe UI', Arial, sans-serif; max-width: 220px;">
+                ${topMayorAntiguedad.company || 'Cliente'}
+              </div>
+            </td>
+            <td width="130" valign="middle" style="padding-right: 14px;">
+              <div style="font-size: 15px; font-weight: 900; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif;">
+                ${formatCOP(topMayorAntiguedad.total)}
+              </div>
+              <div style="font-size: 10px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
+                Valor
+              </div>
+            </td>
+            <td width="95" valign="middle" style="padding-right: 14px;">
+              <div style="font-size: 14.5px; font-weight: 900; color: #DC2626; font-family: 'Segoe UI', Arial, sans-serif;">
+                ${topMayorAntiguedad.age} días
+              </div>
+              <div style="font-size: 10px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
+                Mayor antigüedad
+              </div>
+            </td>
+            <td valign="middle" align="right">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td valign="middle" style="padding-right: 4px; font-size: 16px; color: #DC2626;">⤷</td>
+                  <td valign="middle" style="font-size: 11.5px; font-weight: 850; font-style: italic; color: #DC2626; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.2;">
+                    ¡Prioridad urgente<br>por tiempo!
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          ` : ''}
+        </table>
+        ` : ''}
+
+        <!-- ═════════════════════════════════════════════════════════════════════
+             BANNER DE ARCHIVO ADJUNTO EXCEL DE REMISIONES ABIERTAS (FULL WIDTH)
+             ═════════════════════════════════════════════════════════════════════ -->
+        <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 12px 18px; margin-bottom: 14px;">
+          <tr>
+            <td width="38" valign="middle" align="center" style="padding-right: 12px;">
+              <div style="background-color: #107C41; color: #FFFFFF; width: 32px; height: 32px; border-radius: 8px; text-align: center; line-height: 32px; font-size: 16px; font-weight: 900;">
+                📊
+              </div>
+            </td>
+            <td valign="middle">
+              <div style="font-size: 12px; font-weight: 800; color: #0F172A; font-family: 'Segoe UI', Arial, sans-serif;">
+                📎 Archivo adjunto: Remisiones_Abiertas_${commercialName.replace(/\s+/g, '_')}.xlsx
+              </div>
+              <div style="font-size: 11px; color: #475569; font-family: 'Segoe UI', Arial, sans-serif; margin-top: 2px;">
+                Hemos adjuntado a este correo tu archivo Excel con el detalle completo de tus <strong>${formatNumber(totalCount)}</strong> remisiones abiertas (${formatCOP(totalValue)}) para tu gestión y descarga.
+              </div>
             </td>
           </tr>
         </table>
