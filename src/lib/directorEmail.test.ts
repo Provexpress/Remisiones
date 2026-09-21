@@ -80,11 +80,23 @@ describe('Director Email Notification System', () => {
     const summary = buildDirectorEmailSummary(2, mockRemisiones, '2026-09-16');
     const html = generateDirectorEmailHtml(summary, { forWebPreview: true });
 
+    expect(summary.genero).toBe('F');
     expect(html).toContain('Angélica Caballero');
     expect(html).toContain('Dirección Grupo 2');
     expect(html).toContain('Makro Supermayorista');
     expect(html).toContain('Fabrica de Especias');
     expect(html).toContain('Archivo adjunto');
+    expect(html).toContain('¡Acompañando a nuestros equipos alcanzamos las metas!');
+    expect(html).not.toContain('Gerencia Administrativa y Financiera');
+
+    // Angélica Caballero es mujer -> muñeca (avatar femenino)
+    expect(html).toContain('alt="Directora Comercial"');
+
+    // Rafael Novoa es hombre -> muñeco (avatar masculino)
+    const summaryNovoa = buildDirectorEmailSummary(1, mockRemisiones, '2026-09-16');
+    expect(summaryNovoa.genero).toBe('M');
+    const htmlNovoa = generateDirectorEmailHtml(summaryNovoa);
+    expect(htmlNovoa).toContain('cid:avatar_man');
 
     // Regla estricta: Jamás usar el término prohibido
     expect(html.toLowerCase()).not.toContain('cartera');

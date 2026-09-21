@@ -1,6 +1,6 @@
 import type { Remision } from '../types';
 import { getCommercialInfo } from './commercialDirectory';
-import { LOGO_PROVEXPRESS_DATA_URI, AVATAR_MAN_DATA_URI } from './commercialEmailAssets';
+import { LOGO_PROVEXPRESS_DATA_URI, AVATAR_MAN_DATA_URI, AVATAR_WOMAN_DATA_URI } from './commercialEmailAssets';
 
 export interface CommercialEmailData {
   commercialName: string;
@@ -46,6 +46,7 @@ export function buildCommercialEmailSummary(
   allRemisiones: Remision[];
   progressPct: number;
   cutoffDate: string;
+  genero: 'M' | 'F';
 } {
   const info = getCommercialInfo(commercialName);
   const targetTokens = commercialName.toLowerCase().split(/\s+/).filter(Boolean);
@@ -104,6 +105,7 @@ export function buildCommercialEmailSummary(
     allRemisiones: userRemisiones,
     progressPct,
     cutoffDate,
+    genero: info.genero || 'M',
   };
 }
 
@@ -111,7 +113,7 @@ export function buildCommercialEmailSummary(
  * Plantilla HTML corporativa de alta fidelidad.
  * Reproduce al detalle la imagen de referencia de Provexpress SAS:
  * - Logo Provexpress SAS oficial de ForeCast / Provex One
- * - Ilustración del asesor comercial con pulgar arriba (el muñeco)
+ * - Ilustración del asesor comercial con pulgar arriba (el muñeco o la muñeca según género)
  * - Tarjeta "Tu gestión hace la diferencia" con checkmark y hojas
  * - Columna izquierda: 4 tarjetas KPI en fila + tabla destacadas + banner top oportunidad
  * - Columna derecha: "Cada factura cuenta" + "Meta del día" con progreso y trofeo
@@ -132,10 +134,15 @@ export function generateCommercialEmailHtml(
     topMayorAntiguedad,
     cutoffDate,
     progressPct,
+    genero,
   } = summary;
 
+  const isFemale = genero === 'F';
   const logoSrc = options?.forWebPreview ? LOGO_PROVEXPRESS_DATA_URI : 'cid:logo_provexpress';
-  const avatarSrc = options?.forWebPreview ? AVATAR_MAN_DATA_URI : 'cid:avatar_man';
+  const avatarSrc = options?.forWebPreview
+    ? (isFemale ? AVATAR_WOMAN_DATA_URI : AVATAR_MAN_DATA_URI)
+    : (isFemale ? 'cid:avatar_woman' : 'cid:avatar_man');
+  const avatarAlt = isFemale ? 'Asesora Comercial' : 'Asesor Comercial';
 
   // Filas de remisiones destacadas
   const rowColors = [
@@ -277,9 +284,9 @@ export function generateCommercialEmailHtml(
               </p>
             </td>
 
-            <!-- ILUSTRACIÓN ASESOR COMERCIAL: EL MUÑECO (THUMBS UP) -->
+            <!-- ILUSTRACIÓN ASESOR COMERCIAL: EL MUÑECO O LA MUÑECA (THUMBS UP) -->
             <td width="190" valign="bottom" align="center" style="padding-right: 10px;">
-              <img src="${avatarSrc}" width="180" height="154" style="display: block; border: 0; width: 180px; height: auto; margin: 0 auto;" alt="Asesor Comercial" />
+              <img src="${avatarSrc}" width="180" height="154" style="display: block; border: 0; width: 180px; height: auto; margin: 0 auto;" alt="${avatarAlt}" />
             </td>
 
             <!-- CARD "Tu gestión hace la diferencia." -->
@@ -706,24 +713,6 @@ export function generateCommercialEmailHtml(
               </div>
               <div style="font-size: 13.5px; font-weight: 850; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif; margin-top: 2px;">
                 ¡Sigamos construyendo resultados juntos!
-              </div>
-            </td>
-
-            <!-- Divisor vertical -->
-            <td width="20" align="center" valign="middle" style="color: #CBD5E1; font-size: 22px; font-weight: 300;">
-              |
-            </td>
-
-            <!-- Firma oficial -->
-            <td valign="middle" style="padding-left: 10px;">
-              <div style="font-size: 11.5px; color: #475569; font-family: 'Segoe UI', Arial, sans-serif;">
-                Cordialmente, <span style="font-size: 12px;">♡</span>
-              </div>
-              <div style="font-size: 11.5px; font-weight: 600; color: #334155; font-family: 'Segoe UI', Arial, sans-serif; margin: 1px 0;">
-                Gerencia Administrativa y Financiera
-              </div>
-              <div style="font-size: 12px; font-weight: 850; color: #2563EB; font-family: 'Segoe UI', Arial, sans-serif;">
-                PROVEXPRESS SAS
               </div>
             </td>
 

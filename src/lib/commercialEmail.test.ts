@@ -125,9 +125,21 @@ describe('generador de plantilla HTML corporativa de notificación', () => {
     expect(html).toContain('Mayor valor por facturar');
     expect(html).toContain('Archivo adjunto');
     expect(html).toContain('Cada factura cuenta');
-    expect(html).toContain('Gerencia Administrativa y Financiera');
+    expect(html).toContain('¡Sigamos construyendo resultados juntos!');
+    expect(html).not.toContain('Gerencia Administrativa y Financiera');
+
+    // Avatar masculino para Mario Reyes
+    expect(html).toContain('cid:avatar_man');
 
     // VERIFICACIÓN ESTRICTA: cero ocurrencias del término prohibido
     expect(html.toLowerCase()).not.toContain('cartera');
+  });
+
+  it('asigna la muñeca (avatar femenino) a comerciales mujeres', () => {
+    const summary = buildCommercialEmailSummary('Dayana Chala', mockRemisiones, '2026-09-16');
+    expect(summary.genero).toBe('F');
+    const html = generateCommercialEmailHtml(summary);
+    expect(html).toContain('cid:avatar_woman');
+    expect(html).toContain('alt="Asesora Comercial"');
   });
 });

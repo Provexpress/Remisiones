@@ -5,7 +5,7 @@ import {
   normalizeName,
   type DirectorInfo,
 } from './commercialDirectory';
-import { LOGO_PROVEXPRESS_DATA_URI, AVATAR_MAN_DATA_URI } from './commercialEmailAssets';
+import { LOGO_PROVEXPRESS_DATA_URI, AVATAR_MAN_DATA_URI, AVATAR_WOMAN_DATA_URI } from './commercialEmailAssets';
 import { formatCOP, formatNumber } from './commercialEmailTemplate';
 
 export interface DirectorExecutiveSummary {
@@ -34,6 +34,7 @@ export interface DirectorEmailSummary {
   topMayorAntiguedad: (Remision & { executiveName?: string }) | null;
   executives: DirectorExecutiveSummary[];
   allGroupRemisiones: Remision[];
+  genero: 'M' | 'F';
 }
 
 export interface GenerateDirectorEmailOptions {
@@ -50,6 +51,7 @@ export function buildDirectorEmailSummary(
     nombre: 'Director Comercial',
     email: typeof directorEmailOrGroup === 'string' ? directorEmailOrGroup : '',
     carpeta: '',
+    genero: 'M' as const,
   };
 
   const groupNumber = dirInfo.grupo;
@@ -140,6 +142,7 @@ export function buildDirectorEmailSummary(
     topMayorAntiguedad,
     executives: executivesSummary,
     allGroupRemisiones,
+    genero: dirInfo.genero || 'M',
   };
 }
 
@@ -148,8 +151,12 @@ export function generateDirectorEmailHtml(
   options: GenerateDirectorEmailOptions = {},
 ): string {
   const { forWebPreview = false } = options;
+  const isFemale = summary.genero === 'F';
   const logoSrc = forWebPreview ? LOGO_PROVEXPRESS_DATA_URI : 'cid:logo_provexpress';
-  const avatarSrc = forWebPreview ? AVATAR_MAN_DATA_URI : 'cid:avatar_man';
+  const avatarSrc = forWebPreview
+    ? (isFemale ? AVATAR_WOMAN_DATA_URI : AVATAR_MAN_DATA_URI)
+    : (isFemale ? 'cid:avatar_woman' : 'cid:avatar_man');
+  const avatarAlt = isFemale ? 'Directora Comercial' : 'Director Comercial';
 
   const {
     directorName,
@@ -300,9 +307,9 @@ export function generateDirectorEmailHtml(
               </p>
             </td>
 
-            <!-- ILUSTRACIÓN ASESOR COMERCIAL: EL MUÑECO (THUMBS UP) -->
+            <!-- ILUSTRACIÓN ASESOR COMERCIAL: EL MUÑECO O LA MUÑECA (THUMBS UP) -->
             <td width="190" valign="bottom" align="center" style="padding-right: 10px;">
-              <img src="${avatarSrc}" width="180" height="154" style="display: block; border: 0; width: 180px; height: auto; margin: 0 auto;" alt="Asesor Comercial" />
+              <img src="${avatarSrc}" width="180" height="154" style="display: block; border: 0; width: 180px; height: auto; margin: 0 auto;" alt="${avatarAlt}" />
             </td>
 
             <!-- CARD DIRECCIÓN DE GRUPO -->
@@ -647,24 +654,6 @@ export function generateDirectorEmailHtml(
               </div>
               <div style="font-size: 13.5px; font-weight: 850; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif; margin-top: 2px;">
                 ¡Acompañando a nuestros equipos alcanzamos las metas!
-              </div>
-            </td>
-
-            <!-- Divisor vertical -->
-            <td width="20" align="center" valign="middle" style="color: #CBD5E1; font-size: 22px; font-weight: 300;">
-              |
-            </td>
-
-            <!-- Firma oficial -->
-            <td valign="middle" style="padding-left: 10px;">
-              <div style="font-size: 11.5px; color: #475569; font-family: 'Segoe UI', Arial, sans-serif;">
-                Cordialmente,
-              </div>
-              <div style="font-size: 11.5px; font-weight: 600; color: #334155; font-family: 'Segoe UI', Arial, sans-serif; margin: 1px 0;">
-                Gerencia Administrativa y Financiera
-              </div>
-              <div style="font-size: 12px; font-weight: 850; color: #2563EB; font-family: 'Segoe UI', Arial, sans-serif;">
-                PROVEXPRESS SAS
               </div>
             </td>
 

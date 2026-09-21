@@ -547,9 +547,9 @@ async function main() {
               </p>
             </td>
 
-            <!-- ILUSTRACIÓN ASESOR COMERCIAL: EL MUÑECO (THUMBS UP) -->
+            <!-- ILUSTRACIÓN DIRECTORA COMERCIAL: LA MUÑECA (THUMBS UP) -->
             <td width="190" valign="bottom" align="center" style="padding-right: 10px;">
-              <img src="cid:avatar_man" width="180" height="154" style="display: block; border: 0; width: 180px; height: auto; margin: 0 auto;" alt="Asesor Comercial" />
+              <img src="cid:avatar_woman" width="180" height="154" style="display: block; border: 0; width: 180px; height: auto; margin: 0 auto;" alt="Directora Comercial" />
             </td>
 
             <!-- CARD DIRECCIÓN DE GRUPO -->
@@ -897,24 +897,6 @@ async function main() {
               </div>
             </td>
 
-            <!-- Divisor vertical -->
-            <td width="20" align="center" valign="middle" style="color: #CBD5E1; font-size: 22px; font-weight: 300;">
-              |
-            </td>
-
-            <!-- Firma oficial -->
-            <td valign="middle" style="padding-left: 10px;">
-              <div style="font-size: 11.5px; color: #475569; font-family: 'Segoe UI', Arial, sans-serif;">
-                Cordialmente,
-              </div>
-              <div style="font-size: 11.5px; font-weight: 600; color: #334155; font-family: 'Segoe UI', Arial, sans-serif; margin: 1px 0;">
-                Gerencia Administrativa y Financiera
-              </div>
-              <div style="font-size: 12px; font-weight: 850; color: #2563EB; font-family: 'Segoe UI', Arial, sans-serif;">
-                PROVEXPRESS SAS
-              </div>
-            </td>
-
             <!-- Sobre postal azul -->
             <td width="55" align="right" valign="middle">
               <svg width="48" height="38" viewBox="0 0 52 42" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -939,9 +921,9 @@ async function main() {
 </html>
   `.trim();
 
-  // 5. Cargar Logo y Muñeco (Avatar) para adjuntos inline CID
+  // 5. Cargar Logo y Muñeca (Avatar Femenino) para adjuntos inline CID
   const logoBytes = fs.readFileSync(path.join(__dirname, '../public/logo_provexpress_stacked.png')).toString('base64');
-  const avatarBytes = fs.readFileSync(path.join(__dirname, '../public/avatar_man.png')).toString('base64');
+  const avatarBytes = fs.readFileSync(path.join(__dirname, '../public/avatar_woman.png')).toString('base64');
 
   // 6. Autenticar con Microsoft Graph
   console.log('\n🔑 Autenticando con Microsoft Entra ID (Graph)...');
@@ -975,11 +957,11 @@ async function main() {
         },
         {
           '@odata.type': '#microsoft.graph.fileAttachment',
-          name: 'avatar_man.png',
+          name: 'avatar_woman.png',
           contentType: 'image/png',
           contentBytes: avatarBytes,
           isInline: true,
-          contentId: 'avatar_man',
+          contentId: 'avatar_woman',
         },
         {
           '@odata.type': '#microsoft.graph.fileAttachment',

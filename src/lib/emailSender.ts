@@ -16,7 +16,11 @@ export interface SendResult {
   error?: string;
 }
 
-import { LOGO_PROVEXPRESS_BASE64, AVATAR_MAN_BASE64 } from './commercialEmailAssets';
+import {
+  LOGO_PROVEXPRESS_BASE64,
+  AVATAR_MAN_BASE64,
+  AVATAR_WOMAN_BASE64,
+} from './commercialEmailAssets';
 
 /**
  * Envía un correo electrónico a través de Microsoft Graph API (/me/sendMail).
@@ -37,15 +41,29 @@ export async function sendMailViaGraph(
       isInline: true,
       contentId: 'logo_provexpress',
     },
-    {
+  ];
+
+  if (payload.htmlBody.includes('cid:avatar_woman')) {
+    attachments.push({
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: 'avatar_woman.png',
+      contentType: 'image/png',
+      contentBytes: AVATAR_WOMAN_BASE64,
+      isInline: true,
+      contentId: 'avatar_woman',
+    });
+  }
+
+  if (payload.htmlBody.includes('cid:avatar_man')) {
+    attachments.push({
       '@odata.type': '#microsoft.graph.fileAttachment',
       name: 'avatar_man.png',
       contentType: 'image/png',
       contentBytes: AVATAR_MAN_BASE64,
       isInline: true,
       contentId: 'avatar_man',
-    },
-  ];
+    });
+  }
 
   if (payload.excelAttachment) {
     attachments.push({
