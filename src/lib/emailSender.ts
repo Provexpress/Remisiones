@@ -7,12 +7,18 @@ export interface SendEmailPayload {
     filename: string;
     base64: string;
   };
+  senderEmail?: string;
+  senderName?: string;
+  category?: 'comercial' | 'director' | 'gerencia' | 'copia_validez' | 'prueba';
 }
 
 export interface SendResult {
   success: boolean;
   toEmail: string;
   toName: string;
+  httpStatus?: number;
+  timestamp?: string;
+  category?: string;
   error?: string;
 }
 
@@ -22,8 +28,12 @@ import {
   AVATAR_WOMAN_BASE64,
 } from './commercialEmailAssets';
 
+export const OFFICIAL_SENDER_EMAIL = 'c.estrategica@provexpress.com.co';
+export const OFFICIAL_SENDER_NAME = 'Cuentas Estratégicas · Provexpress SAS';
+
 /**
  * Envía un correo electrónico a través de Microsoft Graph API (/me/sendMail).
+ * Remitente oficial configurado: c.estrategica@provexpress.com.co
  * Utiliza el token de autenticación de Microsoft 365.
  */
 export async function sendMailViaGraph(
@@ -31,6 +41,8 @@ export async function sendMailViaGraph(
   payload: SendEmailPayload,
 ): Promise<SendResult> {
   const endpoint = 'https://graph.microsoft.com/v1.0/me/sendMail';
+  const senderEmail = payload.senderEmail || OFFICIAL_SENDER_EMAIL;
+  const senderName = payload.senderName || OFFICIAL_SENDER_NAME;
 
   const attachments: any[] = [
     {
@@ -75,8 +87,8 @@ export async function sendMailViaGraph(
     });
   }
 
-  const body = {
-    message: {
+  const buildPayload = (includeFrom: boolean) => {
+    const msg: any = {
       subject: payload.subject,
       body: {
         contentType: 'HTML',
@@ -90,28 +102,78 @@ export async function sendMailViaGraph(
           },
         },
       ],
+      replyTo: [
+        {
+          emailAddress: {
+            address: senderEmail,
+            name: senderName,
+          },
+        },
+      ],
       attachments,
-    },
-    saveToSentItems: true,
+    };
+
+    if (includeFrom) {
+      msg.from = {
+        emailAddress: {
+          address: senderEmail,
+          name: senderName,
+        },
+      };
+      msg.sender = {
+        emailAddress: {
+          address: senderEmail,
+          name: senderName,
+        },
+      };
+    }
+
+    return {
+      message: msg,
+      saveToSentItems: true,
+    };
   };
 
+  const timestamp = new Date().toLocaleTimeString('es-CO', { hour12: false });
+
   try {
-    const response = await fetch(endpoint, {
+    // 1. Intentar enviar con From explícito de c.estrategica
+    let response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(buildPayload(true)),
     });
+
+    // 2. Si Exchange rechaza el "SendAs" por falta de delegación en M365 (403 ErrorSendAsDenied),
+    // enviar directamente con el usuario de sesión pero conservando Reply-To hacia c.estrategica
+    if (!response.ok && response.status === 403) {
+      const errClone = await response.clone().json().catch(() => ({}));
+      const code = String(errClone?.error?.code || '');
+      if (code.includes('SendAs') || code.includes('Denied') || code.includes('Forbidden')) {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(buildPayload(false)),
+        });
+      }
+    }
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      const msg = errData?.error?.message || `Error ${response.status}: ${response.statusText}`;
+      const msg = errData?.error?.message || `Error HTTP ${response.status}: ${response.statusText}`;
       return {
         success: false,
         toEmail: payload.toEmail,
         toName: payload.toName,
+        httpStatus: response.status,
+        timestamp,
+        category: payload.category,
         error: msg,
       };
     }
@@ -120,13 +182,19 @@ export async function sendMailViaGraph(
       success: true,
       toEmail: payload.toEmail,
       toName: payload.toName,
+      httpStatus: response.status || 202,
+      timestamp,
+      category: payload.category,
     };
   } catch (err: any) {
     return {
       success: false,
       toEmail: payload.toEmail,
       toName: payload.toName,
-      error: err?.message || 'Error de conexión al enviar el correo.',
+      httpStatus: 0,
+      timestamp,
+      category: payload.category,
+      error: err?.message || 'Error de conexión de red al enviar el correo.',
     };
   }
 }

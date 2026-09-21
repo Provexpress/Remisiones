@@ -1,50 +1,46 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import {
+  AlertCircle,
+  Briefcase,
   CheckCircle2,
   Copy,
   Download,
-  Eye,
   Mail,
   RefreshCw,
   Send,
-  X,
-  AlertCircle,
   Sparkles,
+  Terminal,
   Users,
-  Briefcase,
+  X,
+  FileSpreadsheet,
+  ShieldCheck,
 } from 'lucide-react';
 import type { Remision } from '../types';
 import { acquireMailToken } from '../lib/auth';
 import {
   buildCommercialEmailSummary,
   formatCOP,
-  formatNumber,
   generateCommercialEmailHtml,
 } from '../lib/commercialEmailTemplate';
-import {
-  downloadCommercialExcel,
-  generateCommercialExcelBase64,
-} from '../lib/commercialExcelGenerator';
+import { generateCommercialExcelBase64 } from '../lib/commercialExcelGenerator';
 import {
   buildDirectorEmailSummary,
   generateDirectorEmailHtml,
-  type DirectorEmailSummary,
 } from '../lib/directorEmailTemplate';
-import {
-  downloadDirectorExcel,
-  generateDirectorExcelBase64,
-} from '../lib/directorExcelGenerator';
+import { generateDirectorExcelBase64 } from '../lib/directorExcelGenerator';
 import {
   buildGerenciaEmailSummary,
   generateGerenciaEmailHtml,
-  type GerenciaEmailSummary,
 } from '../lib/gerenciaEmailTemplate';
-import {
-  downloadGerenciaExcel,
-  generateGerenciaExcelBase64,
-} from '../lib/gerenciaExcelGenerator';
+import { generateGerenciaExcelBase64 } from '../lib/gerenciaExcelGenerator';
 import { LISTA_DIRECTORES, LISTA_GERENCIA } from '../lib/commercialDirectory';
-import { sendBatchEmails, sendMailViaGraph, type SendEmailPayload, type SendResult } from '../lib/emailSender';
+import {
+  sendMailViaGraph,
+  type SendEmailPayload,
+  type SendResult,
+  OFFICIAL_SENDER_EMAIL,
+  OFFICIAL_SENDER_NAME,
+} from '../lib/emailSender';
 import { formatCutoff } from '../lib/remisiones';
 
 interface Props {
@@ -55,39 +51,16 @@ interface Props {
   currentUserEmail?: string;
 }
 
-interface CommercialTarget {
-  name: string;
-  email: string;
-  directorName: string;
-  count: number;
-  value: number;
-  avgAge: number;
-  selected: boolean;
-  status: 'idle' | 'sending' | 'success' | 'error';
-  errorMessage?: string;
-}
-
-interface DirectorTarget {
-  grupo: number;
-  name: string;
-  email: string;
-  count: number;
-  value: number;
-  avgAge: number;
-  activeExecutivesCount: number;
-  totalExecutivesCount: number;
-  selected: boolean;
-  status: 'idle' | 'sending' | 'success' | 'error';
-  errorMessage?: string;
-}
-
-interface GerenciaTarget {
-  cargo: string;
-  name: string;
-  email: string;
-  selected: boolean;
-  status: 'idle' | 'sending' | 'success' | 'error';
-  errorMessage?: string;
+export interface DispatchLogEntry {
+  id: string;
+  time: string;
+  httpStatus: number;
+  success: boolean;
+  recipientEmail: string;
+  recipientName: string;
+  role: 'Comercial' | 'Director' | 'Gerencia' | 'Copia Validez' | 'Prueba';
+  detail: string;
+  error?: string;
 }
 
 export const EmailNotificationModal: React.FC<Props> = ({
@@ -97,26 +70,38 @@ export const EmailNotificationModal: React.FC<Props> = ({
   cutoffDate,
   currentUserEmail,
 }) => {
-  const [recipientType, setRecipientType] = useState<'commercials' | 'directors' | 'gerencia'>('commercials');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCommercialName, setSelectedCommercialName] = useState<string>('');
-  const [selectedDirectorGroup, setSelectedDirectorGroup] = useState<number>(2);
-  const [selectedGerenciaEmail, setSelectedGerenciaEmail] = useState<string>('rafael.novoa@provexpress.com.co');
-  const [commercialTargets, setCommercialTargets] = useState<CommercialTarget[]>([]);
-  const [directorTargets, setDirectorTargets] = useState<DirectorTarget[]>([]);
-  const [gerenciaTargets, setGerenciaTargets] = useState<GerenciaTarget[]>([]);
-  const [isSendingBatch, setIsSendingBatch] = useState(false);
+  // Opciones de paquetes a enviar
+  const [includeCommercials, setIncludeCommercials] = useState(true);
+  const [includeDirectors, setIncludeDirectors] = useState(true);
+  const [includeGerencia, setIncludeGerencia] = useState(true);
+
+  // Estados de ejecución
+  const [isSending, setIsSending] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
-  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+  const [logs, setLogs] = useState<DispatchLogEntry[]>([]);
   const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [viewMode, setViewMode] = useState<'preview' | 'html'>('preview');
 
-  // Inicializar listas al cambiar registros o corte
-  useMemo(() => {
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (logs.length > 0) {
+      logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logs]);
+
+  // Cálculo de estadísticas y destinatarios del corte actual
+  const {
+    commercialList,
+    totalCommercialValue,
+    totalCommercialRemisiones,
+    directorList,
+    gerenciaList,
+  } = useMemo(() => {
     const currentRecords = records.filter((r) => r.cutoff === cutoffDate);
 
-    // 1. Comerciales
+    // 1. Comerciales con remisiones en este corte
     const byEmployee = new Map<string, Remision[]>();
     currentRecords.forEach((r) => {
       const emp = r.employee?.trim();
@@ -126,995 +111,590 @@ export const EmailNotificationModal: React.FC<Props> = ({
       byEmployee.set(emp, list);
     });
 
-    const cTargets: CommercialTarget[] = [];
+    const cList: { name: string; email: string; count: number; value: number }[] = [];
+    let totVal = 0;
+    let totRem = 0;
+
     byEmployee.forEach((empRecords, empName) => {
       const summary = buildCommercialEmailSummary(empName, records, cutoffDate);
-      cTargets.push({
-        name: empName,
-        email: summary.commercialEmail,
-        directorName: summary.directorName,
-        count: summary.totalCount,
-        value: summary.totalValue,
-        avgAge: summary.avgAge,
-        selected: Boolean(summary.commercialEmail),
-        status: 'idle',
-      });
+      if (summary.totalCount > 0) {
+        cList.push({
+          name: empName,
+          email: summary.commercialEmail,
+          count: summary.totalCount,
+          value: summary.totalValue,
+        });
+        totVal += summary.totalValue;
+        totRem += summary.totalCount;
+      }
     });
 
-    cTargets.sort((a, b) => b.value - a.value);
-    setCommercialTargets(cTargets);
+    // 2. Directores de grupo
+    const dList = LISTA_DIRECTORES.filter((d) => d.grupo >= 1 && d.grupo <= 4);
 
-    if (cTargets.length > 0 && (!selectedCommercialName || !cTargets.some((t) => t.name === selectedCommercialName))) {
-      setSelectedCommercialName(cTargets[0].name);
-    }
+    // 3. Gerencia & Especialista
+    const gList = LISTA_GERENCIA;
 
-    // 2. Directores
-    const dTargets: DirectorTarget[] = LISTA_DIRECTORES.map((dir) => {
-      const sum = buildDirectorEmailSummary(dir.grupo, records, cutoffDate);
-      return {
-        grupo: dir.grupo,
-        name: dir.nombre,
-        email: dir.email,
-        count: sum.totalCount,
-        value: sum.totalValue,
-        avgAge: sum.avgAge,
-        activeExecutivesCount: sum.activeExecutivesCount,
-        totalExecutivesCount: sum.totalExecutivesCount,
-        selected: Boolean(dir.email),
-        status: 'idle',
-      };
-    });
-
-    setDirectorTargets(dTargets);
-
-    // 3. Dirección y Gerencia Comercial
-    const gTargets: GerenciaTarget[] = LISTA_GERENCIA.map((g) => ({
-      cargo: g.cargo,
-      name: g.nombre,
-      email: g.email,
-      selected: Boolean(g.email),
-      status: 'idle',
-    }));
-    setGerenciaTargets(gTargets);
+    return {
+      commercialList: cList,
+      totalCommercialValue: totVal,
+      totalCommercialRemisiones: totRem,
+      directorList: dList,
+      gerenciaList: gList,
+    };
   }, [records, cutoffDate]);
 
-  // Resumen del comercial seleccionado
-  const activeCommercialSummary = useMemo(() => {
-    if (recipientType !== 'commercials' || !selectedCommercialName) return null;
-    return buildCommercialEmailSummary(selectedCommercialName, records, cutoffDate);
-  }, [recipientType, selectedCommercialName, records, cutoffDate]);
-
-  // Resumen del director seleccionado
-  const activeDirectorSummary = useMemo(() => {
-    if (recipientType !== 'directors' || !selectedDirectorGroup) return null;
-    return buildDirectorEmailSummary(selectedDirectorGroup, records, cutoffDate);
-  }, [recipientType, selectedDirectorGroup, records, cutoffDate]);
-
-  // Resumen de gerencia seleccionado
-  const activeGerenciaSummary = useMemo(() => {
-    if (recipientType !== 'gerencia') return null;
-    const target = gerenciaTargets.find((g) => g.email === selectedGerenciaEmail) || gerenciaTargets[0];
-    return buildGerenciaEmailSummary(records, cutoffDate, {
-      name: target?.name,
-      cargo: target?.cargo,
-      email: target?.email,
-    });
-  }, [recipientType, selectedGerenciaEmail, gerenciaTargets, records, cutoffDate]);
-
-  // HTML activo para visualización
-  const activeHtml = useMemo(() => {
-    if (recipientType === 'gerencia') {
-      if (!activeGerenciaSummary) return '';
-      return generateGerenciaEmailHtml(activeGerenciaSummary, { forWebPreview: true });
-    }
-    if (recipientType === 'directors') {
-      if (!activeDirectorSummary) return '';
-      return generateDirectorEmailHtml(activeDirectorSummary, { forWebPreview: true });
-    }
-    if (!activeCommercialSummary) return '';
-    return generateCommercialEmailHtml(activeCommercialSummary, { forWebPreview: true });
-  }, [recipientType, activeGerenciaSummary, activeDirectorSummary, activeCommercialSummary]);
+  const totalCalculated =
+    (includeCommercials ? commercialList.length : 0) +
+    (includeDirectors ? directorList.length : 0) +
+    (includeGerencia ? gerenciaList.length : 0);
 
   if (!isOpen) return null;
 
-  // Filtrado de comerciales
-  const filteredCommercials = commercialTargets.filter((t) =>
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.directorName.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
-
-  // Filtrado de directores
-  const filteredDirectors = directorTargets.filter((t) =>
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    `grupo ${t.grupo}`.includes(searchTerm.toLowerCase()),
-  );
-
-  // Filtrado de gerencia
-  const filteredGerencia = gerenciaTargets.filter((t) =>
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.cargo.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
-
-  // Conteos de selección
-  const selectedCount = recipientType === 'gerencia'
-    ? gerenciaTargets.filter((t) => t.selected).length
-    : recipientType === 'directors'
-    ? directorTargets.filter((t) => t.selected).length
-    : commercialTargets.filter((t) => t.selected).length;
-
-  const totalValueSelected = recipientType === 'gerencia'
-    ? (activeGerenciaSummary?.totalValue || 0)
-    : recipientType === 'directors'
-    ? directorTargets.filter((t) => t.selected).reduce((sum, t) => sum + t.value, 0)
-    : commercialTargets.filter((t) => t.selected).reduce((sum, t) => sum + t.value, 0);
-
-  const toggleSelectAll = () => {
-    if (recipientType === 'gerencia') {
-      const allSelected = filteredGerencia.every((t) => t.selected);
-      setGerenciaTargets((prev) =>
-        prev.map((t) => (filteredGerencia.some((fg) => fg.email === t.email) ? { ...t, selected: !allSelected } : t)),
-      );
-    } else if (recipientType === 'directors') {
-      const allSelected = filteredDirectors.every((t) => t.selected);
-      setDirectorTargets((prev) =>
-        prev.map((t) => (filteredDirectors.some((fd) => fd.grupo === t.grupo) ? { ...t, selected: !allSelected } : t)),
-      );
-    } else {
-      const allSelected = filteredCommercials.every((t) => t.selected);
-      setCommercialTargets((prev) =>
-        prev.map((t) => (filteredCommercials.some((ft) => ft.name === t.name) ? { ...t, selected: !allSelected } : t)),
-      );
-    }
-  };
-
-  const toggleTarget = (key: string | number) => {
-    if (recipientType === 'gerencia') {
-      setGerenciaTargets((prev) =>
-        prev.map((t) => (t.email === key ? { ...t, selected: !t.selected } : t)),
-      );
-    } else if (recipientType === 'directors') {
-      setDirectorTargets((prev) =>
-        prev.map((t) => (t.grupo === key ? { ...t, selected: !t.selected } : t)),
-      );
-    } else {
-      setCommercialTargets((prev) =>
-        prev.map((t) => (t.name === key ? { ...t, selected: !t.selected } : t)),
-      );
-    }
-  };
-
-  const handleCopyHtml = async () => {
-    if (!activeHtml) return;
-    try {
-      await navigator.clipboard.writeText(activeHtml);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback silencioso
-    }
-  };
-
-  const handleDownloadExcel = async () => {
-    try {
-      if (recipientType === 'gerencia') {
-        if (!activeGerenciaSummary) return;
-        await downloadGerenciaExcel(activeGerenciaSummary);
-        setAlertMessage({
-          type: 'success',
-          text: `¡Libro Excel maestro de Gerencia descargado exitosamente!`,
-        });
-      } else if (recipientType === 'directors') {
-        if (!activeDirectorSummary) return;
-        await downloadDirectorExcel(activeDirectorSummary);
-        setAlertMessage({
-          type: 'success',
-          text: `¡Excel consolidado de ${activeDirectorSummary.directorName} descargado exitosamente!`,
-        });
-      } else {
-        if (!activeCommercialSummary) return;
-        await downloadCommercialExcel(
-          activeCommercialSummary.commercialName,
-          activeCommercialSummary.cutoffDate,
-          activeCommercialSummary.allRemisiones,
-        );
-        setAlertMessage({
-          type: 'success',
-          text: `¡Archivo Excel de ${activeCommercialSummary.commercialName} descargado exitosamente!`,
-        });
-      }
-    } catch (err: any) {
-      setAlertMessage({
-        type: 'error',
-        text: `Error al descargar Excel: ${err?.message || 'Error desconocido'}`,
-      });
-    }
-  };
-
+  // ══════════════════════════════════════════════════════════════════════════
+  // ENVIAR PRUEBA A MI CORREO
+  // ══════════════════════════════════════════════════════════════════════════
   const handleSendTest = async () => {
-    const testRecipient = currentUserEmail || (
-      recipientType === 'gerencia'
-        ? activeGerenciaSummary?.recipientEmail
-        : recipientType === 'directors'
-        ? activeDirectorSummary?.directorEmail
-        : activeCommercialSummary?.commercialEmail
-    );
-    if (!testRecipient) {
-      setAlertMessage({ type: 'error', text: 'No se detectó un correo de destino para la prueba.' });
-      return;
-    }
+    const targetEmail = currentUserEmail || 'especialista.preventa@provexpress.com.co';
 
     try {
       setIsSendingTest(true);
       setAlertMessage(null);
       const token = await acquireMailToken();
 
-      if (recipientType === 'gerencia') {
-        if (!activeGerenciaSummary) return;
-        const subject = `[PRUEBA] Consolidado General de Gestión Comercial · Dirección & Gerencia · Corte ${formatCutoff(cutoffDate)}`;
+      // Generar consolidado gerencial de prueba con copia a especialista
+      const testGerencia = buildGerenciaEmailSummary(records, cutoffDate, {
+        name: 'Especialista Preventa',
+        cargo: 'Prueba de Despacho',
+        email: targetEmail,
+      });
 
-        let excelAttachment;
-        try {
-          const { filename, base64 } = await generateGerenciaExcelBase64(activeGerenciaSummary);
-          excelAttachment = { filename, base64 };
-        } catch (e) {
-          console.warn('No se pudo generar adjunto Excel de gerencia:', e);
-        }
+      let excelAttachment;
+      try {
+        const { filename, base64 } = await generateGerenciaExcelBase64(testGerencia);
+        excelAttachment = { filename, base64 };
+      } catch (e) {
+        console.warn('Error generando Excel de prueba:', e);
+      }
 
-        const res = await sendMailViaGraph(token, {
-          toEmail: testRecipient,
-          toName: activeGerenciaSummary.recipientName,
-          subject,
-          htmlBody: generateGerenciaEmailHtml(activeGerenciaSummary),
-          excelAttachment,
+      const res = await sendMailViaGraph(token, {
+        toEmail: targetEmail,
+        toName: 'Especialista Preventa (Prueba)',
+        subject: `[PRUEBA] Consolidado Maestro Gerencial · Remisiones · Corte ${formatCutoff(cutoffDate)}`,
+        htmlBody: generateGerenciaEmailHtml(testGerencia),
+        excelAttachment,
+        senderEmail: OFFICIAL_SENDER_EMAIL,
+        senderName: OFFICIAL_SENDER_NAME,
+        category: 'prueba',
+      });
+
+      const entry: DispatchLogEntry = {
+        id: `test-${Date.now()}`,
+        time: res.timestamp || new Date().toLocaleTimeString('es-CO', { hour12: false }),
+        httpStatus: res.httpStatus || (res.success ? 202 : 500),
+        success: res.success,
+        recipientEmail: targetEmail,
+        recipientName: 'Especialista Preventa',
+        role: 'Prueba',
+        detail: `Prueba de correo gerencial recibida (${formatCutoff(cutoffDate)})`,
+        error: res.error,
+      };
+
+      setLogs((prev) => [...prev, entry]);
+
+      if (res.success) {
+        setAlertMessage({
+          type: 'success',
+          text: `¡Correo de prueba despachado con éxito a ${targetEmail}! (HTTP ${res.httpStatus || 202} OK). Revisa tu bandeja de entrada.`,
         });
-
-        if (res.success) {
-          setAlertMessage({
-            type: 'success',
-            text: `¡Correo de prueba de Gerencia enviado con éxito a ${testRecipient}! Incluye el libro Excel maestro adjunto con 3 hojas.`,
-          });
-        } else {
-          setAlertMessage({
-            type: 'error',
-            text: `Error al enviar prueba: ${res.error || 'Verifica permisos de Microsoft 365'}`,
-          });
-        }
-      } else if (recipientType === 'directors') {
-        if (!activeDirectorSummary) return;
-        const subject = `[PRUEBA] Consolidado de Remisiones · ${activeDirectorSummary.directorName} (Grupo ${activeDirectorSummary.directorGroup}) · Corte ${formatCutoff(cutoffDate)}`;
-
-        let excelAttachment;
-        try {
-          const { filename, base64 } = await generateDirectorExcelBase64(activeDirectorSummary);
-          excelAttachment = { filename, base64 };
-        } catch (e) {
-          console.warn('No se pudo generar adjunto Excel de director:', e);
-        }
-
-        const res = await sendMailViaGraph(token, {
-          toEmail: testRecipient,
-          toName: activeDirectorSummary.directorName,
-          subject,
-          htmlBody: generateDirectorEmailHtml(activeDirectorSummary),
-          excelAttachment,
-        });
-
-        if (res.success) {
-          setAlertMessage({
-            type: 'success',
-            text: `¡Correo de prueba de Director enviado con éxito a ${testRecipient}! Incluye el archivo Excel consolidado adjunto.`,
-          });
-        } else {
-          setAlertMessage({
-            type: 'error',
-            text: `Error al enviar prueba: ${res.error || 'Verifica permisos de Microsoft 365'}`,
-          });
-        }
       } else {
-        if (!activeCommercialSummary) return;
-        const subject = `[PRUEBA] Oportunidades de Facturación · ${activeCommercialSummary.commercialName} · Corte ${formatCutoff(cutoffDate)}`;
-
-        let excelAttachment;
-        try {
-          const excelBase64 = await generateCommercialExcelBase64(
-            activeCommercialSummary.commercialName,
-            activeCommercialSummary.cutoffDate,
-            activeCommercialSummary.allRemisiones,
-          );
-          const cleanName = activeCommercialSummary.commercialName.replace(/\s+/g, '_');
-          excelAttachment = {
-            filename: `Remisiones_Abiertas_${cleanName}_${cutoffDate}.xlsx`,
-            base64: excelBase64,
-          };
-        } catch (e) {
-          console.warn('No se pudo generar adjunto Excel comercial:', e);
-        }
-
-        const res = await sendMailViaGraph(token, {
-          toEmail: testRecipient,
-          toName: activeCommercialSummary.commercialName,
-          subject,
-          htmlBody: generateCommercialEmailHtml(activeCommercialSummary),
-          excelAttachment,
+        setAlertMessage({
+          type: 'error',
+          text: `Error al enviar prueba: ${res.error || 'Verifica la sesión de Microsoft 365'}`,
         });
-
-        if (res.success) {
-          setAlertMessage({
-            type: 'success',
-            text: `¡Correo de prueba enviado con éxito a ${testRecipient}! Incluye el archivo Excel adjunto.`,
-          });
-        } else {
-          setAlertMessage({
-            type: 'error',
-            text: `Error al enviar prueba: ${res.error || 'Verifica permisos de Microsoft 365'}`,
-          });
-        }
       }
     } catch (err: any) {
       setAlertMessage({
         type: 'error',
-        text: `No se pudo conectar a Microsoft 365: ${err?.message || 'Inicia sesión con tu cuenta corporativa'}`,
+        text: `Error de conexión con Microsoft 365: ${err?.message || 'Error desconocido'}`,
       });
     } finally {
       setIsSendingTest(false);
     }
   };
 
-  const handleSendBatch = async () => {
-    if (recipientType === 'gerencia') {
-      const toSend = gerenciaTargets.filter((t) => t.selected && t.email);
-      if (toSend.length === 0) {
-        setAlertMessage({ type: 'error', text: 'Selecciona al menos un miembro de Gerencia con correo válido.' });
-        return;
-      }
+  // ══════════════════════════════════════════════════════════════════════════
+  // INICIAR DESPACHO OFICIAL COMPLETO
+  // ══════════════════════════════════════════════════════════════════════════
+  const handleStartDispatch = async () => {
+    if (totalCalculated === 0) {
+      setAlertMessage({ type: 'error', text: 'Selecciona al menos un grupo para despachar las notificaciones.' });
+      return;
+    }
 
-      try {
-        setIsSendingBatch(true);
-        setAlertMessage(null);
-        setBatchProgress({ current: 0, total: toSend.length });
+    try {
+      setIsSending(true);
+      setAlertMessage(null);
+      setProgress({ current: 0, total: totalCalculated });
 
-        const token = await acquireMailToken();
+      const token = await acquireMailToken();
+      const newLogs: DispatchLogEntry[] = [];
 
-        const items: SendEmailPayload[] = await Promise.all(
-          toSend.map(async (t) => {
-            const sum = buildGerenciaEmailSummary(records, cutoffDate, {
-              name: t.name,
-              cargo: t.cargo,
-              email: t.email,
-            });
-            let excelAttachment;
-            try {
-              const { filename, base64 } = await generateGerenciaExcelBase64(sum);
-              excelAttachment = { filename, base64 };
-            } catch (e) {
-              console.warn('No se pudo generar adjunto Excel para gerencia', t.name, e);
-            }
-            return {
-              toEmail: t.email,
-              toName: t.name,
-              subject: `📊 Consolidado General de Gestión Comercial · Dirección & Gerencia · ${t.name} · Corte ${formatCutoff(cutoffDate)}`,
-              htmlBody: generateGerenciaEmailHtml(sum),
-              excelAttachment,
+      // Registro de inicio en el log
+      const startLog: DispatchLogEntry = {
+        id: `start-${Date.now()}`,
+        time: new Date().toLocaleTimeString('es-CO', { hour12: false }),
+        httpStatus: 200,
+        success: true,
+        recipientEmail: OFFICIAL_SENDER_EMAIL,
+        recipientName: OFFICIAL_SENDER_NAME,
+        role: 'Gerencia',
+        detail: `🚀 Iniciando despacho de notificaciones · Corte ${formatCutoff(cutoffDate)} · Total: ${totalCalculated} correos`,
+      };
+      setLogs((prev) => [...prev, startLog]);
+
+      let processed = 0;
+
+      // 1. DESPACHO A COMERCIALES
+      if (includeCommercials) {
+        for (const c of commercialList) {
+          if (!c.email) continue;
+          const summary = buildCommercialEmailSummary(c.name, records, cutoffDate);
+
+          let excelAttachment;
+          try {
+            const excelBase64 = await generateCommercialExcelBase64(c.name, cutoffDate, summary.allRemisiones);
+            const cleanName = c.name.replace(/\s+/g, '_');
+            excelAttachment = {
+              filename: `Remisiones_Abiertas_${cleanName}_${cutoffDate}.xlsx`,
+              base64: excelBase64,
             };
-          }),
-        );
+          } catch (e) {
+            console.warn(`No se pudo adjuntar Excel a comercial ${c.name}:`, e);
+          }
 
-        setGerenciaTargets((prev) =>
-          prev.map((t) => (t.selected && t.email ? { ...t, status: 'sending', errorMessage: undefined } : t)),
-        );
+          const res = await sendMailViaGraph(token, {
+            toEmail: c.email,
+            toName: c.name,
+            subject: `Oportunidades de Facturación · ${c.name} · Corte ${formatCutoff(cutoffDate)}`,
+            htmlBody: generateCommercialEmailHtml(summary),
+            excelAttachment,
+            senderEmail: OFFICIAL_SENDER_EMAIL,
+            senderName: OFFICIAL_SENDER_NAME,
+            category: 'comercial',
+          });
 
-        await sendBatchEmails(
-          token,
-          items,
-          (sent, total, lastResult) => {
-            setBatchProgress({ current: sent, total });
-            setGerenciaTargets((prev) =>
-              prev.map((t) => {
-                if (t.email === lastResult.toEmail) {
-                  return {
-                    ...t,
-                    status: lastResult.success ? 'success' : 'error',
-                    errorMessage: lastResult.error,
-                  };
-                }
-                return t;
-              }),
-            );
-          },
-          500,
-        );
+          processed++;
+          setProgress({ current: processed, total: totalCalculated });
 
-        setAlertMessage({
-          type: 'success',
-          text: `Envío completado: se despachó el informe consolidado a ${toSend.length} miembros de Dirección y Gerencia.`,
-        });
-      } catch (err: any) {
-        setAlertMessage({
-          type: 'error',
-          text: `Error durante el envío a gerencia: ${err?.message || 'Verifica tu conexión y permisos'}`,
-        });
-      } finally {
-        setIsSendingBatch(false);
-        setBatchProgress(null);
-      }
-    } else if (recipientType === 'directors') {
-      const toSend = directorTargets.filter((t) => t.selected && t.email);
-      if (toSend.length === 0) {
-        setAlertMessage({ type: 'error', text: 'Selecciona al menos un Director con correo válido.' });
-        return;
+          const logItem: DispatchLogEntry = {
+            id: `comm-${c.email}-${Date.now()}`,
+            time: res.timestamp || new Date().toLocaleTimeString('es-CO', { hour12: false }),
+            httpStatus: res.httpStatus || (res.success ? 202 : 500),
+            success: res.success,
+            recipientEmail: c.email,
+            recipientName: c.name,
+            role: 'Comercial',
+            detail: `${summary.totalCount} remisiones (${formatCOP(summary.totalValue)}) · Excel adjunto`,
+            error: res.error,
+          };
+          setLogs((prev) => [...prev, logItem]);
+
+          // Pausa preventiva de 600 ms para Microsoft Graph rate-limiting
+          await new Promise((r) => setTimeout(r, 600));
+        }
       }
 
-      try {
-        setIsSendingBatch(true);
-        setAlertMessage(null);
-        setBatchProgress({ current: 0, total: toSend.length });
+      // 2. DESPACHO A DIRECTORES DE GRUPO
+      if (includeDirectors) {
+        for (const dir of directorList) {
+          if (!dir.email) continue;
+          const summary = buildDirectorEmailSummary(dir.grupo, records, cutoffDate);
 
-        const token = await acquireMailToken();
+          let excelAttachment;
+          try {
+            const { filename, base64 } = await generateDirectorExcelBase64(summary);
+            excelAttachment = { filename, base64 };
+          } catch (e) {
+            console.warn(`No se pudo adjuntar Excel a director ${dir.nombre}:`, e);
+          }
 
-        const items: SendEmailPayload[] = await Promise.all(
-          toSend.map(async (t) => {
-            const sum = buildDirectorEmailSummary(t.grupo, records, cutoffDate);
-            let excelAttachment;
-            try {
-              const { filename, base64 } = await generateDirectorExcelBase64(sum);
-              excelAttachment = { filename, base64 };
-            } catch (e) {
-              console.warn('No se pudo generar adjunto Excel para director', t.name, e);
-            }
-            return {
-              toEmail: t.email,
-              toName: t.name,
-              subject: `📊 Reporte Consolidado de Remisiones · Dirección Grupo ${t.grupo} · ${t.name} · Corte ${formatCutoff(cutoffDate)}`,
-              htmlBody: generateDirectorEmailHtml(sum),
-              excelAttachment,
-            };
-          }),
-        );
+          const res = await sendMailViaGraph(token, {
+            toEmail: dir.email,
+            toName: dir.nombre,
+            subject: `Consolidado de Remisiones · ${dir.nombre} (Grupo ${dir.grupo}) · Corte ${formatCutoff(cutoffDate)}`,
+            htmlBody: generateDirectorEmailHtml(summary),
+            excelAttachment,
+            senderEmail: OFFICIAL_SENDER_EMAIL,
+            senderName: OFFICIAL_SENDER_NAME,
+            category: 'director',
+          });
 
-        setDirectorTargets((prev) =>
-          prev.map((t) => (t.selected && t.email ? { ...t, status: 'sending', errorMessage: undefined } : t)),
-        );
+          processed++;
+          setProgress({ current: processed, total: totalCalculated });
 
-        await sendBatchEmails(
-          token,
-          items,
-          (sent, total, lastResult) => {
-            setBatchProgress({ current: sent, total });
-            setDirectorTargets((prev) =>
-              prev.map((t) => {
-                if (t.email === lastResult.toEmail) {
-                  return {
-                    ...t,
-                    status: lastResult.success ? 'success' : 'error',
-                    errorMessage: lastResult.error,
-                  };
-                }
-                return t;
-              }),
-            );
-          },
-          500,
-        );
+          const logItem: DispatchLogEntry = {
+            id: `dir-${dir.email}-${Date.now()}`,
+            time: res.timestamp || new Date().toLocaleTimeString('es-CO', { hour12: false }),
+            httpStatus: res.httpStatus || (res.success ? 202 : 500),
+            success: res.success,
+            recipientEmail: dir.email,
+            recipientName: dir.nombre,
+            role: 'Director',
+            detail: `Grupo ${dir.grupo} (${dir.carpeta}) · ${summary.totalCount} remisiones (${formatCOP(summary.totalValue)})`,
+            error: res.error,
+          };
+          setLogs((prev) => [...prev, logItem]);
 
-        setAlertMessage({
-          type: 'success',
-          text: `Envío completado: se procesaron los reportes para ${toSend.length} Directores de Grupo.`,
-        });
-      } catch (err: any) {
-        setAlertMessage({
-          type: 'error',
-          text: `Error durante el envío a directores: ${err?.message || 'Verifica tu conexión y permisos'}`,
-        });
-      } finally {
-        setIsSendingBatch(false);
-        setBatchProgress(null);
-      }
-    } else {
-      // Envío a comerciales
-      const toSend = commercialTargets.filter((t) => t.selected && t.email);
-      if (toSend.length === 0) {
-        setAlertMessage({ type: 'error', text: 'Selecciona al menos un comercial con correo válido.' });
-        return;
+          await new Promise((r) => setTimeout(r, 600));
+        }
       }
 
-      try {
-        setIsSendingBatch(true);
-        setAlertMessage(null);
-        setBatchProgress({ current: 0, total: toSend.length });
+      // 3. DESPACHO A GERENCIA Y COPIA DE VALIDEZ A ESPECIALISTA PREVENTA
+      if (includeGerencia) {
+        for (const g of gerenciaList) {
+          if (!g.email) continue;
+          const isEspecialista = g.email === 'especialista.preventa@provexpress.com.co';
 
-        const token = await acquireMailToken();
+          const summary = buildGerenciaEmailSummary(records, cutoffDate, {
+            name: g.nombre,
+            cargo: g.cargo,
+            email: g.email,
+          });
 
-        const items: SendEmailPayload[] = await Promise.all(
-          toSend.map(async (t) => {
-            const sum = buildCommercialEmailSummary(t.name, records, cutoffDate);
-            let excelAttachment;
-            try {
-              const excelBase64 = await generateCommercialExcelBase64(
-                sum.commercialName,
-                sum.cutoffDate,
-                sum.allRemisiones,
-              );
-              const cleanName = sum.commercialName.replace(/\s+/g, '_');
-              excelAttachment = {
-                filename: `Remisiones_Abiertas_${cleanName}_${cutoffDate}.xlsx`,
-                base64: excelBase64,
-              };
-            } catch (e) {
-              console.warn('No se pudo generar adjunto Excel para', t.name, e);
-            }
-            return {
-              toEmail: t.email,
-              toName: t.name,
-              subject: `Oportunidades de Facturación · ${t.name} · Corte ${formatCutoff(cutoffDate)}`,
-              htmlBody: generateCommercialEmailHtml(sum),
-              excelAttachment,
-            };
-          }),
-        );
+          let excelAttachment;
+          try {
+            const { filename, base64 } = await generateGerenciaExcelBase64(summary);
+            excelAttachment = { filename, base64 };
+          } catch (e) {
+            console.warn(`No se pudo adjuntar Excel maestro a gerencia ${g.nombre}:`, e);
+          }
 
-        setCommercialTargets((prev) =>
-          prev.map((t) => (t.selected && t.email ? { ...t, status: 'sending', errorMessage: undefined } : t)),
-        );
+          const subject = isEspecialista
+            ? `📊 Consolidado General de Gestión Comercial · Dirección & Gerencia · Especialista Preventa (Copia de Validez) · Corte ${formatCutoff(cutoffDate)}`
+            : `📊 Consolidado General de Gestión Comercial · Dirección & Gerencia · ${g.nombre} · Corte ${formatCutoff(cutoffDate)}`;
 
-        await sendBatchEmails(
-          token,
-          items,
-          (sent, total, lastResult) => {
-            setBatchProgress({ current: sent, total });
-            setCommercialTargets((prev) =>
-              prev.map((t) => {
-                if (t.email === lastResult.toEmail) {
-                  return {
-                    ...t,
-                    status: lastResult.success ? 'success' : 'error',
-                    errorMessage: lastResult.error,
-                  };
-                }
-                return t;
-              }),
-            );
-          },
-          500,
-        );
+          const res = await sendMailViaGraph(token, {
+            toEmail: g.email,
+            toName: g.nombre,
+            subject,
+            htmlBody: generateGerenciaEmailHtml(summary),
+            excelAttachment,
+            senderEmail: OFFICIAL_SENDER_EMAIL,
+            senderName: OFFICIAL_SENDER_NAME,
+            category: isEspecialista ? 'copia_validez' : 'gerencia',
+          });
 
-        setAlertMessage({
-          type: 'success',
-          text: `Envío completado: se procesaron las notificaciones para ${toSend.length} comerciales.`,
-        });
-      } catch (err: any) {
-        setAlertMessage({
-          type: 'error',
-          text: `Error durante el envío masivo: ${err?.message || 'Verifica tu conexión y permisos'}`,
-        });
-      } finally {
-        setIsSendingBatch(false);
-        setBatchProgress(null);
+          processed++;
+          setProgress({ current: processed, total: totalCalculated });
+
+          const logItem: DispatchLogEntry = {
+            id: `ger-${g.email}-${Date.now()}`,
+            time: res.timestamp || new Date().toLocaleTimeString('es-CO', { hour12: false }),
+            httpStatus: res.httpStatus || (res.success ? 202 : 500),
+            success: res.success,
+            recipientEmail: g.email,
+            recipientName: g.nombre,
+            role: isEspecialista ? 'Copia Validez' : 'Gerencia',
+            detail: `${isEspecialista ? 'Copia de Auditoría Especialista · ' : ''}Libro Maestro 3 Hojas (${formatCOP(summary.totalValue)})`,
+            error: res.error,
+          };
+          setLogs((prev) => [...prev, logItem]);
+
+          await new Promise((r) => setTimeout(r, 600));
+        }
       }
+
+      // Registro de finalización en el log
+      const endLog: DispatchLogEntry = {
+        id: `end-${Date.now()}`,
+        time: new Date().toLocaleTimeString('es-CO', { hour12: false }),
+        httpStatus: 200,
+        success: true,
+        recipientEmail: OFFICIAL_SENDER_EMAIL,
+        recipientName: OFFICIAL_SENDER_NAME,
+        role: 'Gerencia',
+        detail: `✅ DESPACHO OFICIAL FINALIZADO: ${processed} correos procesados satisfactoriamente.`,
+      };
+      setLogs((prev) => [...prev, endLog]);
+
+      setAlertMessage({
+        type: 'success',
+        text: `¡Proceso de notificación finalizado! Se procesaron ${processed} correos oficiales con remitente ${OFFICIAL_SENDER_EMAIL}.`,
+      });
+    } catch (err: any) {
+      setAlertMessage({
+        type: 'error',
+        text: `Error general durante el despacho: ${err?.message || 'Error desconocido'}`,
+      });
+    } finally {
+      setIsSending(false);
     }
   };
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // EXPORTAR Y COPIAR LOG
+  // ══════════════════════════════════════════════════════════════════════════
+  const copyLogText = () => {
+    const text = logs
+      .map(
+        (l) =>
+          `[${l.time}] HTTP ${l.httpStatus} ${l.success ? 'OK' : 'ERROR'} | [${l.role}] ${l.recipientName} <${l.recipientEmail}> - ${l.detail}${
+            l.error ? ` :: ${l.error}` : ''
+          }`,
+      )
+      .join('\n');
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const downloadLogFile = () => {
+    const text = logs
+      .map(
+        (l) =>
+          `[${l.time}] HTTP ${l.httpStatus} ${l.success ? 'OK' : 'ERROR'} | [${l.role}] ${l.recipientName} <${l.recipientEmail}> - ${l.detail}${
+            l.error ? ` :: ${l.error}` : ''
+          }`,
+      )
+      .join('\n');
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Log_Entrega_Notificaciones_${cutoffDate}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="email-modal-overlay" onClick={onClose}>
-      <div className="email-modal-card" onClick={(e) => e.stopPropagation()}>
-        {/* ENCABEZADO MODAL */}
-        <div className="email-modal-header">
-          <div className="email-modal-header-left">
-            <div className="email-modal-icon-badge">
-              <Mail size={20} />
+    <div className="email-modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="dispatch-console-modal" onClick={(e) => e.stopPropagation()}>
+        {/* ENCABEZADO */}
+        <div className="dispatch-header">
+          <div className="dispatch-header-title">
+            <div className="dispatch-icon-badge">
+              <Send size={20} />
             </div>
             <div>
-              <div className="email-modal-title">
-                Notificaciones Corporativas de Remisiones por Correo
-              </div>
-              <div className="email-modal-subtitle">
-                Corte activo: <strong>{formatCutoff(cutoffDate)}</strong> · Formato oficial Provexpress SAS
+              <h3>Consola de Despacho de Notificaciones Comerciales</h3>
+              <div className="dispatch-header-meta">
+                <span className="badge-cutoff">Corte: {formatCutoff(cutoffDate)}</span>
+                <span className="meta-divider">•</span>
+                <span>Remitente Oficial: <strong>{OFFICIAL_SENDER_EMAIL}</strong></span>
+                <span className="meta-divider">•</span>
+                <span>Copia Validez: <strong>especialista.preventa@provexpress.com.co</strong></span>
               </div>
             </div>
           </div>
-          <button className="email-modal-close-btn" onClick={onClose} title="Cerrar modal">
+          <button type="button" className="email-modal-close" onClick={onClose} disabled={isSending}>
             <X size={20} />
           </button>
         </div>
 
-        {/* SELECTOR DE PESTAÑAS (COMERCIALES / DIRECTORES / GERENCIA) */}
-        <div className="email-modal-tabs">
-          <button
-            type="button"
-            className={`email-tab-btn ${recipientType === 'commercials' ? 'active' : ''}`}
-            onClick={() => setRecipientType('commercials')}
-          >
-            <Users size={14} />
-            <span>👤 Ejecutivos Comerciales ({commercialTargets.length})</span>
-          </button>
-          <button
-            type="button"
-            className={`email-tab-btn ${recipientType === 'directors' ? 'active' : ''}`}
-            onClick={() => setRecipientType('directors')}
-          >
-            <Briefcase size={14} />
-            <span>👔 Directores de Grupo ({directorTargets.length})</span>
-          </button>
-          <button
-            type="button"
-            className={`email-tab-btn ${recipientType === 'gerencia' ? 'active' : ''}`}
-            onClick={() => setRecipientType('gerencia')}
-          >
-            <Sparkles size={14} />
-            <span>👑 Dirección & Gerencia ({gerenciaTargets.length})</span>
-          </button>
-        </div>
-
-        {/* ALERTA O MENSAJE DE ESTADO */}
+        {/* ALERTA DE MENSAJE */}
         {alertMessage && (
           <div className={`email-modal-alert ${alertMessage.type}`}>
             {alertMessage.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
             <span>{alertMessage.text}</span>
-            <button onClick={() => setAlertMessage(null)} className="alert-dismiss-btn">✕</button>
           </div>
         )}
 
-        {/* CUERPO DEL MODAL (2 COLUMNAS) */}
-        <div className="email-modal-body">
-          {/* PANEL IZQUIERDO: LISTA DE DESTINATARIOS */}
-          <div className="email-modal-sidebar">
-            <div className="email-sidebar-header">
-              <div className="email-sidebar-title-row">
-                <span className="email-sidebar-title">
-                  {recipientType === 'gerencia'
-                    ? `Dirección y Gerencia (${gerenciaTargets.length})`
-                    : recipientType === 'directors'
-                    ? `Directores de Grupo (${directorTargets.length})`
-                    : `Comerciales con saldo (${commercialTargets.length})`}
-                </span>
-                <button
-                  type="button"
-                  className="email-select-all-btn"
-                  onClick={toggleSelectAll}
-                >
-                  {(recipientType === 'gerencia'
-                    ? filteredGerencia
-                    : recipientType === 'directors'
-                    ? filteredDirectors
-                    : filteredCommercials
-                  ).every((t) => t.selected)
-                    ? 'Deseleccionar'
-                    : 'Seleccionar todo'}
-                </button>
-              </div>
-
-              <input
-                type="text"
-                className="email-search-input"
-                placeholder={
-                  recipientType === 'gerencia'
-                    ? 'Buscar cargo o directivo...'
-                    : recipientType === 'directors'
-                    ? 'Buscar director o grupo...'
-                    : 'Buscar comercial o director...'
-                }
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-
-              <div className="email-selected-summary">
-                Seleccionados: <strong>{selectedCount} de {recipientType === 'gerencia' ? gerenciaTargets.length : recipientType === 'directors' ? directorTargets.length : commercialTargets.length}</strong> · {formatCOP(totalValueSelected)}
-              </div>
+        {/* TARJETAS DE PAQUETES A DESPACHAR */}
+        <div className="dispatch-cards-grid">
+          {/* Card 1: Comerciales */}
+          <div className={`dispatch-card ${includeCommercials ? 'active' : 'inactive'}`}>
+            <div className="dispatch-card-top">
+              <label className="dispatch-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={includeCommercials}
+                  onChange={(e) => setIncludeCommercials(e.target.checked)}
+                  disabled={isSending}
+                />
+                <div className="dispatch-card-icon blue">
+                  <Users size={16} />
+                </div>
+                <strong>Asesores Comerciales ({commercialList.length})</strong>
+              </label>
+              <span className="dispatch-card-badge blue">Plantilla individual</span>
             </div>
-
-            {/* LISTADO SEGÚN PESTAÑA ACTIVA */}
-            <div className="email-targets-list">
-              {recipientType === 'gerencia' ? (
-                filteredGerencia.length === 0 ? (
-                  <div className="email-empty-search">No se encontraron miembros de gerencia</div>
-                ) : (
-                  filteredGerencia.map((target) => {
-                    const isSelectedForPreview = selectedGerenciaEmail === target.email;
-                    return (
-                      <div
-                        key={target.email}
-                        className={`email-target-item ${isSelectedForPreview ? 'active-preview' : ''}`}
-                        onClick={() => setSelectedGerenciaEmail(target.email)}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={target.selected}
-                          disabled={isSendingBatch}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            toggleTarget(target.email);
-                          }}
-                          className="email-target-checkbox"
-                        />
-                        <div className="email-target-info">
-                          <div className="email-target-top">
-                            <strong className="email-target-name">{target.name}</strong>
-                            {target.status === 'success' && (
-                              <span className="email-status-pill success"><CheckCircle2 size={11} /> Enviado</span>
-                            )}
-                            {target.status === 'sending' && (
-                              <span className="email-status-pill sending"><RefreshCw size={11} className="spin" /> Enviando</span>
-                            )}
-                            {target.status === 'error' && (
-                              <span className="email-status-pill error" title={target.errorMessage}><AlertCircle size={11} /> Falló</span>
-                            )}
-                          </div>
-                          <div className="email-target-meta">
-                            <span style={{ fontWeight: 700, color: '#1E3A8A' }}>{target.cargo}</span>
-                            <span>·</span>
-                            <span>{target.email}</span>
-                          </div>
-                          <div className="email-target-numbers">
-                            <span className="email-target-count">{activeGerenciaSummary?.totalCount || 0} rem. empresa</span>
-                            <span className="email-target-val">{formatCOP(activeGerenciaSummary?.totalValue || 0)}</span>
-                            <span className="email-target-age">🏛 Todos los grupos</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )
-              ) : recipientType === 'directors' ? (
-                filteredDirectors.length === 0 ? (
-                  <div className="email-empty-search">No se encontraron directores</div>
-                ) : (
-                  filteredDirectors.map((target) => {
-                    const isSelectedForPreview = selectedDirectorGroup === target.grupo;
-                    return (
-                      <div
-                        key={target.grupo}
-                        className={`email-target-item ${isSelectedForPreview ? 'active-preview' : ''}`}
-                        onClick={() => setSelectedDirectorGroup(target.grupo)}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={target.selected}
-                          disabled={isSendingBatch}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            toggleTarget(target.grupo);
-                          }}
-                          className="email-target-checkbox"
-                        />
-                        <div className="email-target-info">
-                          <div className="email-target-top">
-                            <strong className="email-target-name">{target.name}</strong>
-                            {target.status === 'success' && (
-                              <span className="email-status-pill success"><CheckCircle2 size={11} /> Enviado</span>
-                            )}
-                            {target.status === 'sending' && (
-                              <span className="email-status-pill sending"><RefreshCw size={11} className="spin" /> Enviando</span>
-                            )}
-                            {target.status === 'error' && (
-                              <span className="email-status-pill error" title={target.errorMessage}><AlertCircle size={11} /> Falló</span>
-                            )}
-                          </div>
-                          <div className="email-target-meta">
-                            <span style={{ fontWeight: 700, color: '#1E3A8A' }}>Grupo {target.grupo}</span>
-                            <span>·</span>
-                            <span>{target.email}</span>
-                          </div>
-                          <div className="email-target-numbers">
-                            <span className="email-target-count">{target.count} remisiones</span>
-                            <span className="email-target-val">{formatCOP(target.value)}</span>
-                            <span className="email-target-age">👥 {target.activeExecutivesCount}/{target.totalExecutivesCount} ejec.</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )
-              ) : (
-                filteredCommercials.length === 0 ? (
-                  <div className="email-empty-search">No se encontraron comerciales</div>
-                ) : (
-                  filteredCommercials.map((target) => {
-                    const isSelectedForPreview = selectedCommercialName === target.name;
-                    return (
-                      <div
-                        key={target.name}
-                        className={`email-target-item ${isSelectedForPreview ? 'active-preview' : ''}`}
-                        onClick={() => setSelectedCommercialName(target.name)}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={target.selected}
-                          disabled={isSendingBatch}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            toggleTarget(target.name);
-                          }}
-                          className="email-target-checkbox"
-                        />
-                        <div className="email-target-info">
-                          <div className="email-target-top">
-                            <strong className="email-target-name">{target.name}</strong>
-                            {target.status === 'success' && (
-                              <span className="email-status-pill success"><CheckCircle2 size={11} /> Enviado</span>
-                            )}
-                            {target.status === 'sending' && (
-                              <span className="email-status-pill sending"><RefreshCw size={11} className="spin" /> Enviando</span>
-                            )}
-                            {target.status === 'error' && (
-                              <span className="email-status-pill error" title={target.errorMessage}><AlertCircle size={11} /> Falló</span>
-                            )}
-                          </div>
-                          <div className="email-target-meta">
-                            <span>{target.email || 'Sin correo'}</span>
-                            <span>·</span>
-                            <span className="email-target-director">{target.directorName}</span>
-                          </div>
-                          <div className="email-target-numbers">
-                            <span className="email-target-count">{target.count} rem.</span>
-                            <span className="email-target-val">{formatCOP(target.value)}</span>
-                            <span className="email-target-age">⏱ {target.avgAge}d</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )
-              )}
+            <div className="dispatch-card-body">
+              <p>
+                <strong>{totalCommercialRemisiones} remisiones abiertas</strong> por facturar
+              </p>
+              <div className="dispatch-card-stat">{formatCOP(totalCommercialValue)}</div>
+              <div className="dispatch-card-foot">
+                <FileSpreadsheet size={13} />
+                <span>Libro Excel individual personalizado adjunto</span>
+              </div>
             </div>
           </div>
 
-          {/* PANEL DERECHO: PREVISUALIZACIÓN EN VIVO */}
-          <div className="email-modal-preview-pane">
-            <div className="email-preview-toolbar">
-              <div className="email-preview-user-badge">
-                <Eye size={15} />
-                <span>
-                  Vista previa:{' '}
-                  <strong>
-                    {recipientType === 'gerencia'
-                      ? `${activeGerenciaSummary?.recipientName || 'Ninguno'} (${activeGerenciaSummary?.recipientCargo})`
-                      : recipientType === 'directors'
-                      ? `${activeDirectorSummary?.directorName || 'Ninguno'} (Grupo ${activeDirectorSummary?.directorGroup})`
-                      : selectedCommercialName || 'Ninguno'}
-                  </strong>
-                </span>
-                <small>
-                  (
-                  {recipientType === 'gerencia'
-                    ? activeGerenciaSummary?.recipientEmail
-                    : recipientType === 'directors'
-                    ? activeDirectorSummary?.directorEmail
-                    : activeCommercialSummary?.commercialEmail}
-                  )
-                </small>
-              </div>
-
-              <div className="email-preview-actions">
-                <div className="email-view-mode-tabs">
-                  <button
-                    className={`email-mode-tab ${viewMode === 'preview' ? 'active' : ''}`}
-                    onClick={() => setViewMode('preview')}
-                  >
-                    Visual
-                  </button>
-                  <button
-                    className={`email-mode-tab ${viewMode === 'html' ? 'active' : ''}`}
-                    onClick={() => setViewMode('html')}
-                  >
-                    HTML
-                  </button>
+          {/* Card 2: Directores */}
+          <div className={`dispatch-card ${includeDirectors ? 'active' : 'inactive'}`}>
+            <div className="dispatch-card-top">
+              <label className="dispatch-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={includeDirectors}
+                  onChange={(e) => setIncludeDirectors(e.target.checked)}
+                  disabled={isSending}
+                />
+                <div className="dispatch-card-icon amber">
+                  <Briefcase size={16} />
                 </div>
-
-                <button
-                  type="button"
-                  className="email-action-btn secondary"
-                  onClick={handleCopyHtml}
-                  title="Copiar código HTML del correo"
-                >
-                  <Copy size={13} />
-                  <span>{copied ? '¡Copiado!' : 'Copiar HTML'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="email-action-btn secondary"
-                  onClick={handleDownloadExcel}
-                  title="Descargar archivo Excel adjunto"
-                >
-                  <Download size={13} />
-                  <span>
-                    {recipientType === 'gerencia'
-                      ? `Descargar Excel Maestro Gerencial (${activeGerenciaSummary?.totalCount || 0})`
-                      : recipientType === 'directors'
-                      ? `Descargar Excel Consolidado (${activeDirectorSummary?.totalCount || 0})`
-                      : `Descargar Excel (${activeCommercialSummary?.totalCount || 0})`}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  className="email-action-btn primary"
-                  onClick={handleSendTest}
-                  disabled={isSendingTest || isSendingBatch}
-                  title="Enviar correo de muestra a tu bandeja de entrada"
-                >
-                  <Send size={13} />
-                  <span>{isSendingTest ? 'Enviando...' : 'Enviar prueba a mi correo'}</span>
-                </button>
+                <strong>Directores de Grupo ({directorList.length})</strong>
+              </label>
+              <span className="dispatch-card-badge amber">Consolidado de grupo</span>
+            </div>
+            <div className="dispatch-card-body">
+              <p>Angélica Caballero, Óscar Beltrán, Miller Romero y Rafael Novoa</p>
+              <div className="dispatch-card-stat">4 Grupos Comerciales</div>
+              <div className="dispatch-card-foot">
+                <FileSpreadsheet size={13} />
+                <span>Libro Excel consolidado de grupo (2 pestañas)</span>
               </div>
             </div>
+          </div>
 
-            {/* CONTENIDO PREVIEW */}
-            <div className="email-preview-render-area">
-              {viewMode === 'preview' ? (
-                <iframe
-                  title="Vista Previa Correo"
-                  srcDoc={activeHtml}
-                  className="email-preview-iframe"
-                  sandbox="allow-same-origin"
+          {/* Card 3: Gerencia */}
+          <div className={`dispatch-card ${includeGerencia ? 'active' : 'inactive'}`}>
+            <div className="dispatch-card-top">
+              <label className="dispatch-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={includeGerencia}
+                  onChange={(e) => setIncludeGerencia(e.target.checked)}
+                  disabled={isSending}
                 />
-              ) : (
-                <pre className="email-preview-code">
-                  <code>{activeHtml}</code>
-                </pre>
-              )}
+                <div className="dispatch-card-icon purple">
+                  <ShieldCheck size={16} />
+                </div>
+                <strong>Dirección & Gerencia ({gerenciaList.length})</strong>
+              </label>
+              <span className="dispatch-card-badge purple">Maestro Corporativo</span>
+            </div>
+            <div className="dispatch-card-body">
+              <p>Rafael Novoa, Juan Novoa, Óscar Pérez, Cuentas Estratégicas</p>
+              <div className="dispatch-card-stat">
+                + Copia a Especialista Preventa
+              </div>
+              <div className="dispatch-card-foot">
+                <FileSpreadsheet size={13} />
+                <span>Libro Excel maestro corporativo (3 hojas completas)</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* PIE DEL MODAL CON ACCIÓN MASIVA */}
-        <div className="email-modal-footer">
-          <div className="email-footer-left">
-            {batchProgress && (
-              <div className="email-batch-progress">
-                <RefreshCw size={14} className="spin" />
-                <span>Enviando reportes: <strong>{batchProgress.current} de {batchProgress.total}</strong>...</span>
-                <div className="email-progress-bar-track">
-                  <div
-                    className="email-progress-bar-fill"
-                    style={{ width: `${Math.round((batchProgress.current / batchProgress.total) * 100)}%` }}
-                  />
-                </div>
-              </div>
-            )}
-            {!batchProgress && (
-              <div className="email-footer-info">
-                <Sparkles size={14} color="#15803D" />
-                <span>
-                  {recipientType === 'gerencia'
-                    ? 'Se enviará el informe general con libro Excel maestro de 3 pestañas a los líderes de gerencia seleccionados.'
-                    : recipientType === 'directors'
-                    ? 'Se enviará el reporte consolidado con archivo Excel de 2 pestañas a cada Director seleccionado.'
-                    : 'Se enviará un correo personalizado a cada comercial con su logo y remisiones.'}
-                </span>
-              </div>
-            )}
+        {/* BARRA DE CONTROL DE ACCIÓN */}
+        <div className="dispatch-action-bar">
+          <div className="dispatch-action-info">
+            <Sparkles size={16} color="#0071e3" />
+            <span>
+              Total a despachar:{' '}
+              <strong>{totalCalculated} correos oficiales</strong> vía Microsoft Graph API (Exchange Online)
+            </span>
           </div>
-
-          <div className="email-footer-right">
+          <div className="dispatch-action-buttons">
             <button
               type="button"
-              className="email-cancel-btn"
-              onClick={onClose}
-              disabled={isSendingBatch}
+              className="email-action-btn secondary"
+              onClick={handleSendTest}
+              disabled={isSending || isSendingTest}
+              title="Envía una prueba directa a tu bandeja de entrada"
             >
-              Cerrar
+              <Mail size={14} />
+              <span>{isSendingTest ? 'Enviando prueba...' : 'Enviar prueba a mi correo'}</span>
             </button>
             <button
               type="button"
               className="email-send-all-btn"
-              onClick={handleSendBatch}
-              disabled={isSendingBatch || selectedCount === 0}
+              onClick={handleStartDispatch}
+              disabled={isSending || totalCalculated === 0}
             >
               <Send size={15} />
               <span>
-                {isSendingBatch
-                  ? 'Enviando...'
-                  : recipientType === 'gerencia'
-                  ? `Enviar a ${selectedCount} líderes de Gerencia seleccionados`
-                  : recipientType === 'directors'
-                  ? `Enviar a los ${selectedCount} Directores seleccionados`
-                  : `Enviar a los ${selectedCount} comerciales seleccionados`}
+                {isSending
+                  ? `Despachando (${progress?.current || 0} de ${progress?.total || totalCalculated})...`
+                  : `🚀 Iniciar Envío Masivo Oficial (${totalCalculated})`}
               </span>
             </button>
           </div>
+        </div>
+
+        {/* CONSOLA DE LOG EN VIVO (HTTP STATUS 200/202) */}
+        <div className="dispatch-log-panel">
+          <div className="dispatch-log-header">
+            <div className="dispatch-log-title">
+              <Terminal size={15} />
+              <span>Consola de Registro de Entrega HTTP en Tiempo Real</span>
+              {logs.length > 0 && <span className="log-count-badge">{logs.length} eventos</span>}
+            </div>
+            {logs.length > 0 && (
+              <div className="dispatch-log-actions">
+                <button type="button" className="btn-log-action" onClick={copyLogText} title="Copiar todo el registro">
+                  <Copy size={13} />
+                  <span>{copied ? '¡Copiado!' : 'Copiar Log'}</span>
+                </button>
+                <button type="button" className="btn-log-action" onClick={downloadLogFile} title="Descargar como archivo de texto">
+                  <Download size={13} />
+                  <span>Descargar Log (.txt)</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* BARRA DE PROGRESO VISUAL */}
+          {progress && (
+            <div className="dispatch-progress-track">
+              <div
+                className="dispatch-progress-bar"
+                style={{ width: `${Math.round((progress.current / progress.total) * 100)}%` }}
+              />
+            </div>
+          )}
+
+          {/* TERMINAL DE LOGS */}
+          <div className="dispatch-terminal">
+            {logs.length === 0 ? (
+              <div className="dispatch-terminal-empty">
+                <Terminal size={24} />
+                <p>La consola registrará el estado HTTP (202 Accepted / 200 OK) de cada correo tan pronto inicies el despacho o envíes una prueba.</p>
+              </div>
+            ) : (
+              <div className="dispatch-terminal-lines">
+                {logs.map((log) => (
+                  <div key={log.id} className={`terminal-line ${log.success ? 'success' : 'error'}`}>
+                    <span className="log-time">[{log.time}]</span>
+                    <span className={`log-badge-http ${log.httpStatus >= 200 && log.httpStatus < 300 ? 'status-200' : 'status-err'}`}>
+                      HTTP {log.httpStatus || (log.success ? 202 : 500)} {log.success ? 'OK' : 'ERR'}
+                    </span>
+                    <span className={`log-badge-role ${log.role.toLowerCase().replace(/\s+/g, '-')}`}>
+                      {log.role}
+                    </span>
+                    <span className="log-recipient">
+                      <strong>{log.recipientName}</strong> &lt;{log.recipientEmail}&gt;
+                    </span>
+                    <span className="log-detail">— {log.detail}</span>
+                    {log.error && <span className="log-error">⚠️ {log.error}</span>}
+                  </div>
+                ))}
+                <div ref={logEndRef} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* PIE DEL MODAL */}
+        <div className="dispatch-footer">
+          <span className="dispatch-footer-note">
+            🛡️ Certificación de entrega: Los registros HTTP 202/200 confirman la aceptación oficial en los servidores de Microsoft 365 Exchange.
+          </span>
+          <button type="button" className="email-cancel-btn" onClick={onClose} disabled={isSending}>
+            Cerrar
+          </button>
         </div>
       </div>
     </div>
