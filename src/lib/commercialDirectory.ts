@@ -213,3 +213,29 @@ export function getCommercialInfo(nameOrEmail: string): CommercialEntry {
     directorEmail: '',
   };
 }
+
+export interface DirectorInfo {
+  grupo: number;
+  nombre: string;
+  email: string;
+  carpeta: string;
+}
+
+export const LISTA_DIRECTORES: DirectorInfo[] = [
+  { grupo: 1, nombre: 'Rafael Novoa', email: 'rafael.novoa@provexpress.com.co', carpeta: 'Grupo Rafael Novoa' },
+  { grupo: 2, nombre: 'Angélica Caballero', email: 'angelica.caballero@provexpress.com.co', carpeta: 'Grupo Maria Angelica caballero' },
+  { grupo: 3, nombre: 'Óscar Beltrán', email: 'oscar.beltran@provexpress.com.co', carpeta: 'Grupo Oscar Beltran' },
+  { grupo: 4, nombre: 'Miller Romero', email: 'miller.romero@provexpress.com.co', carpeta: 'Grupo Miller Romero' },
+];
+
+export function getDirectorInfo(emailOrGroup: string | number): DirectorInfo | null {
+  if (typeof emailOrGroup === 'number') {
+    return LISTA_DIRECTORES.find((d) => d.grupo === emailOrGroup) || null;
+  }
+  const norm = normalizeEmail(emailOrGroup);
+  return (
+    LISTA_DIRECTORES.find((d) => normalizeEmail(d.email) === norm || normalizeName(d.nombre) === normalizeName(emailOrGroup)) ||
+    null
+  );
+}
+
