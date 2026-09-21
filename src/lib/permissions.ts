@@ -84,6 +84,15 @@ export const CORPORATE_DIRECTORY: DirectoryUser[] = [
     directorName: 'Gerencia General',
   },
   {
+    email: 'especialista.preventa@provexpress.com.co',
+    name: 'Especialista Preventa',
+    role: 'admin',
+    group: 0,
+    groupName: 'Gerencia / Preventa',
+    directorName: 'Gerencia General',
+    aliases: ['especialista.preventa', 'Especialista Preventa'],
+  },
+  {
     email: 'oscar.perez@provexpress.com.co',
     name: 'Óscar Pérez',
     role: 'admin',
@@ -672,3 +681,21 @@ export function resolveUserAccess(
     label: `Gerencia · ${found.name}`,
   };
 }
+
+/**
+ * Autorización exclusiva para el módulo de notificaciones comerciales por correo.
+ * Restringido estrictamente a:
+ * 1. especialista.preventa@provexpress.com.co
+ * 2. c.estrategica@provexpress.com.co
+ */
+export function canSendNotifications(email?: string | null): boolean {
+  if (!email) return false;
+  const clean = email.toLowerCase().trim();
+  return (
+    clean === 'especialista.preventa@provexpress.com.co' ||
+    clean === 'c.estrategica@provexpress.com.co' ||
+    clean.startsWith('especialista.preventa') ||
+    clean.startsWith('c.estrategica')
+  );
+}
+

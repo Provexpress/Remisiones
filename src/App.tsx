@@ -55,7 +55,7 @@ import {
   YAxis,
 } from 'recharts';
 import { getExistingProfile, loadSharePointWorkbook, signIn, signOut } from './lib/auth';
-import { CORPORATE_DIRECTORY, resolveUserAccess } from './lib/permissions';
+import { CORPORATE_DIRECTORY, resolveUserAccess, canSendNotifications } from './lib/permissions';
 import {
   AGE_ORDER,
   aggregateBy,
@@ -387,6 +387,21 @@ function Dashboard({
   );
 
   const isRealAdmin = !user || realAccess.role === 'admin' || source === 'local';
+
+  // Permiso exclusivo para el módulo de notificaciones comerciales por correo.
+  // Restringido estrictamente a: especialista.preventa@provexpress.com.co y c.estrategica@provexpress.com.co.
+  const canNotify = useMemo(() => {
+    if (user?.email) {
+      if (!canSendNotifications(user.email)) return false;
+      if (simulatedEmail !== null && !canSendNotifications(simulatedEmail)) return false;
+      return true;
+    }
+    if (source === 'local') {
+      if (simulatedEmail !== null) return canSendNotifications(simulatedEmail);
+      return true;
+    }
+    return false;
+  }, [user?.email, simulatedEmail, source]);
 
   // Sincronización automática de filtros al cambiar de rol o simulación
   const prevSimulatedEmailRef = useRef<string | null | undefined>(undefined);
@@ -1115,6 +1130,7 @@ function Dashboard({
                     <option value="oscar.perez@provexpress.com.co">Óscar Pérez — Gerencia General</option>
                     <option value="rafael.novoa@provexpress.com.co">Rafael Novoa — Gerencia / Grupo Novoa</option>
                     <option value="c.estrategica@provexpress.com.co">Cuentas Estratégicas — Gerencia</option>
+                    <option value="especialista.preventa@provexpress.com.co">Especialista Preventa — Gerencia</option>
                     <option value="preventa.software@provexpress.com.co">Preventa Software — Gerencia</option>
                   </optgroup>
                   <optgroup label="👔 Directores Comerciales de Grupo">
@@ -1145,7 +1161,7 @@ function Dashboard({
                 </select>
               </div>
             )}
-            {userAccess.role === 'admin' && (
+            {canNotify && (
               <button
                 type="button"
                 className="btn-open-email-modal"
@@ -2910,13 +2926,15 @@ function Dashboard({
         </footer>
       </main>
 
-      <EmailNotificationModal
-        isOpen={isEmailModalOpen}
-        onClose={() => setIsEmailModalOpen(false)}
-        records={data.records}
-        cutoffDate={cutoff}
-        currentUserEmail={user?.email}
-      />
+      {canNotify && (
+        <EmailNotificationModal
+          isOpen={isEmailModalOpen}
+          onClose={() => setIsEmailModalOpen(false)}
+          records={data.records}
+          cutoffDate={cutoff}
+          currentUserEmail={user?.email || (simulatedEmail || undefined)}
+        />
+      )}
     </div>
   );
 }

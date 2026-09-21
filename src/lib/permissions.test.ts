@@ -7,6 +7,7 @@ import {
   resolveUserAccess,
   matchExcelEmployee,
   getEmployeesForDirector,
+  canSendNotifications,
 } from './permissions';
 
 const corporateWorkbookPath = path.resolve(process.cwd(), 'Remisiones.xlsx');
@@ -55,14 +56,14 @@ const excelEmployeesMock = [
 ];
 
 describe('Sistema de permisos y control de acceso corporativo (RBAC)', () => {
-  it('valida que el directorio contenga 6 miembros de gerencia, 3 directores de grupo y 38 ejecutivos', () => {
+  it('valida que el directorio contenga 7 miembros de gerencia, 3 directores de grupo y 38 ejecutivos', () => {
     const gerencia = CORPORATE_DIRECTORY.filter((u) => u.role === 'admin');
     const directors = CORPORATE_DIRECTORY.filter((u) => u.role === 'director');
     const executives = CORPORATE_DIRECTORY.filter((u) => u.role === 'executive');
-    expect(gerencia.length).toBe(6);
+    expect(gerencia.length).toBe(7);
     expect(directors.length).toBe(3);
     expect(executives.length).toBe(38);
-    expect(CORPORATE_DIRECTORY.length).toBe(47);
+    expect(CORPORATE_DIRECTORY.length).toBe(48);
   });
 
   it('resuelve correctamente a los miembros de Gerencia con Acceso Total', () => {
@@ -153,6 +154,25 @@ describe('Sistema de permisos y control de acceso corporativo (RBAC)', () => {
     const local = resolveUserAccess(null);
     expect(local.role).toBe('admin');
     expect(local.isRestricted).toBe(false);
+  });
+
+  it('restringe el envío de notificaciones comerciales exclusivamente a especialista.preventa y c.estrategica', () => {
+    // Autorizados
+    expect(canSendNotifications('especialista.preventa@provexpress.com.co')).toBe(true);
+    expect(canSendNotifications('c.estrategica@provexpress.com.co')).toBe(true);
+    expect(canSendNotifications('ESPECIALISTA.PREVENTA@PROVEXPRESS.COM.CO')).toBe(true);
+    expect(canSendNotifications('  c.estrategica@provexpress.com.co  ')).toBe(true);
+
+    // No autorizados (otros administradores, directores, comerciales, nulos)
+    expect(canSendNotifications('juannovoa@provexpress.com.co')).toBe(false);
+    expect(canSendNotifications('oscar.perez@provexpress.com.co')).toBe(false);
+    expect(canSendNotifications('rafael.novoa@provexpress.com.co')).toBe(false);
+    expect(canSendNotifications('preventa.software@provexpress.com.co')).toBe(false);
+    expect(canSendNotifications('angelica.caballero@provexpress.com.co')).toBe(false);
+    expect(canSendNotifications('rosmira.rojas@provexpress.com.co')).toBe(false);
+    expect(canSendNotifications(null)).toBe(false);
+    expect(canSendNotifications(undefined)).toBe(false);
+    expect(canSendNotifications('')).toBe(false);
   });
 });
 
