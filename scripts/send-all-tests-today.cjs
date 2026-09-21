@@ -623,30 +623,42 @@ async function main() {
   const { execSync } = require('child_process');
 
   // ───────────────────────────────────────────────────────────────────────────
-  // 3. DIRECTORA DE GRUPO COMERCIAL: Angélica Caballero (Grupo 2)
+  // 3. DIRECTORA DE GRUPO COMERCIAL: Angélica Caballero (Grupo 2 · Mujer)
   // ───────────────────────────────────────────────────────────────────────────
   console.log('\n----------------------------------------------------------------');
-  console.log('📨 3/4: Enviando prueba DIRECTORA DE GRUPO (Angélica Caballero · Grupo 2)...');
-  const directorOutput = execSync(`node "${path.join(__dirname, 'send-test-director.cjs')}"`, { encoding: 'utf8' });
-  console.log(directorOutput);
+  console.log('📨 3/5: Enviando prueba DIRECTORA DE GRUPO (Angélica Caballero · Grupo 2 · Mujer)...');
+  const director2Output = execSync(`node "${path.join(__dirname, 'send-test-director.cjs')}" 2`, { encoding: 'utf8' });
+  console.log(director2Output);
 
   // Pausa preventiva de 1.5s
   await new Promise((resolve) => setTimeout(resolve, 1500));
 
   // ───────────────────────────────────────────────────────────────────────────
-  // 4. DIRECCIÓN Y GERENCIA COMERCIAL ("Los Jefes Jefes")
+  // 4. DIRECTOR DE GRUPO COMERCIAL: Rafael Novoa (Grupo 1 · Hombre)
   // ───────────────────────────────────────────────────────────────────────────
   console.log('\n----------------------------------------------------------------');
-  console.log('📨 4/4: Enviando prueba DIRECCIÓN Y GERENCIA COMERCIAL (Consolidado General 4 Grupos)...');
+  console.log('📨 4/5: Enviando prueba DIRECTOR DE GRUPO (Rafael Novoa · Grupo 1 · Hombre)...');
+  const director1Output = execSync(`node "${path.join(__dirname, 'send-test-director.cjs')}" 1`, { encoding: 'utf8' });
+  console.log(director1Output);
+
+  // Pausa preventiva de 1.5s
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 5. DIRECCIÓN Y GERENCIA COMERCIAL ("Los Jefes Jefes")
+  // ───────────────────────────────────────────────────────────────────────────
+  console.log('\n----------------------------------------------------------------');
+  console.log('📨 5/5: Enviando prueba DIRECCIÓN Y GERENCIA COMERCIAL (Consolidado General 4 Grupos)...');
   const gerenciaOutput = execSync(`node "${path.join(__dirname, 'send-test-gerencia.cjs')}"`, { encoding: 'utf8' });
   console.log(gerenciaOutput);
 
   console.log('================================================================');
-  console.log('🎉 ¡TODAS LAS PRUEBAS FUERON DESPACHADAS EXITOSAMENTE!');
-  console.log(`   1. Ejecutivo Hombre: Mario Reyes (Grupo 1) con fecha ${TODAY_CUTOFF}`);
-  console.log(`   2. Ejecutiva Mujer: Dayana Chala (Grupo 2) con fecha ${TODAY_CUTOFF}`);
-  console.log(`   3. Directora de Grupo: Angélica Caballero (Grupo 2) con fecha ${TODAY_CUTOFF}`);
-  console.log(`   4. Informe Gerencial General: Rafael & Juan Novoa con fecha ${TODAY_CUTOFF}`);
+  console.log('🎉 ¡TODAS LAS 5 PRUEBAS FUERON DESPACHADAS EXITOSAMENTE!');
+  console.log(`   1. Ejecutivo Hombre: Mario Reyes (Grupo 1) · Fecha ${TODAY_CUTOFF}`);
+  console.log(`   2. Ejecutiva Mujer: Dayana Chala (Grupo 2) · Fecha ${TODAY_CUTOFF}`);
+  console.log(`   3. Directora de Grupo (Mujer): Angélica Caballero (Grupo 2) · Fecha ${TODAY_CUTOFF}`);
+  console.log(`   4. Director de Grupo (Hombre): Rafael Novoa (Grupo 1) · Fecha ${TODAY_CUTOFF}`);
+  console.log(`   5. Informe Gerencial General: Rafael & Juan Novoa · Fecha ${TODAY_CUTOFF}`);
   console.log(`   Destino de todas: ${TARGET_TEST_EMAIL}`);
   console.log('================================================================');
 }

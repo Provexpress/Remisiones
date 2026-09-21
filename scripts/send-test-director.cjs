@@ -73,26 +73,103 @@ function normalizeName(val) {
     .trim();
 }
 
-const GRUPO_2_EJECUTIVOS = [
-  { nombre: 'Dayana Chala', email: 'dayana.chala@provexpress.com.co' },
-  { nombre: 'Ángela Torres', email: 'angela.torres@provexpress.com.co' },
-  { nombre: 'Alejandra Velásquez', email: 'alejandra.velasquez@provexpress.com.co' },
-  { nombre: 'Daniel Galindo', email: 'daniel.galindo@provexpress.com.co' },
-  { nombre: 'César Céspedes', email: 'cesar.cespedes@provexpress.com.co' },
-  { nombre: 'Yurany Andrea Vargas', email: 'andrea.vargas@provexpress.com.co' },
-  { nombre: 'Johanna Jaime', email: 'johanna.jaime@provexpress.com.co' },
-  { nombre: 'Jasbleidy Mójica', email: 'johana.mojica@provexpress.com.co' },
-  { nombre: 'Adriana Cucaita', email: 'adriana.cucaita@provexpress.com.co' },
-  { nombre: 'Yovanny Herrera', email: 'yovanny.herrera@provexpress.com.co' },
-  { nombre: 'Fernando Quiñonez', email: 'fernando.quinonez@provexpress.com.co' },
-];
+const DIRECTORES_CONFIG = {
+  1: {
+    grupo: 1,
+    nombre: 'Rafael Novoa',
+    email: 'rafael.novoa@provexpress.com.co',
+    genero: 'M',
+    cargo: 'Director Grupo 1',
+    ejecutivos: [
+      { nombre: 'Rosmira Rojas', email: 'rosmira.rojas@provexpress.com.co' },
+      { nombre: 'Mario Reyes', email: 'mario.reyes@provexpress.com.co' },
+      { nombre: 'Wilson Sánchez', email: 'wilson.sanchez@provexpress.com.co' },
+      { nombre: 'María Eugenia Cruz', email: 'maria.cruz@provexpress.com.co' },
+      { nombre: 'Javier Cortés', email: 'javier.cortes@provexpress.com.co' },
+      { nombre: 'Rosa Mendoza', email: 'rosa.mendoza@provexpress.com.co' },
+      { nombre: 'Mariela Ramírez', email: 'mariela.ramirez@provexpress.com.co' },
+      { nombre: 'Jenny González', email: 'jenny.gonzalez@provexpress.com.co' },
+      { nombre: 'Julieth Galindo', email: 'julieth.galindo@provexpress.com.co' },
+    ],
+  },
+  2: {
+    grupo: 2,
+    nombre: 'Angélica Caballero',
+    email: 'angelica.caballero@provexpress.com.co',
+    genero: 'F',
+    cargo: 'Directora Grupo 2',
+    ejecutivos: [
+      { nombre: 'Dayana Chala', email: 'dayana.chala@provexpress.com.co' },
+      { nombre: 'Ángela Torres', email: 'angela.torres@provexpress.com.co' },
+      { nombre: 'Alejandra Velásquez', email: 'alejandra.velasquez@provexpress.com.co' },
+      { nombre: 'Daniel Galindo', email: 'daniel.galindo@provexpress.com.co' },
+      { nombre: 'César Céspedes', email: 'cesar.cespedes@provexpress.com.co' },
+      { nombre: 'Yurany Andrea Vargas', email: 'andrea.vargas@provexpress.com.co' },
+      { nombre: 'Johanna Jaime', email: 'johanna.jaime@provexpress.com.co' },
+      { nombre: 'Jasbleidy Mójica', email: 'johana.mojica@provexpress.com.co' },
+      { nombre: 'Adriana Cucaita', email: 'adriana.cucaita@provexpress.com.co' },
+      { nombre: 'Yovanny Herrera', email: 'yovanny.herrera@provexpress.com.co' },
+      { nombre: 'Fernando Quiñonez', email: 'fernando.quinonez@provexpress.com.co' },
+    ],
+  },
+  3: {
+    grupo: 3,
+    nombre: 'Óscar Beltrán',
+    email: 'oscar.beltran@provexpress.com.co',
+    genero: 'M',
+    cargo: 'Director Grupo 3',
+    ejecutivos: [
+      { nombre: 'Gina García', email: 'paola.garcia@provexpress.com.co' },
+      { nombre: 'Karent Carrillo', email: 'karen.carrillo@provexpress.com.co' },
+      { nombre: 'Lington Linares', email: 'lington.linares@provexpress.com.co' },
+      { nombre: 'Angélica Álvarez', email: 'angelica.alvarez@provexpress.com.co' },
+      { nombre: 'Andrés Peña', email: 'andres.pena@provexpress.com.co' },
+      { nombre: 'Tatiana Parra', email: 'tatiana.parra@provexpress.com.co' },
+      { nombre: 'Claudia Triana', email: 'claudia.triana@provexpress.com.co' },
+      { nombre: 'Dilma Cuesta', email: 'dilma.cuesta@provexpress.com.co' },
+      { nombre: 'Juan Martínez', email: 'juan.martinez@provexpress.com.co' },
+      { nombre: 'Deisy Mogollón', email: 'deisy.mogollon@provexpress.com.co' },
+    ],
+  },
+  4: {
+    grupo: 4,
+    nombre: 'Miller Romero',
+    email: 'miller.romero@provexpress.com.co',
+    genero: 'M',
+    cargo: 'Director Grupo 4',
+    ejecutivos: [
+      { nombre: 'Astrid Jiménez', email: 'astrid.jimenez@provexpress.com.co' },
+      { nombre: 'María Paola Briceño', email: 'maria.briceno@provexpress.com.co' },
+      { nombre: 'Dafne Ruiz', email: 'dafne.ruiz@provexpress.com.co' },
+      { nombre: 'Jessica Valencia', email: 'jessica.valencia@provexpress.com.co' },
+      { nombre: 'Jhonatan Acevedo', email: 'jhonatan.acevedo@provexpress.com.co' },
+      { nombre: 'Camilo Hernández', email: 'camilo.hernandez@provexpress.com.co' },
+      { nombre: 'Yeison Urrego', email: 'yeison.urrego@provexpress.com.co' },
+      { nombre: 'Diana Castro', email: 'diana.castro@provexpress.com.co' },
+    ],
+  },
+};
 
 async function main() {
+  const reqArg = (process.argv[2] || '1').toLowerCase();
+  let groupKey = 1;
+  if (reqArg === '2' || reqArg.includes('angelica')) groupKey = 2;
+  else if (reqArg === '3' || reqArg.includes('oscar')) groupKey = 3;
+  else if (reqArg === '4' || reqArg.includes('miller')) groupKey = 4;
+  else groupKey = 1;
+
+  const currentDirector = DIRECTORES_CONFIG[groupKey];
+  const isFemale = currentDirector.genero === 'F';
+  const avatarFile = isFemale ? 'avatar_woman.png' : 'avatar_man.png';
+  const avatarCid = isFemale ? 'cid:avatar_woman' : 'cid:avatar_man';
+  const avatarContentId = isFemale ? 'avatar_woman' : 'avatar_man';
+  const avatarAlt = isFemale ? 'Directora Comercial' : 'Director Comercial';
+
   console.log('================================================================');
   console.log('🚀 PREPARANDO CORREO DE PRUEBA PARA DIRECTOR DE GRUPO');
   console.log('📩 Destinatario:', TARGET_TEST_EMAIL);
   console.log('📤 Remitente institucional:', senderEmail);
-  console.log('👔 Director simulado: Angélica Caballero (Directora Grupo 2)');
+  console.log(`👔 Director simulado: ${currentDirector.nombre} (${currentDirector.cargo})`);
   console.log('================================================================');
 
   // 1. Cargar remisiones del archivo real
@@ -125,11 +202,11 @@ async function main() {
     }
   }
 
-  // 2. Mapear ejecutivos del Grupo 2
+  // 2. Mapear ejecutivos del Grupo
   const execSummaries = [];
   const allGroupRemisiones = [];
 
-  for (const exec of GRUPO_2_EJECUTIVOS) {
+  for (const exec of currentDirector.ejecutivos) {
     const targetNorm = normalizeName(exec.nombre);
     const targetTokens = targetNorm.split(' ').filter(Boolean);
 
@@ -184,7 +261,7 @@ async function main() {
   const sortedByAgeAll = [...allGroupRemisiones].sort((a, b) => b.age - a.age);
   const topMayorAntiguedad = sortedByAgeAll[0] || null;
 
-  console.log(`✓ Remisiones consolidadas Grupo 2 (Angélica Caballero): ${totalCount}`);
+  console.log(`✓ Remisiones consolidadas Grupo ${currentDirector.grupo} (${currentDirector.nombre}): ${totalCount}`);
   console.log(`   - Ejecutivos con pendientes: ${activeCount} de ${totalExecs}`);
   console.log(`   - Total Valor Grupo: ${formatCOP(totalValue)}`);
   console.log(`   - Antigüedad Promedio Grupo: ${avgAge} días`);
@@ -202,15 +279,15 @@ async function main() {
 
   wsSum.mergeCells('A1:I1');
   const t1 = wsSum.getCell('A1');
-  t1.value = 'PROVEXPRESS SAS · CONSOLIDADO DE REMISIONES · DIRECCIÓN GRUPO 2';
+  t1.value = `PROVEXPRESS SAS · CONSOLIDADO DE REMISIONES · DIRECCIÓN GRUPO ${currentDirector.grupo}`;
   t1.font = { name: 'Calibri', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
   t1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
   t1.alignment = { horizontal: 'center', vertical: 'middle' };
   wsSum.getRow(1).height = 28;
 
-  wsSum.getCell('A2').value = 'Directora de Grupo:';
+  wsSum.getCell('A2').value = isFemale ? 'Directora de Grupo:' : 'Director de Grupo:';
   wsSum.getCell('A2').font = { bold: true, size: 10, color: { argb: 'FF475569' } };
-  wsSum.getCell('B2').value = 'Angélica Caballero';
+  wsSum.getCell('B2').value = currentDirector.nombre;
   wsSum.getCell('B2').font = { bold: true, size: 11, color: { argb: 'FF0F172A' } };
 
   wsSum.getCell('D2').value = 'Fecha de Corte:';
@@ -349,7 +426,7 @@ async function main() {
 
   wsDet.mergeCells('A1:L1');
   const t2 = wsDet.getCell('A1');
-  t2.value = 'PROVEXPRESS SAS · DETALLE DE REMISIONES ABIERTAS · GRUPO 2';
+  t2.value = `PROVEXPRESS SAS · DETALLE DE REMISIONES ABIERTAS · GRUPO ${currentDirector.grupo} · ${currentDirector.nombre.toUpperCase()}`;
   t2.font = { name: 'Calibri', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
   t2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
   t2.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -434,7 +511,8 @@ async function main() {
 
   const excelBuffer = await excelWb.xlsx.writeBuffer();
   const excelBase64 = excelBuffer.toString('base64');
-  const excelFilename = `Remisiones_Consolidado_Grupo_2_Angelica_Caballero_${TODAY_CUTOFF}.xlsx`;
+  const sanitizedDirectorName = currentDirector.nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
+  const excelFilename = `Remisiones_Consolidado_Grupo_${currentDirector.grupo}_${sanitizedDirectorName}_${TODAY_CUTOFF}.xlsx`;
   console.log(`✓ Archivo Excel consolidado generado: ${excelFilename} (${excelBuffer.length} bytes)`);
 
   // 4. Generar HTML del correo
@@ -535,7 +613,7 @@ async function main() {
             <!-- TEXTO DE SALUDO Y TITULAR DE LIDERAZGO -->
             <td valign="middle" style="padding-right: 12px;">
               <div style="font-size: 15px; color: #475569; font-weight: 600; font-family: 'Segoe UI', Arial, sans-serif;">
-                Hola, <strong style="color: #0F172A; font-size: 16px;">Angélica Caballero</strong> 👋
+                Hola, <strong style="color: #0F172A; font-size: 16px;">${currentDirector.nombre}</strong> 👋
               </div>
               <h1 style="margin: 3px 0 6px 0; font-size: 24px; font-weight: 900; color: #0F172A; line-height: 1.15; letter-spacing: -0.02em; font-family: 'Segoe UI', Arial, sans-serif;">
                 Oportunidades de tu equipo listas para<br>
@@ -549,9 +627,9 @@ async function main() {
               </p>
             </td>
 
-            <!-- ILUSTRACIÓN DIRECTORA COMERCIAL: LA MUÑECA (THUMBS UP) -->
+            <!-- ILUSTRACIÓN DIRECTOR/A COMERCIAL: EL MUÑECO O LA MUÑECA (THUMBS UP) -->
             <td width="190" valign="bottom" align="center" style="padding-right: 10px;">
-              <img src="cid:avatar_woman" width="180" height="154" style="display: block; border: 0; width: 180px; height: auto; margin: 0 auto;" alt="Directora Comercial" />
+              <img src="${avatarCid}" width="180" height="154" style="display: block; border: 0; width: 180px; height: auto; margin: 0 auto;" alt="${avatarAlt}" />
             </td>
 
             <!-- CARD DIRECCIÓN DE GRUPO -->
@@ -568,7 +646,7 @@ async function main() {
                       <strong style="color: #1E3A8A; font-size: 12.5px;">diferencia.</strong>
                     </div>
                     <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #E2E8F0; font-size: 9.5px; font-weight: 800; color: #2563EB; text-transform: uppercase;">
-                      Grupo 2
+                      Grupo ${currentDirector.grupo}
                     </div>
                   </td>
                 </tr>
@@ -923,9 +1001,9 @@ async function main() {
 </html>
   `.trim();
 
-  // 5. Cargar Logo y Muñeca (Avatar Femenino) para adjuntos inline CID
+  // 5. Cargar Logo y Avatar correspondiente para adjuntos inline CID
   const logoBytes = fs.readFileSync(path.join(__dirname, '../public/logo_provexpress_stacked.png')).toString('base64');
-  const avatarBytes = fs.readFileSync(path.join(__dirname, '../public/avatar_woman.png')).toString('base64');
+  const avatarBytes = fs.readFileSync(path.join(__dirname, `../public/${avatarFile}`)).toString('base64');
 
   // 6. Autenticar con Microsoft Graph
   console.log('\n🔑 Autenticando con Microsoft Entra ID (Graph)...');
@@ -935,7 +1013,7 @@ async function main() {
 
   const mailPayload = {
     message: {
-      subject: `[PRUEBA] Reporte Consolidado de Remisiones · Dirección Grupo 2 · Angélica Caballero · Corte ${TODAY_FORMATTED}`,
+      subject: `[PRUEBA] Reporte Consolidado de Remisiones · Dirección Grupo ${currentDirector.grupo} · ${currentDirector.nombre} · Corte ${TODAY_FORMATTED}`,
       body: {
         contentType: 'HTML',
         content: htmlContent,
@@ -959,11 +1037,11 @@ async function main() {
         },
         {
           '@odata.type': '#microsoft.graph.fileAttachment',
-          name: 'avatar_woman.png',
+          name: avatarFile,
           contentType: 'image/png',
           contentBytes: avatarBytes,
           isInline: true,
-          contentId: 'avatar_woman',
+          contentId: avatarContentId,
         },
         {
           '@odata.type': '#microsoft.graph.fileAttachment',
