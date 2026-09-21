@@ -75,6 +75,105 @@ function normalizeName(val) {
     .trim();
 }
 
+function levenshtein(a, b) {
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    let diagonal = previous[0];
+    previous[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const upper = previous[j];
+      previous[j] = Math.min(
+        previous[j] + 1,
+        previous[j - 1] + 1,
+        diagonal + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+      diagonal = upper;
+    }
+  }
+  return previous[b.length];
+}
+
+function tokenMatches(token, candidateList) {
+  if (candidateList.includes(token)) return true;
+  return candidateList.some((cand) => {
+    if (cand === token) return true;
+    const shorter = cand.length <= token.length ? cand : token;
+    const longer = cand.length > token.length ? cand : token;
+    if (shorter.length >= 3 && longer.startsWith(shorter)) return true;
+    if (token.length >= 5 && cand.length >= 5 && levenshtein(token, cand) <= 1) return true;
+    return false;
+  });
+}
+
+function nameMatches(fullName, targetName) {
+  const normFull = normalizeName(fullName);
+  const normTarget = normalizeName(targetName);
+  if (!normFull || !normTarget) return false;
+  if (normFull === normTarget || normFull.includes(normTarget) || normTarget.includes(normFull)) return true;
+
+  const fullTokens = normFull.split(' ').filter((t) => t.length >= 3);
+  const targetTokens = normTarget.split(' ').filter((t) => t.length >= 3);
+
+  const matched = targetTokens.filter((t) => tokenMatches(t, fullTokens));
+  return matched.length >= 2 || (targetTokens.length === 1 && matched.length === 1);
+}
+
+const ESTRUCTURA_COMERCIAL_2026 = {
+  directores: {
+    1: { nombre: 'Rafael Novoa', email: 'rafael.novoa@provexpress.com.co', genero: 'M' },
+    2: { nombre: 'Angélica Caballero', email: 'angelica.caballero@provexpress.com.co', genero: 'F' },
+    3: { nombre: 'Óscar Beltrán', email: 'oscar.beltran@provexpress.com.co', genero: 'M' },
+    4: { nombre: 'Miller Romero', email: 'miller.romero@provexpress.com.co', genero: 'M' },
+  },
+  ejecutivos: {
+    // Grupo 1: Novoa (9)
+    'rosmira.rojas@provexpress.com.co': { grupo: 1, nombre: 'Rosmira Rojas', archivo: 'Rosmira Rojas.xlsx' },
+    'mario.reyes@provexpress.com.co': { grupo: 1, nombre: 'Mario Reyes', archivo: 'Mario Reyes.xlsx' },
+    'wilson.sanchez@provexpress.com.co': { grupo: 1, nombre: 'Wilson Sánchez', archivo: 'Wilson Fernando Sánchez.xlsx' },
+    'maria.cruz@provexpress.com.co': { grupo: 1, nombre: 'María Eugenia Cruz', archivo: 'Maria Eugenia Cruz.xlsx' },
+    'javier.cortes@provexpress.com.co': { grupo: 1, nombre: 'Javier Cortés', archivo: 'Javier Cortés.xlsx' },
+    'rosa.mendoza@provexpress.com.co': { grupo: 1, nombre: 'Rosa Mendoza', archivo: 'Rosa María Mendoza.xlsx' },
+    'mariela.ramirez@provexpress.com.co': { grupo: 1, nombre: 'Mariela Ramírez', archivo: 'Mariela Ramírez.xlsx' },
+    'jenny.gonzalez@provexpress.com.co': { grupo: 1, nombre: 'Jenny Gónzalez', archivo: 'Jenny Gónzalez.xlsx' },
+    'julieth.galindo@provexpress.com.co': { grupo: 1, nombre: 'Julieth Galindo', archivo: 'Julieth Galindo.xlsx' },
+
+    // Grupo 2: Caballero (11)
+    'angela.torres@provexpress.com.co': { grupo: 2, nombre: 'Ángela Torres', archivo: 'Ángela Torres.xlsx' },
+    'andrea.vargas@provexpress.com.co': { grupo: 2, nombre: 'Yurany Andrea Vargas', archivo: 'Yurany Andrea Vargas.xlsx' },
+    'alejandra.velasquez@provexpress.com.co': { grupo: 2, nombre: 'Alejandra Velásquez', archivo: 'Alejandra Velásquez.xlsx' },
+    'fernando.quinonez@provexpress.com.co': { grupo: 2, nombre: 'Fernando Quiñonez', archivo: 'Fernando Quiñonez.xlsx' },
+    'johana.mojica@provexpress.com.co': { grupo: 2, nombre: 'Jasbleidy Mójica', archivo: 'Jasbleidy Mójica.xlsx' },
+    'johanna.jaime@provexpress.com.co': { grupo: 2, nombre: 'Johanna Jaime', archivo: 'Johanna Jaime.xlsx' },
+    'dayana.chala@provexpress.com.co': { grupo: 2, nombre: 'Dayana Chala', archivo: 'Dayana Chala.xlsx' },
+    'yovanny.herrera@provexpress.com.co': { grupo: 2, nombre: 'Yovanny Herrera', archivo: 'Yovanny Herrera.xlsx' },
+    'cesar.cespedes@provexpress.com.co': { grupo: 2, nombre: 'César Céspedes', archivo: 'César Cespedes.xlsx' },
+    'daniel.galindo@provexpress.com.co': { grupo: 2, nombre: 'Daniel Galindo', archivo: 'Daniel Galindo.xlsx' },
+    'adriana.cucaita@provexpress.com.co': { grupo: 2, nombre: 'Adriana Cucaita', archivo: 'Adriana Cucaita.xlsx' },
+
+    // Grupo 3: Beltrán (10)
+    'paola.garcia@provexpress.com.co': { grupo: 3, nombre: 'Gina García', archivo: 'Gina García.xlsx' },
+    'karen.carrillo@provexpress.com.co': { grupo: 3, nombre: 'Karent Carrillo', archivo: 'Karent Carrillo.xlsx' },
+    'lington.linares@provexpress.com.co': { grupo: 3, nombre: 'Lington Linares', archivo: 'Lington Linares.xlsx' },
+    'angelica.alvarez@provexpress.com.co': { grupo: 3, nombre: 'Angélica Álvarez', archivo: 'Angélica Álvarez.xlsx' },
+    'andres.pena@provexpress.com.co': { grupo: 3, nombre: 'Andrés Peña', archivo: 'Andrés Peña.xlsx' },
+    'tatiana.parra@provexpress.com.co': { grupo: 3, nombre: 'Tatiana Parra', archivo: 'Tatiana Parra.xlsx' },
+    'claudia.triana@provexpress.com.co': { grupo: 3, nombre: 'Claudia Triana', archivo: 'Claudia Triana.xlsx' },
+    'dilma.cuesta@provexpress.com.co': { grupo: 3, nombre: 'Dilma Cuesta', archivo: 'Dilma Cuesta.xlsx' },
+    'juan.martinez@provexpress.com.co': { grupo: 3, nombre: 'Juan Martínez', archivo: 'Juan Martínez.xlsx' },
+    'deisy.mogollon@provexpress.com.co': { grupo: 3, nombre: 'Deisy Mogollón', archivo: 'Deisy Mogollón.xlsx' },
+
+    // Grupo 4: Romero (8)
+    'astrid.jimenez@provexpress.com.co': { grupo: 4, nombre: 'Astrid Jiménez', archivo: 'Astrid Jiménez.xlsx' },
+    'maria.briceno@provexpress.com.co': { grupo: 4, nombre: 'María Paola Briceño', archivo: 'María Paola Briceño.xlsx' },
+    'dafne.ruiz@provexpress.com.co': { grupo: 4, nombre: 'Dafne Ruiz', archivo: 'Dafne Lizeth Ruiz.xlsx' },
+    'jessica.valencia@provexpress.com.co': { grupo: 4, nombre: 'Jessica Valencia', archivo: 'Jessica Valencia.xlsx' },
+    'jhonatan.acevedo@provexpress.com.co': { grupo: 4, nombre: 'Jhonatan Acevedo', archivo: 'Jhonatan Acevedo.xlsx' },
+    'camilo.hernandez@provexpress.com.co': { grupo: 4, nombre: 'Camilo Hernández', archivo: 'Jhonatan Camilo Hernández.xlsx' },
+    'yeison.urrego@provexpress.com.co': { grupo: 4, nombre: 'Yeison Urrego', archivo: 'Yeison Urrego.xlsx' },
+    'diana.castro@provexpress.com.co': { grupo: 4, nombre: 'Diana Castro', archivo: 'Diana Catalina Castro.xlsx' },
+  },
+};
+
 const DIRECTORES = [
   { grupo: 1, nombre: 'Rafael Novoa', email: 'rafael.novoa@provexpress.com.co' },
   { grupo: 2, nombre: 'Angélica Caballero', email: 'angelica.caballero@provexpress.com.co' },
@@ -97,53 +196,83 @@ async function main() {
   const sis = wb.getWorksheet('Base-SIS');
 
   const rawCutoff = '2026-09-16'; // datos más recientes del archivo
-  const allRemisiones = [];
+  const rawRows = [];
 
   for (let r = 2; r <= sis.rowCount; r++) {
     const row = sis.getRow(r);
     const dVal = row.getCell(1).value;
     const iso = dVal instanceof Date ? dVal.toISOString().slice(0, 10) : String(dVal || '').trim();
     if (iso === rawCutoff) {
-      const emp = String(row.getCell(2).value || '').trim();
-      const nit = String(row.getCell(3).value || '').trim();
-      const company = String(row.getCell(4).value || '').trim();
-      const merchandise = Number(row.getCell(5).value || 0);
-      const tax = Number(row.getCell(6).value || 0);
-      const total = Number(row.getCell(7).value || 0);
-      const age = Number(row.getCell(9).value || 0);
-      const doc = String(row.getCell(10).value || '').trim();
-      const order = String(row.getCell(11).value || '').trim();
-
-      // Mapear grupo según normalización
-      const empNorm = normalizeName(emp);
-      let grupo = 1;
-      let dirName = 'Rafael Novoa';
-
-      if (empNorm.includes('dayana') || empNorm.includes('angela') || empNorm.includes('alejandra') || empNorm.includes('daniel') || empNorm.includes('cesar') || empNorm.includes('yurany') || empNorm.includes('johanna') || empNorm.includes('jasbleidy') || empNorm.includes('adriana') || empNorm.includes('yovanny') || empNorm.includes('fernando')) {
-        grupo = 2;
-        dirName = 'Angélica Caballero';
-      } else if (empNorm.includes('paola') || empNorm.includes('karen') || empNorm.includes('lington') || empNorm.includes('angelica') || empNorm.includes('andres') || empNorm.includes('tatiana') || empNorm.includes('claudia') || empNorm.includes('dilma') || empNorm.includes('juan') || empNorm.includes('deisy') || empNorm.includes('garcia')) {
-        grupo = 3;
-        dirName = 'Óscar Beltrán';
-      } else if (empNorm.includes('astrid') || empNorm.includes('briceno') || empNorm.includes('dafne') || empNorm.includes('jessica') || empNorm.includes('acevedo') || empNorm.includes('camilo') || empNorm.includes('yeison') || empNorm.includes('castro')) {
-        grupo = 4;
-        dirName = 'Miller Romero';
-      }
-
-      allRemisiones.push({
-        doc,
-        nit,
-        company,
-        merchandise: merchandise || total,
-        tax,
-        total,
-        age,
-        order,
-        employee: emp,
-        grupo,
-        dirName,
+      rawRows.push({
+        emp: String(row.getCell(2).value || '').trim(),
+        nit: String(row.getCell(3).value || '').trim(),
+        company: String(row.getCell(4).value || '').trim(),
+        merchandise: Number(row.getCell(5).value || 0),
+        tax: Number(row.getCell(6).value || 0),
+        total: Number(row.getCell(7).value || 0),
+        age: Number(row.getCell(9).value || 0),
+        doc: String(row.getCell(10).value || '').trim(),
+        order: String(row.getCell(11).value || '').trim(),
       });
     }
+  }
+
+  // Clasificar cada fila
+  const allRemisiones = [];
+  const execEntries = Object.entries(ESTRUCTURA_COMERCIAL_2026.ejecutivos);
+  const dirEntries = Object.entries(ESTRUCTURA_COMERCIAL_2026.directores);
+
+  for (const r of rawRows) {
+    let matched = null;
+
+    // 1. Probar contra ejecutivos comerciales
+    for (const [email, exec] of execEntries) {
+      if (nameMatches(r.emp, exec.nombre) || nameMatches(r.emp, exec.archivo)) {
+        matched = {
+          ...r,
+          email,
+          employee: exec.nombre,
+          grupo: exec.grupo,
+          dirName: ESTRUCTURA_COMERCIAL_2026.directores[exec.grupo].nombre,
+          isDirector: false,
+          isUnassigned: false,
+        };
+        break;
+      }
+    }
+
+    // 2. Probar si es remisión directa a nombre del Director
+    if (!matched) {
+      for (const [gStr, dir] of dirEntries) {
+        if (nameMatches(r.emp, dir.nombre)) {
+          matched = {
+            ...r,
+            email: dir.email,
+            employee: `${dir.nombre} (Gestión Directa)`,
+            grupo: Number(gStr),
+            dirName: dir.nombre,
+            isDirector: true,
+            isUnassigned: false,
+          };
+          break;
+        }
+      }
+    }
+
+    // 3. Cuentas Especiales / Otras Áreas
+    if (!matched) {
+      matched = {
+        ...r,
+        email: 'corporativo@provexpress.com.co',
+        employee: r.emp,
+        grupo: 0,
+        dirName: 'Otras Áreas / Especiales',
+        isDirector: false,
+        isUnassigned: true,
+      };
+    }
+
+    allRemisiones.push(matched);
   }
 
   const totalCount = allRemisiones.length;
@@ -165,8 +294,8 @@ async function main() {
     const byAge = [...gRem].sort((a, b) => b.age - a.age);
     const crit = byAge[0] || null;
 
-    // Asesores activos únicos
-    const uniqueExecs = new Set(gRem.map((r) => normalizeName(r.employee))).size;
+    // Asesores activos únicos (excluyendo gestión directa del director)
+    const uniqueExecs = new Set(gRem.filter((r) => !r.isDirector).map((r) => r.employee)).size;
     const totalExecs = d.grupo === 1 ? 9 : d.grupo === 2 ? 11 : d.grupo === 3 ? 10 : 8;
 
     let status = 'Al día';
@@ -199,6 +328,24 @@ async function main() {
     };
   });
 
+  // Cuentas Especiales / Otras Áreas
+  const unassignedRem = allRemisiones.filter((r) => r.isUnassigned || r.grupo === 0);
+  const unassignedTotal = unassignedRem.reduce((s, r) => s + r.total, 0);
+  const unassignedAvgAge = unassignedRem.length > 0 ? Math.round(unassignedRem.reduce((s, r) => s + r.age, 0) / unassignedRem.length) : 0;
+  const unassignedPct = totalValue > 0 ? Number(((unassignedTotal / totalValue) * 100).toFixed(1)) : 0;
+  const unassignedCrit = [...unassignedRem].sort((a, b) => b.age - a.age)[0] || null;
+  const unassignedSummary = {
+    label: 'Cuentas Especiales / Otras Áreas',
+    count: unassignedRem.length,
+    total: unassignedTotal,
+    avgAge: unassignedAvgAge,
+    pct: unassignedPct,
+    crit: unassignedCrit,
+  };
+
+  const totalActiveExecs = groupsSummary.reduce((s, g) => s + g.activeExecs, 0);
+  const totalAllExecs = groupsSummary.reduce((s, g) => s + g.totalExecs, 0);
+
   // Top Oportunidades Globales
   const byValAll = [...allRemisiones].sort((a, b) => b.total - a.total);
   const topMayorValor = byValAll[0] || null;
@@ -206,23 +353,28 @@ async function main() {
   const byAgeAll = [...allRemisiones].sort((a, b) => b.age - a.age);
   const topMayorAntiguedad = byAgeAll[0] || null;
 
-  // Agrupar por asesores y ordenar por total desc (Top 5)
-  const byEmpMap = new Map();
-  allRemisiones.forEach((r) => {
-    const key = r.employee;
-    const curr = byEmpMap.get(key) || { name: key, grupo: r.grupo, dirName: r.dirName, count: 0, total: 0, ageSum: 0 };
-    curr.count += 1;
-    curr.total += r.total;
-    curr.ageSum += r.age;
-    byEmpMap.set(key, curr);
-  });
+  // Agrupar asesores comerciales para Top 5 (solo asesores comerciales)
+  const execRanking = [];
+  for (const [email, exec] of execEntries) {
+    const execRem = allRemisiones.filter((r) => !r.isDirector && r.grupo === exec.grupo && r.employee === exec.nombre);
+    const count = execRem.length;
+    const total = execRem.reduce((s, r) => s + r.total, 0);
+    const age = count > 0 ? Math.round(execRem.reduce((s, r) => s + r.age, 0) / count) : 0;
+    const pct = totalValue > 0 ? Number(((total / totalValue) * 100).toFixed(1)) : 0;
+    execRanking.push({
+      email,
+      name: exec.nombre,
+      grupo: exec.grupo,
+      dirName: ESTRUCTURA_COMERCIAL_2026.directores[exec.grupo].nombre,
+      count,
+      total,
+      avgAge: age,
+      pct,
+    });
+  }
 
-  const execRanking = Array.from(byEmpMap.values()).map((e) => ({
-    ...e,
-    avgAge: Math.round(e.ageSum / e.count),
-    pct: totalValue > 0 ? Number(((e.total / totalValue) * 100).toFixed(1)) : 0,
-  })).sort((a, b) => b.total - a.total);
-
+  // Ordenar por total por facturar desc
+  execRanking.sort((a, b) => b.total - a.total);
   const top5Execs = execRanking.slice(0, 5);
 
   // 2. Construir Libro Excel Maestro con 3 Hojas
@@ -308,11 +460,47 @@ async function main() {
     }
   });
 
-  const totDirR = wsDir.getRow(6 + groupsSummary.length);
+  let currentDirRowIdx = 6 + groupsSummary.length;
+
+  // Fila de Cuentas Especiales / Otras Áreas
+  if (unassignedSummary && unassignedSummary.count > 0) {
+    const uRow = wsDir.getRow(currentDirRowIdx);
+    uRow.height = 22;
+    uRow.getCell(1).value = groupsSummary.length + 1;
+    uRow.getCell(2).value = 'Especiales';
+    uRow.getCell(2).font = { bold: true, color: { argb: 'FF64748B' } };
+    uRow.getCell(3).value = unassignedSummary.label;
+    uRow.getCell(3).font = { bold: true, color: { argb: 'FF475569' } };
+    uRow.getCell(4).value = 'corporativo@provexpress.com.co';
+    uRow.getCell(4).font = { color: { argb: 'FF94A3B8' } };
+    uRow.getCell(5).value = '—';
+    uRow.getCell(6).value = '—';
+    uRow.getCell(7).value = unassignedSummary.count;
+    uRow.getCell(7).font = { bold: true };
+    uRow.getCell(8).value = unassignedSummary.total;
+    uRow.getCell(8).numFmt = '"$"#,##0';
+    uRow.getCell(8).font = { bold: true, color: { argb: 'FF15803D' } };
+    uRow.getCell(9).value = `${unassignedSummary.pct}%`;
+    uRow.getCell(9).font = { bold: true, color: { argb: 'FF64748B' } };
+    uRow.getCell(10).value = `${unassignedSummary.avgAge} días`;
+    uRow.getCell(10).font = { bold: true, color: { argb: 'FF475569' } };
+    uRow.getCell(11).value = 'En gestión';
+    uRow.getCell(11).font = { bold: true, color: { argb: 'FF475569' } };
+
+    for (let col = 1; col <= 11; col++) {
+      uRow.getCell(col).alignment = { horizontal: col === 8 ? 'right' : col === 1 || col === 2 || col === 5 || col === 6 || col === 7 || col === 9 || col === 10 || col === 11 ? 'center' : 'left', vertical: 'middle' };
+      uRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+    }
+    currentDirRowIdx++;
+  }
+
+  const totDirR = wsDir.getRow(currentDirRowIdx);
   totDirR.height = 24;
   totDirR.getCell(1).value = 'TOTAL';
   totDirR.getCell(2).value = 'EMPRESA';
-  totDirR.getCell(3).value = 'CONSOLIDADO 4 GRUPOS';
+  totDirR.getCell(3).value = 'CONSOLIDADO COMPAÑÍA';
+  totDirR.getCell(5).value = totalActiveExecs;
+  totDirR.getCell(6).value = totalAllExecs;
   totDirR.getCell(7).value = totalCount;
   totDirR.getCell(8).value = totalValue;
   totDirR.getCell(8).numFmt = '"$"#,##0';
@@ -331,7 +519,7 @@ async function main() {
   const wsExec = excelWb.addWorksheet('Resumen por Ejecutivo', {
     views: [{ state: 'frozen', ySplit: 4 }],
   });
-  wsExec.mergeCells('A1:I1');
+  wsExec.mergeCells('A1:J1');
   const h2 = wsExec.getCell('A1');
   h2.value = 'PROVEXPRESS SAS · CONSOLIDADO DE REMISIONES POR ASESOR COMERCIAL';
   h2.font = { name: 'Calibri', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -339,11 +527,11 @@ async function main() {
   h2.alignment = { horizontal: 'center', vertical: 'middle' };
   wsExec.getRow(1).height = 28;
 
-  wsExec.getCell('A2').value = `Total Asesores con pendientes: ${execRanking.length} | Fecha de corte: ${TODAY_FORMATTED}`;
+  wsExec.getCell('A2').value = `Total Asesores con pendientes: ${totalActiveExecs} de ${totalAllExecs} en la compañía | Fecha de corte: ${TODAY_FORMATTED}`;
   wsExec.getCell('A2').font = { bold: true, size: 10, color: { argb: 'FF475569' } };
   wsExec.getRow(3).height = 8;
 
-  const execCols = ['N°', 'Grupo', 'Director Responsable', 'Asesor Comercial', 'Remisiones Abiertas', 'Valor por Facturar ($ COP)', '% Participación', 'Antigüedad Promedio', 'Estado'];
+  const execCols = ['N°', 'Grupo', 'Director Responsable', 'Asesor Comercial', 'Correo Corporativo', 'Remisiones Abiertas', 'Valor por Facturar ($ COP)', '% Participación', 'Antigüedad Promedio', 'Estado'];
   const hRow2 = wsExec.getRow(4);
   hRow2.height = 24;
   execCols.forEach((text, i) => {
@@ -351,52 +539,126 @@ async function main() {
     c.value = text;
     c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
-    c.alignment = { horizontal: i === 5 ? 'right' : i === 0 || i === 1 || i === 4 || i === 6 || i === 7 || i === 8 ? 'center' : 'left', vertical: 'middle' };
+    c.alignment = { horizontal: i === 6 ? 'right' : i === 0 || i === 1 || i === 5 || i === 7 || i === 8 || i === 9 ? 'center' : 'left', vertical: 'middle' };
   });
 
-  execRanking.forEach((e, idx) => {
+  // Lista completa de ejecutivos + gestión directa directores + cuentas especiales
+  const fullExecListForSheet = [];
+
+  // 1. Ejecutivos comerciales (38)
+  for (const [email, exec] of execEntries) {
+    const userRem = allRemisiones.filter((r) => !r.isDirector && r.grupo === exec.grupo && r.employee === exec.nombre);
+    const count = userRem.length;
+    const total = userRem.reduce((s, r) => s + r.total, 0);
+    const uAvgAge = count > 0 ? Math.round(userRem.reduce((s, r) => s + r.age, 0) / count) : 0;
+    const uPct = totalValue > 0 ? Number(((total / totalValue) * 100).toFixed(1)) : 0;
+    fullExecListForSheet.push({
+      grupo: `Grupo ${exec.grupo}`,
+      dirName: ESTRUCTURA_COMERCIAL_2026.directores[exec.grupo].nombre,
+      name: exec.nombre,
+      email,
+      count,
+      total,
+      avgAge: uAvgAge,
+      pct: uPct,
+    });
+  }
+
+  // 2. Gestión directa directores
+  for (const [gStr, dir] of dirEntries) {
+    const dirRem = allRemisiones.filter((r) => r.isDirector && r.grupo === Number(gStr));
+    if (dirRem.length > 0) {
+      const count = dirRem.length;
+      const total = dirRem.reduce((s, r) => s + r.total, 0);
+      const uAvgAge = count > 0 ? Math.round(dirRem.reduce((s, r) => s + r.age, 0) / count) : 0;
+      const uPct = totalValue > 0 ? Number(((total / totalValue) * 100).toFixed(1)) : 0;
+      fullExecListForSheet.push({
+        grupo: `Grupo ${gStr}`,
+        dirName: dir.nombre,
+        name: `${dir.nombre} (Gestión Directa)`,
+        email: dir.email,
+        count,
+        total,
+        avgAge: uAvgAge,
+        pct: uPct,
+      });
+    }
+  }
+
+  // 3. Cuentas Especiales / Otras Áreas
+  if (unassignedRem.length > 0) {
+    const unMap = new Map();
+    unassignedRem.forEach((r) => {
+      const c = unMap.get(r.emp) || { count: 0, total: 0, ageSum: 0 };
+      c.count++;
+      c.total += r.total;
+      c.ageSum += r.age;
+      unMap.set(r.emp, c);
+    });
+    for (const [emp, d] of unMap.entries()) {
+      const uAvgAge = Math.round(d.ageSum / d.count);
+      const uPct = totalValue > 0 ? Number(((d.total / totalValue) * 100).toFixed(1)) : 0;
+      fullExecListForSheet.push({
+        grupo: 'Especial',
+        dirName: 'Otras Áreas',
+        name: emp,
+        email: 'corporativo@provexpress.com.co',
+        count: d.count,
+        total: d.total,
+        avgAge: uAvgAge,
+        pct: uPct,
+      });
+    }
+  }
+
+  // Ordenar por total desc
+  fullExecListForSheet.sort((a, b) => b.total - a.total);
+
+  fullExecListForSheet.forEach((e, idx) => {
     const r = wsExec.getRow(5 + idx);
     r.height = 20;
     r.getCell(1).value = idx + 1;
-    r.getCell(2).value = `Grupo ${e.grupo}`;
+    r.getCell(2).value = e.grupo;
     r.getCell(3).value = e.dirName;
     r.getCell(4).value = e.name;
     r.getCell(4).font = { bold: true };
-    r.getCell(5).value = e.count;
-    r.getCell(5).font = { bold: true };
-    r.getCell(6).value = e.total;
-    r.getCell(6).numFmt = '"$"#,##0';
-    r.getCell(6).font = { bold: true, color: { argb: 'FF15803D' } };
-    r.getCell(7).value = `${e.pct}%`;
-    r.getCell(7).font = { bold: true, color: { argb: 'FF1E3A8A' } };
-    r.getCell(8).value = `${e.avgAge} días`;
-    r.getCell(8).font = { bold: true, color: e.avgAge > 30 ? { argb: 'FFDC2626' } : { argb: 'FF0F172A' } };
-    r.getCell(9).value = e.avgAge > 30 ? 'Urgente (>30d)' : 'En gestión';
-    r.getCell(9).font = { bold: true, color: e.avgAge > 30 ? { argb: 'FFDC2626' } : { argb: 'FF1E3A8A' } };
+    r.getCell(5).value = e.email;
+    r.getCell(5).font = { color: { argb: 'FF64748B' } };
+    r.getCell(6).value = e.count;
+    r.getCell(6).font = { bold: true };
+    r.getCell(7).value = e.total;
+    r.getCell(7).numFmt = '"$"#,##0';
+    r.getCell(7).font = { bold: true, color: e.count > 0 ? { argb: 'FF15803D' } : { argb: 'FF94A3B8' } };
+    r.getCell(8).value = `${e.pct}%`;
+    r.getCell(8).font = { bold: true, color: { argb: 'FF1E3A8A' } };
+    r.getCell(9).value = e.count > 0 ? `${e.avgAge} días` : '—';
+    r.getCell(9).font = { bold: true, color: e.avgAge > 30 ? { argb: 'FFDC2626' } : { argb: 'FF0F172A' } };
+    r.getCell(10).value = e.count === 0 ? 'Al día ✓' : e.avgAge > 30 ? 'Urgente (>30d)' : 'En gestión';
+    r.getCell(10).font = { bold: true, color: e.count === 0 ? { argb: 'FF15803D' } : e.avgAge > 30 ? { argb: 'FFDC2626' } : { argb: 'FF1E3A8A' } };
 
-    for (let col = 1; col <= 9; col++) {
-      r.getCell(col).alignment = { horizontal: col === 6 ? 'right' : col === 1 || col === 2 || col === 5 || col === 7 || col === 8 || col === 9 ? 'center' : 'left', vertical: 'middle' };
+    for (let col = 1; col <= 10; col++) {
+      r.getCell(col).alignment = { horizontal: col === 7 ? 'right' : col === 1 || col === 2 || col === 6 || col === 8 || col === 9 || col === 10 ? 'center' : 'left', vertical: 'middle' };
     }
   });
 
-  const totExecR = wsExec.getRow(5 + execRanking.length);
+  const totExecR = wsExec.getRow(5 + fullExecListForSheet.length);
   totExecR.height = 24;
   totExecR.getCell(1).value = 'TOTAL';
   totExecR.getCell(2).value = 'TODOS';
   totExecR.getCell(4).value = 'CONSOLIDADO COMPAÑÍA';
-  totExecR.getCell(5).value = totalCount;
-  totExecR.getCell(6).value = totalValue;
-  totExecR.getCell(6).numFmt = '"$"#,##0';
-  totExecR.getCell(7).value = '100%';
-  totExecR.getCell(8).value = `${avgAge} días`;
-  totExecR.getCell(9).value = 'GENERAL';
-  for (let c = 1; c <= 9; c++) {
+  totExecR.getCell(6).value = totalCount;
+  totExecR.getCell(7).value = totalValue;
+  totExecR.getCell(7).numFmt = '"$"#,##0';
+  totExecR.getCell(8).value = '100%';
+  totExecR.getCell(9).value = `${avgAge} días`;
+  totExecR.getCell(10).value = 'GENERAL';
+  for (let c = 1; c <= 10; c++) {
     const cell = totExecR.getCell(c);
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    cell.alignment = { horizontal: c === 6 ? 'right' : c === 1 || c === 2 || c === 5 || c === 7 || c === 8 || c === 9 ? 'center' : 'left', vertical: 'middle' };
+    cell.alignment = { horizontal: c === 7 ? 'right' : c === 1 || c === 2 || c === 6 || c === 8 || c === 9 || c === 10 ? 'center' : 'left', vertical: 'middle' };
   }
-  wsExec.columns = [{ width: 6 }, { width: 14 }, { width: 24 }, { width: 28 }, { width: 18 }, { width: 22 }, { width: 16 }, { width: 20 }, { width: 18 }];
+  wsExec.columns = [{ width: 6 }, { width: 14 }, { width: 24 }, { width: 28 }, { width: 34 }, { width: 18 }, { width: 22 }, { width: 16 }, { width: 20 }, { width: 18 }];
 
   // ── HOJA 3: DETALLE GENERAL REMISIONES ──
   const wsDet = excelWb.addWorksheet('Detalle General Remisiones', {
@@ -433,7 +695,7 @@ async function main() {
     const bg = isEven ? 'FFFFFFFF' : 'FFF8FAFC';
 
     row.getCell(1).value = idx + 1;
-    row.getCell(2).value = `Grupo ${r.grupo}`;
+    row.getCell(2).value = r.grupo > 0 ? `Grupo ${r.grupo}` : 'Especial';
     row.getCell(3).value = r.dirName;
     row.getCell(4).value = r.employee;
     row.getCell(4).font = { bold: true };
@@ -627,7 +889,7 @@ async function main() {
                 <span style="color: #16A34A;">Dirección & Gerencia</span> · Corte ${TODAY_FORMATTED}
               </h1>
               <p style="margin: 0; font-size: 12px; color: #475569; line-height: 1.35; font-family: 'Segoe UI', Arial, sans-serif; max-width: 410px;">
-                Visión integral del estado de remisiones abiertas y oportunidades de facturación en los <strong>4 grupos comerciales</strong> y sus <strong>${execRanking.length} ejecutivos con gestión</strong>.
+                Visión integral del estado de remisiones abiertas y oportunidades de facturación en los <strong>4 grupos comerciales</strong> y sus <strong>${totalActiveExecs} ejecutivos con gestión</strong>.
               </p>
               <p style="margin: 5px 0 0 0; font-size: 12px; color: #0F172A; font-weight: 700; font-family: 'Segoe UI', Arial, sans-serif;">
                 Articulación y seguimiento estratégico para convertir entregas en <span style="color: #16A34A;">ventas facturadas</span>.
@@ -677,7 +939,7 @@ async function main() {
                 <tr>
                   <td colspan="2" valign="bottom" style="padding-top: 6px;">
                     <div style="font-size: 16px; font-weight: 900; color: #1E3A8A; font-family: 'Segoe UI', Arial, sans-serif;">
-                      4 grupos · ${execRanking.length} asesores
+                      4 grupos · ${totalActiveExecs} asesores
                     </div>
                   </td>
                 </tr>
@@ -809,12 +1071,50 @@ async function main() {
           </thead>
           <tbody style="background-color: #FFFFFF;">
             ${rowsDirectorsHtml}
+            ${unassignedSummary && unassignedSummary.count > 0 ? `
+            <tr style="background-color: #FAFAFA; border-bottom: 1.5px dashed #CBD5E1;">
+              <td style="padding: 10px 14px; font-size: 12.5px; font-weight: 750; color: #475569; font-family: 'Segoe UI', Arial, sans-serif;">
+                <span style="display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 6px; background-color: #64748B; color: #FFFFFF; font-size: 10px; margin-right: 6px;">
+                  CE
+                </span>
+                ${unassignedSummary.label}
+                <div style="font-size: 10px; font-weight: 500; color: #94A3B8; margin-left: 28px;">
+                  Cuentas directas y áreas de apoyo
+                </div>
+              </td>
+              <td style="padding: 10px 10px; text-align: center; font-size: 12px; font-weight: 600; color: #94A3B8; font-family: 'Segoe UI', Arial, sans-serif;">
+                —
+              </td>
+              <td style="padding: 10px 10px; text-align: center; font-size: 12.5px; font-weight: 850; color: #334155; font-family: 'Segoe UI', Arial, sans-serif;">
+                ${formatNumber(unassignedSummary.count)}
+              </td>
+              <td style="padding: 10px 14px; text-align: right; font-size: 13px; font-weight: 850; color: #15803D; font-family: 'Segoe UI', Arial, sans-serif;">
+                ${formatCOP(unassignedSummary.total)}
+              </td>
+              <td style="padding: 10px 10px; text-align: center; font-size: 12px; font-weight: 800; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
+                ${unassignedSummary.pct}%
+              </td>
+              <td style="padding: 10px 10px; text-align: center;">
+                <span style="display: inline-block; padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; color: #475569; background-color: #F1F5F9; font-family: 'Segoe UI', Arial, sans-serif;">
+                  ${unassignedSummary.avgAge} días
+                </span>
+              </td>
+              <td style="padding: 10px 12px; font-size: 11px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
+                ${unassignedSummary.crit ? `${unassignedSummary.crit.doc} (${unassignedSummary.crit.age}d)` : '—'}
+              </td>
+              <td style="padding: 10px 12px; text-align: center;">
+                <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; color: #475569; background-color: #F1F5F9;">
+                  En gestión
+                </span>
+              </td>
+            </tr>
+            ` : ''}
             <tr style="background-color: #F1F5F9; border-top: 2px solid #CBD5E1;">
               <td style="padding: 12px 14px; font-size: 13px; font-weight: 900; color: #0F172A; font-family: 'Segoe UI', Arial, sans-serif;">
                 TOTAL GENERAL COMPAÑÍA
               </td>
               <td style="padding: 12px 10px; text-align: center; font-size: 12.5px; font-weight: 900; color: #0F172A; font-family: 'Segoe UI', Arial, sans-serif;">
-                ${execRanking.length} asesores
+                ${totalActiveExecs} / ${totalAllExecs}
               </td>
               <td style="padding: 12px 10px; text-align: center; font-size: 13.5px; font-weight: 900; color: #0F172A; font-family: 'Segoe UI', Arial, sans-serif;">
                 ${formatNumber(totalCount)}

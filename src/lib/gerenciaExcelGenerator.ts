@@ -143,14 +143,57 @@ async function buildGerenciaWorkbook(summary: GerenciaEmailSummary) {
     }
   });
 
+  let currentRowIdx = 6 + summary.groupsSummary.length;
+
+  // Fila de Cuentas Especiales / Otras Áreas si existen
+  if (summary.unassignedSummary && summary.unassignedSummary.totalCount > 0) {
+    const uRow = wsDirectors.getRow(currentRowIdx);
+    uRow.height = 22;
+    uRow.getCell(1).value = summary.groupsSummary.length + 1;
+    uRow.getCell(2).value = 'Especiales';
+    uRow.getCell(2).font = { bold: true, color: { argb: 'FF64748B' } };
+    uRow.getCell(3).value = summary.unassignedSummary.label;
+    uRow.getCell(3).font = { bold: true, color: { argb: 'FF475569' } };
+    uRow.getCell(4).value = 'corporativo@provexpress.com.co';
+    uRow.getCell(4).font = { color: { argb: 'FF94A3B8' } };
+    uRow.getCell(5).value = '—';
+    uRow.getCell(6).value = '—';
+    uRow.getCell(7).value = summary.unassignedSummary.totalCount;
+    uRow.getCell(7).font = { bold: true };
+    uRow.getCell(8).value = summary.unassignedSummary.totalValue;
+    uRow.getCell(8).numFmt = '"$"#,##0';
+    uRow.getCell(8).font = { bold: true, color: { argb: 'FF15803D' } };
+    uRow.getCell(9).value = `${summary.unassignedSummary.pctCompanyValue}%`;
+    uRow.getCell(9).font = { bold: true, color: { argb: 'FF64748B' } };
+    uRow.getCell(10).value = `${summary.unassignedSummary.avgAge} días`;
+    uRow.getCell(10).font = { bold: true, color: { argb: 'FF475569' } };
+    uRow.getCell(11).value = 'En gestión';
+    uRow.getCell(11).font = { bold: true, color: { argb: 'FF475569' } };
+
+    for (let col = 1; col <= 11; col++) {
+      const cell = uRow.getCell(col);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+      cell.alignment = {
+        horizontal: col === 1 || col === 2 || col === 5 || col === 6 || col === 7 || col === 9 || col === 10 || col === 11 ? 'center' : col === 8 ? 'right' : 'left',
+        vertical: 'middle',
+      };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      };
+    }
+    currentRowIdx += 1;
+  }
+
   // Fila Total de Directores
-  const totalDirRowIdx = 6 + summary.groupsSummary.length;
-  const totalDirRow = wsDirectors.getRow(totalDirRowIdx);
+  const totalDirRow = wsDirectors.getRow(currentRowIdx);
   totalDirRow.height = 24;
 
   totalDirRow.getCell(1).value = 'TOTAL';
   totalDirRow.getCell(2).value = 'EMPRESA';
-  totalDirRow.getCell(3).value = 'CONSOLIDADO 4 GRUPOS';
+  totalDirRow.getCell(3).value = 'CONSOLIDADO COMPAÑÍA';
   totalDirRow.getCell(3).font = { bold: true, color: { argb: 'FFFFFFFF' } };
   totalDirRow.getCell(5).value = summary.activeExecutivesCount;
   totalDirRow.getCell(6).value = summary.totalExecutivesCount;
@@ -243,7 +286,7 @@ async function buildGerenciaWorkbook(summary: GerenciaEmailSummary) {
 
   // Recopilar todos los ejecutivos con métricas
   const allExecsFullList: {
-    grupo: number;
+    grupo: number | string;
     directorName: string;
     name: string;
     email: string;
@@ -257,7 +300,9 @@ async function buildGerenciaWorkbook(summary: GerenciaEmailSummary) {
   for (const [email, data] of allExecEntries) {
     const dirInfo = LISTA_DIRECTORES.find((d) => d.grupo === data.grupo);
     const dirName = dirInfo?.nombre || `Director Grupo ${data.grupo}`;
-    const userRem = summary.allCompanyRemisiones.filter((r) => normalizeName(r.employee) === normalizeName(data.nombre) || normalizeName(r.employee) === normalizeName(data.archivo));
+    const userRem = summary.allCompanyRemisiones.filter(
+      (r) => !r.isDirectorDirect && r.group === data.grupo && (r.executiveName === data.nombre || normalizeName(r.employee) === normalizeName(data.nombre))
+    );
 
     const count = userRem.length;
     const total = userRem.reduce((s, r) => s + (r.total || 0), 0);
@@ -274,6 +319,57 @@ async function buildGerenciaWorkbook(summary: GerenciaEmailSummary) {
       avgAge,
       pct,
     });
+  }
+
+  // Remisiones de gestión directa a nombre de los Directores si existen
+  for (const dir of LISTA_DIRECTORES) {
+    const dirRem = summary.allCompanyRemisiones.filter(
+      (r) => r.isDirectorDirect && r.group === dir.grupo
+    );
+    if (dirRem.length > 0) {
+      const dCount = dirRem.length;
+      const dTotal = dirRem.reduce((s, r) => s + (r.total || 0), 0);
+      const dAvgAge = dCount > 0 ? Math.round(dirRem.reduce((s, r) => s + (r.age || 0), 0) / dCount) : 0;
+      const dPct = summary.totalValue > 0 ? Number(((dTotal / summary.totalValue) * 100).toFixed(1)) : 0;
+      allExecsFullList.push({
+        grupo: dir.grupo,
+        directorName: dir.nombre,
+        name: `${dir.nombre} (Gestión Directa)`,
+        email: dir.email,
+        count: dCount,
+        total: dTotal,
+        avgAge: dAvgAge,
+        pct: dPct,
+      });
+    }
+  }
+
+  // Cuentas Especiales / Otras Áreas
+  const unassignedRows = summary.allCompanyRemisiones.filter((r) => !r.group || r.group === 0);
+  if (unassignedRows.length > 0) {
+    const unMap = new Map<string, { count: number; total: number; ageSum: number }>();
+    unassignedRows.forEach((r) => {
+      const emp = r.employee || 'Cuentas Especiales';
+      const c = unMap.get(emp) || { count: 0, total: 0, ageSum: 0 };
+      c.count++;
+      c.total += r.total || 0;
+      c.ageSum += r.age || 0;
+      unMap.set(emp, c);
+    });
+    for (const [emp, d] of unMap.entries()) {
+      const uAvgAge = Math.round(d.ageSum / d.count);
+      const uPct = summary.totalValue > 0 ? Number(((d.total / summary.totalValue) * 100).toFixed(1)) : 0;
+      allExecsFullList.push({
+        grupo: 'Especial',
+        directorName: 'Otras Áreas',
+        name: emp,
+        email: 'corporativo@provexpress.com.co',
+        count: d.count,
+        total: d.total,
+        avgAge: uAvgAge,
+        pct: uPct,
+      });
+    }
   }
 
   // Ordenar por total por facturar desc
@@ -439,8 +535,8 @@ async function buildGerenciaWorkbook(summary: GerenciaEmailSummary) {
     const rangeStr = age > 15 ? 'Más de 15 días' : age >= 8 ? '8 a 15 días' : '0 a 7 días';
 
     row.getCell(1).value = idx + 1;
-    row.getCell(2).value = `Grupo ${r.group || 1}`;
-    row.getCell(3).value = r.director || 'Dirección Comercial';
+    row.getCell(2).value = r.group ? `Grupo ${r.group}` : 'Especial';
+    row.getCell(3).value = r.director || 'Otras Áreas';
     row.getCell(4).value = r.employee || 'Comercial';
     row.getCell(4).font = { bold: true, color: { argb: 'FF0F172A' } };
     row.getCell(5).value = docStr;

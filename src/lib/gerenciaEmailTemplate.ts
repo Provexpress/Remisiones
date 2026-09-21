@@ -3,6 +3,7 @@ import {
   ESTRUCTURA_COMERCIAL_2026,
   LISTA_DIRECTORES,
   normalizeName,
+  resolveCommercialOrDirector,
 } from './commercialDirectory';
 import { LOGO_PROVEXPRESS_DATA_URI, AVATAR_MAN_DATA_URI, AVATAR_WOMAN_DATA_URI } from './commercialEmailAssets';
 import { formatCOP, formatNumber } from './commercialEmailTemplate';
@@ -21,6 +22,15 @@ export interface GerenciaGroupSummary {
   status: 'Al día' | 'Gestión activa' | 'Atención prioritaria';
   statusColor: string;
   statusBg: string;
+}
+
+export interface GerenciaUnassignedSummary {
+  label: string;
+  totalCount: number;
+  totalValue: number;
+  pctCompanyValue: number;
+  avgAge: number;
+  criticalRemision: (Remision & { executiveName?: string; directorName?: string }) | null;
 }
 
 export interface GerenciaTopExecutiveSummary {
@@ -49,8 +59,9 @@ export interface GerenciaEmailSummary {
   topMayorValor: (Remision & { executiveName?: string; directorName?: string }) | null;
   topMayorAntiguedad: (Remision & { executiveName?: string; directorName?: string }) | null;
   groupsSummary: GerenciaGroupSummary[];
+  unassignedSummary?: GerenciaUnassignedSummary;
   topExecutives: GerenciaTopExecutiveSummary[];
-  allCompanyRemisiones: Remision[];
+  allCompanyRemisiones: (Remision & { executiveName?: string; directorName?: string; isDirectorDirect?: boolean })[];
   genero: 'M' | 'F';
 }
 
@@ -79,70 +90,84 @@ export function buildGerenciaEmailSummary(
   // Filtrar remisiones de este corte si se especifica
   const cutoffRecords = records.filter((r) => !cutoffDate || r.cutoff === cutoffDate);
 
+  // Clasificar cada registro con la lógica unificada de resolución
+  const classifiedRecords: (Remision & {
+    executiveName: string;
+    directorName: string;
+    resolvedGroup: number;
+    isDirectorDirect: boolean;
+  })[] = [];
+
+  for (const r of cutoffRecords) {
+    const role = resolveCommercialOrDirector(r.employee);
+    if (role.type === 'ejecutivo') {
+      classifiedRecords.push({
+        ...r,
+        group: role.grupo,
+        director: role.directorNombre,
+        executiveName: role.nombre,
+        directorName: role.directorNombre,
+        resolvedGroup: role.grupo,
+        isDirectorDirect: false,
+      });
+    } else if (role.type === 'director_directa') {
+      classifiedRecords.push({
+        ...r,
+        group: role.grupo,
+        director: role.directorNombre,
+        executiveName: role.nombre,
+        directorName: role.directorNombre,
+        resolvedGroup: role.grupo,
+        isDirectorDirect: true,
+      });
+    } else {
+      classifiedRecords.push({
+        ...r,
+        group: 0,
+        director: 'Otras Áreas / Cuentas Especiales',
+        executiveName: r.employee || 'Cuentas Especiales',
+        directorName: 'Otras Áreas / Especiales',
+        resolvedGroup: 0,
+        isDirectorDirect: false,
+      });
+    }
+  }
+
+  const allCompanyRemisiones = classifiedRecords;
+  const totalCount = allCompanyRemisiones.length;
+  const totalValue = allCompanyRemisiones.reduce((s, r) => s + (r.total || 0), 0);
+  const avgAge = totalCount > 0 ? Math.round(allCompanyRemisiones.reduce((s, r) => s + (r.age || 0), 0) / totalCount) : 0;
+
   // Mapear ejecutivos y grupos
   const allExecEntries = Object.entries(ESTRUCTURA_COMERCIAL_2026.ejecutivos);
   const totalExecutivesCount = allExecEntries.length;
 
-  const execRemisionesMap = new Map<string, { execData: (typeof ESTRUCTURA_COMERCIAL_2026.ejecutivos)[string]; remisiones: Remision[] }>();
-
-  for (const [execEmail, execData] of allExecEntries) {
-    const execTarget = normalizeName(execData.nombre);
-    const execFileTarget = normalizeName(execData.archivo);
-
-    const execRemisiones = cutoffRecords.filter((r) => {
-      const emp = normalizeName(r.employee);
-      if (!emp) return false;
-      if (emp === execTarget || emp === execFileTarget) return true;
-      const empTokens = emp.split(' ').filter(Boolean);
-      const targetTokens = execTarget.split(' ').filter(Boolean);
-      const common = targetTokens.filter((t) => empTokens.includes(t));
-      return common.length >= 2;
-    });
-
-    execRemisionesMap.set(execEmail, { execData, remisiones: execRemisiones });
-  }
-
-  // Métricas globales de la compañía
-  const allCompanyRemisiones: (Remision & { executiveName?: string; directorName?: string })[] = [];
+  // Resumen de ejecutivos para Top 5
   const execSummariesList: GerenciaTopExecutiveSummary[] = [];
-
-  for (const [execEmail, { execData, remisiones }] of execRemisionesMap.entries()) {
+  for (const [execEmail, execData] of allExecEntries) {
     const dirInfo = LISTA_DIRECTORES.find((d) => d.grupo === execData.grupo);
     const directorName = dirInfo?.nombre || `Director Grupo ${execData.grupo}`;
+    const execRemisiones = classifiedRecords.filter(
+      (r) => !r.isDirectorDirect && r.resolvedGroup === execData.grupo && r.executiveName === execData.nombre
+    );
 
-    remisiones.forEach((r) => {
-      allCompanyRemisiones.push({
-        ...r,
-        executiveName: execData.nombre,
-        directorName,
-      });
-    });
-
-    if (remisiones.length > 0) {
-      const execTotal = remisiones.reduce((s, r) => s + (r.total || 0), 0);
-      const execAvgAge = Math.round(remisiones.reduce((s, r) => s + (r.age || 0), 0) / remisiones.length);
+    if (execRemisiones.length > 0) {
+      const execTotal = execRemisiones.reduce((s, r) => s + (r.total || 0), 0);
+      const execAvgAge = Math.round(execRemisiones.reduce((s, r) => s + (r.age || 0), 0) / execRemisiones.length);
       execSummariesList.push({
         name: execData.nombre,
         email: execEmail,
         grupo: execData.grupo,
         directorName,
-        count: remisiones.length,
+        count: execRemisiones.length,
         total: execTotal,
         avgAge: execAvgAge,
-        pctCompanyValue: 0, // calculado abajo
+        pctCompanyValue: totalValue > 0 ? Number(((execTotal / totalValue) * 100).toFixed(1)) : 0,
       });
     }
   }
 
-  const totalCount = allCompanyRemisiones.length;
-  const totalValue = allCompanyRemisiones.reduce((s, r) => s + (r.total || 0), 0);
-  const avgAge = totalCount > 0 ? Math.round(allCompanyRemisiones.reduce((s, r) => s + (r.age || 0), 0) / totalCount) : 0;
   const activeExecutivesCount = execSummariesList.length;
-
-  // Calcular % de participación para cada ejecutivo y ordenar por total desc
-  execSummariesList.forEach((e) => {
-    e.pctCompanyValue = totalValue > 0 ? Number(((e.total / totalValue) * 100).toFixed(1)) : 0;
-  });
   execSummariesList.sort((a, b) => b.total - a.total);
   const topExecutives = execSummariesList.slice(0, 5);
 
@@ -156,17 +181,18 @@ export function buildGerenciaEmailSummary(
   // Consolidar por cada uno de los 4 directores / grupos
   const groupsSummary: GerenciaGroupSummary[] = LISTA_DIRECTORES.map((dir) => {
     const groupGroupExecutives = allExecEntries.filter(([, data]) => data.grupo === dir.grupo);
-    const groupRemisiones = allCompanyRemisiones.filter((r) => r.group === dir.grupo || r.director === dir.nombre || groupGroupExecutives.some(([, data]) => normalizeName(r.employee).includes(normalizeName(data.nombre))));
+    const groupRemisiones = classifiedRecords.filter((r) => r.resolvedGroup === dir.grupo);
 
     const gCount = groupRemisiones.length;
     const gTotal = groupRemisiones.reduce((s, r) => s + (r.total || 0), 0);
     const gAvgAge = gCount > 0 ? Math.round(groupRemisiones.reduce((s, r) => s + (r.age || 0), 0) / gCount) : 0;
     const gPct = totalValue > 0 ? Number(((gTotal / totalValue) * 100).toFixed(1)) : 0;
 
-    const gActiveExecs = groupGroupExecutives.filter(([email]) => {
-      const data = execRemisionesMap.get(email);
-      return (data?.remisiones.length || 0) > 0;
-    }).length;
+    // Asesores activos únicos (excluyendo gestión directa de directores)
+    const activeExecsSet = new Set(
+      groupRemisiones.filter((r) => !r.isDirectorDirect).map((r) => r.executiveName)
+    );
+    const gActiveExecs = activeExecsSet.size;
 
     const sortedGroupAge = [...groupRemisiones].sort((a, b) => (b.age || 0) - (a.age || 0));
     const criticalRemision = sortedGroupAge[0] || null;
@@ -204,6 +230,23 @@ export function buildGerenciaEmailSummary(
 
   const activeDirectorsCount = groupsSummary.filter((g) => g.totalCount > 0).length;
 
+  // Cuentas Especiales / Otras Áreas (sin director comercial asignado)
+  const unassignedRemisiones = classifiedRecords.filter((r) => r.resolvedGroup === 0);
+  let unassignedSummary: GerenciaUnassignedSummary | undefined;
+  if (unassignedRemisiones.length > 0) {
+    const uTotal = unassignedRemisiones.reduce((s, r) => s + (r.total || 0), 0);
+    const uAvgAge = Math.round(unassignedRemisiones.reduce((s, r) => s + (r.age || 0), 0) / unassignedRemisiones.length);
+    const sortedU = [...unassignedRemisiones].sort((a, b) => (b.age || 0) - (a.age || 0));
+    unassignedSummary = {
+      label: 'Cuentas Especiales / Otras Áreas',
+      totalCount: unassignedRemisiones.length,
+      totalValue: uTotal,
+      pctCompanyValue: totalValue > 0 ? Number(((uTotal / totalValue) * 100).toFixed(1)) : 0,
+      avgAge: uAvgAge,
+      criticalRemision: sortedU[0] || null,
+    };
+  }
+
   return {
     recipientName,
     recipientCargo,
@@ -219,6 +262,7 @@ export function buildGerenciaEmailSummary(
     topMayorValor,
     topMayorAntiguedad,
     groupsSummary,
+    unassignedSummary,
     topExecutives,
     allCompanyRemisiones,
     genero,
@@ -254,6 +298,7 @@ export function generateGerenciaEmailHtml(
     topMayorValor,
     topMayorAntiguedad,
     groupsSummary,
+    unassignedSummary,
     topExecutives,
   } = summary;
 
@@ -618,6 +663,44 @@ export function generateGerenciaEmailHtml(
           </thead>
           <tbody style="background-color: #FFFFFF;">
             ${rowsDirectorsHtml}
+            ${unassignedSummary && unassignedSummary.totalCount > 0 ? `
+            <tr style="background-color: #FAFAFA; border-bottom: 1.5px dashed #CBD5E1;">
+              <td style="padding: 10px 14px; font-size: 12.5px; font-weight: 750; color: #475569; font-family: 'Segoe UI', Arial, sans-serif;">
+                <span style="display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 6px; background-color: #64748B; color: #FFFFFF; font-size: 10px; margin-right: 6px;">
+                  CE
+                </span>
+                ${unassignedSummary.label}
+                <div style="font-size: 10px; font-weight: 500; color: #94A3B8; margin-left: 28px;">
+                  Cuentas directas y áreas de apoyo
+                </div>
+              </td>
+              <td style="padding: 10px 10px; text-align: center; font-size: 12px; font-weight: 600; color: #94A3B8; font-family: 'Segoe UI', Arial, sans-serif;">
+                —
+              </td>
+              <td style="padding: 10px 10px; text-align: center; font-size: 12.5px; font-weight: 800; color: #334155; font-family: 'Segoe UI', Arial, sans-serif;">
+                ${formatNumber(unassignedSummary.totalCount)}
+              </td>
+              <td style="padding: 10px 14px; text-align: right; font-size: 13px; font-weight: 850; color: #15803D; font-family: 'Segoe UI', Arial, sans-serif;">
+                ${formatCOP(unassignedSummary.totalValue)}
+              </td>
+              <td style="padding: 10px 10px; text-align: center; font-size: 12px; font-weight: 800; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
+                ${unassignedSummary.pctCompanyValue}%
+              </td>
+              <td style="padding: 10px 10px; text-align: center;">
+                <span style="display: inline-block; padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; color: #475569; background-color: #F1F5F9; font-family: 'Segoe UI', Arial, sans-serif;">
+                  ${unassignedSummary.avgAge} días
+                </span>
+              </td>
+              <td style="padding: 10px 12px; font-size: 11px; color: #64748B; font-family: 'Segoe UI', Arial, sans-serif;">
+                ${unassignedSummary.criticalRemision ? `${unassignedSummary.criticalRemision.document?.startsWith('REM-') ? unassignedSummary.criticalRemision.document : `REM-${unassignedSummary.criticalRemision.document || 'S/N'}`} (${unassignedSummary.criticalRemision.age}d)` : '—'}
+              </td>
+              <td style="padding: 10px 12px; text-align: center;">
+                <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; color: #475569; background-color: #F1F5F9;">
+                  En gestión
+                </span>
+              </td>
+            </tr>
+            ` : ''}
             <!-- FILA DE TOTALES GENERALES DE LA COMPAÑÍA -->
             <tr style="background-color: #F1F5F9; border-top: 2px solid #CBD5E1;">
               <td style="padding: 12px 14px; font-size: 13px; font-weight: 900; color: #0F172A; font-family: 'Segoe UI', Arial, sans-serif;">

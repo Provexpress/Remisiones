@@ -2,7 +2,10 @@ import type { Remision } from '../types';
 import {
   ESTRUCTURA_COMERCIAL_2026,
   getDirectorInfo,
+  getExecutiveEmailByName,
+  nameMatches,
   normalizeName,
+  resolveCommercialOrDirector,
   type DirectorInfo,
 } from './commercialDirectory';
 import { LOGO_PROVEXPRESS_DATA_URI, AVATAR_MAN_DATA_URI, AVATAR_WOMAN_DATA_URI } from './commercialEmailAssets';
@@ -73,13 +76,11 @@ export function buildDirectorEmailSummary(
 
     // Buscar remisiones que correspondan a este ejecutivo
     const execRemisiones = cutoffRecords.filter((r) => {
+      const resolvedEmail = getExecutiveEmailByName(r.employee);
+      if (resolvedEmail === execEmail) return true;
       const emp = normalizeName(r.employee);
       if (!emp) return false;
-      if (emp === execTarget || emp === execFileTarget) return true;
-      const empTokens = emp.split(' ').filter(Boolean);
-      const targetTokens = execTarget.split(' ').filter(Boolean);
-      const common = targetTokens.filter((t) => empTokens.includes(t));
-      return common.length >= 2;
+      return emp === execTarget || emp === execFileTarget;
     });
 
     const count = execRemisiones.length;
@@ -107,6 +108,35 @@ export function buildDirectorEmailSummary(
     allGroupRemisiones.push(...execRemisiones);
   }
 
+  // Remisiones de gestión directa a nombre del Director si existen
+  const directorDirectRemisiones = cutoffRecords.filter((r) => {
+    const role = resolveCommercialOrDirector(r.employee);
+    if (role.type === 'director_directa' && role.grupo === groupNumber) return true;
+    if (role.type === 'ejecutivo') return false; // Pertenece a un asesor comercial
+    if (r.group === groupNumber && (nameMatches(r.employee, dirInfo.nombre) || r.director === dirInfo.nombre)) return true;
+    return false;
+  });
+
+  if (directorDirectRemisiones.length > 0) {
+    const dCount = directorDirectRemisiones.length;
+    const dTotal = directorDirectRemisiones.reduce((s, r) => s + (r.total || 0), 0);
+    const dAvgAge = dCount > 0 ? Math.round(directorDirectRemisiones.reduce((s, r) => s + (r.age || 0), 0) / dCount) : 0;
+    const dMaxAge = dCount > 0 ? Math.max(...directorDirectRemisiones.map((r) => r.age || 0)) : 0;
+    const sortedD = [...directorDirectRemisiones].sort((a, b) => (b.age || 0) - (a.age || 0));
+    executivesSummary.push({
+      name: `${dirInfo.nombre} (Gestión Directa)`,
+      email: dirInfo.email,
+      count: dCount,
+      total: dTotal,
+      avgAge: dAvgAge,
+      maxAge: dMaxAge,
+      criticalRemision: sortedD[0] || null,
+      onTrackCount: directorDirectRemisiones.filter((r) => (r.age || 0) <= 15).length,
+      remisiones: directorDirectRemisiones,
+    });
+    allGroupRemisiones.push(...directorDirectRemisiones);
+  }
+
   // Ordenar ejecutivos: primero los que tienen remisiones abiertas (mayor valor desc), luego los que están en 0
   executivesSummary.sort((a, b) => {
     if (a.count === 0 && b.count > 0) return 1;
@@ -117,8 +147,8 @@ export function buildDirectorEmailSummary(
   const totalCount = allGroupRemisiones.length;
   const totalValue = allGroupRemisiones.reduce((s, r) => s + (r.total || 0), 0);
   const avgAge = totalCount > 0 ? Math.round(allGroupRemisiones.reduce((s, r) => s + (r.age || 0), 0) / totalCount) : 0;
-  const activeExecutivesCount = executivesSummary.filter((e) => e.count > 0).length;
-  const totalExecutivesCount = executivesSummary.length;
+  const activeExecutivesCount = executivesSummary.filter((e) => e.count > 0 && !e.name.includes('(Gestión Directa)')).length;
+  const totalExecutivesCount = groupExecutivesEntries.length;
 
   // Top Mayor Valor del grupo
   const sortedByValue = [...allGroupRemisiones].sort((a, b) => (b.total || 0) - (a.total || 0));

@@ -137,6 +137,49 @@ const DIRECTORES_BY_GRUPO: Record<number, { nombre: string; email: string; gener
 /**
  * Busca el correo de un ejecutivo a partir de su nombre o alias registrado en Excel.
  */
+function levenshteinDistance(a: string, b: string): number {
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    let diagonal = previous[0];
+    previous[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const upper = previous[j];
+      previous[j] = Math.min(
+        previous[j] + 1,
+        previous[j - 1] + 1,
+        diagonal + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+      diagonal = upper;
+    }
+  }
+  return previous[b.length];
+}
+
+function tokenMatches(token: string, candidateList: string[]): boolean {
+  if (candidateList.includes(token)) return true;
+  return candidateList.some((cand) => {
+    if (cand === token) return true;
+    const shorter = cand.length <= token.length ? cand : token;
+    const longer = cand.length > token.length ? cand : token;
+    if (shorter.length >= 3 && longer.startsWith(shorter)) return true;
+    if (token.length >= 5 && cand.length >= 5 && levenshteinDistance(token, cand) <= 1) return true;
+    return false;
+  });
+}
+
+export function nameMatches(fullName: string, targetName: string): boolean {
+  const normFull = normalizeName(fullName);
+  const normTarget = normalizeName(targetName);
+  if (!normFull || !normTarget) return false;
+  if (normFull === normTarget || normFull.includes(normTarget) || normTarget.includes(normFull)) return true;
+
+  const fullTokens = normFull.split(' ').filter((t) => t.length >= 3);
+  const targetTokens = normTarget.split(' ').filter((t) => t.length >= 3);
+
+  const matched = targetTokens.filter((t) => tokenMatches(t, fullTokens));
+  return matched.length >= 2 || (targetTokens.length === 1 && matched.length === 1);
+}
+
 export function getExecutiveEmailByName(name: string): string {
   const target = normalizeName(name);
   if (!target) return '';
@@ -153,26 +196,69 @@ export function getExecutiveEmailByName(name: string): string {
     }
   }
 
-  // 2. Coincidencia parcial (subconjunto de palabras, ej. 'Mario Reyes Gutierre' -> 'Mario Reyes')
-  const targetTokens = target.split(' ').filter(Boolean);
+  // 2. Coincidencia por nameMatches (tokens con prefijo y levenshtein)
   for (const [email, data] of entries) {
-    const dataTokens = normalizeName(data.nombre).split(' ').filter(Boolean);
-    const commonTokens = targetTokens.filter((t) => dataTokens.includes(t));
-    if (commonTokens.length >= 2) {
-      return email;
-    }
-  }
-
-  // 3. Coincidencia por archivo tokens
-  for (const [email, data] of entries) {
-    const fileTokens = normalizeName(data.archivo).split(' ').filter(Boolean);
-    const commonTokens = targetTokens.filter((t) => fileTokens.includes(t));
-    if (commonTokens.length >= 2) {
+    if (nameMatches(name, data.nombre) || nameMatches(name, data.archivo)) {
       return email;
     }
   }
 
   return '';
+}
+
+export interface ResolvedCommercialRole {
+  type: 'ejecutivo' | 'director_directa' | 'unassigned';
+  email: string;
+  nombre: string;
+  grupo: number;
+  directorNombre: string;
+  directorEmail: string;
+  genero: 'M' | 'F';
+}
+
+export function resolveCommercialOrDirector(name: string): ResolvedCommercialRole {
+  // 1. Probar contra ejecutivos comerciales
+  const execEntries = Object.entries(ESTRUCTURA_COMERCIAL_2026.ejecutivos);
+  for (const [email, exec] of execEntries) {
+    if (nameMatches(name, exec.nombre) || nameMatches(name, exec.archivo)) {
+      const dir = DIRECTORES_BY_GRUPO[exec.grupo] || { nombre: 'Dirección Comercial', email: '', genero: 'M' as const };
+      return {
+        type: 'ejecutivo',
+        email,
+        nombre: exec.nombre,
+        grupo: exec.grupo,
+        directorNombre: dir.nombre,
+        directorEmail: dir.email,
+        genero: exec.genero,
+      };
+    }
+  }
+
+  // 2. Probar contra directores (Gestión Directa)
+  for (const dir of LISTA_DIRECTORES) {
+    if (nameMatches(name, dir.nombre)) {
+      return {
+        type: 'director_directa',
+        email: dir.email,
+        nombre: `${dir.nombre} (Gestión Directa)`,
+        grupo: dir.grupo,
+        directorNombre: dir.nombre,
+        directorEmail: dir.email,
+        genero: dir.genero,
+      };
+    }
+  }
+
+  // 3. Sin asignar a la fuerza comercial (Cuentas Especiales / Otras Áreas)
+  return {
+    type: 'unassigned',
+    email: '',
+    nombre: name || 'Cuentas Especiales',
+    grupo: 0,
+    directorNombre: 'Otras Áreas / Especiales',
+    directorEmail: '',
+    genero: getCommercialGender(name),
+  };
 }
 
 /**

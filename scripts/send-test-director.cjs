@@ -73,6 +73,49 @@ function normalizeName(val) {
     .trim();
 }
 
+function levenshtein(a, b) {
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    let diagonal = previous[0];
+    previous[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const upper = previous[j];
+      previous[j] = Math.min(
+        previous[j] + 1,
+        previous[j - 1] + 1,
+        diagonal + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+      diagonal = upper;
+    }
+  }
+  return previous[b.length];
+}
+
+function tokenMatches(token, candidateList) {
+  if (candidateList.includes(token)) return true;
+  return candidateList.some((cand) => {
+    if (cand === token) return true;
+    const shorter = cand.length <= token.length ? cand : token;
+    const longer = cand.length > token.length ? cand : token;
+    if (shorter.length >= 3 && longer.startsWith(shorter)) return true;
+    if (token.length >= 5 && cand.length >= 5 && levenshtein(token, cand) <= 1) return true;
+    return false;
+  });
+}
+
+function nameMatches(fullName, targetName) {
+  const normFull = normalizeName(fullName);
+  const normTarget = normalizeName(targetName);
+  if (!normFull || !normTarget) return false;
+  if (normFull === normTarget || normFull.includes(normTarget) || normTarget.includes(normFull)) return true;
+
+  const fullTokens = normFull.split(' ').filter((t) => t.length >= 3);
+  const targetTokens = normTarget.split(' ').filter((t) => t.length >= 3);
+
+  const matched = targetTokens.filter((t) => tokenMatches(t, fullTokens));
+  return matched.length >= 2 || (targetTokens.length === 1 && matched.length === 1);
+}
+
 const DIRECTORES_CONFIG = {
   1: {
     grupo: 1,
@@ -207,16 +250,8 @@ async function main() {
   const allGroupRemisiones = [];
 
   for (const exec of currentDirector.ejecutivos) {
-    const targetNorm = normalizeName(exec.nombre);
-    const targetTokens = targetNorm.split(' ').filter(Boolean);
-
     const execRecords = cutoffRecords.filter((r) => {
-      const empNorm = normalizeName(r.emp);
-      if (!empNorm) return false;
-      if (empNorm.includes(targetNorm) || targetNorm.includes(empNorm)) return true;
-      const empTokens = empNorm.split(' ').filter(Boolean);
-      const common = targetTokens.filter((t) => empTokens.includes(t));
-      return common.length >= 2;
+      return nameMatches(r.emp, exec.nombre) || (exec.archivo && nameMatches(r.emp, exec.archivo));
     });
 
     const count = execRecords.length;
@@ -241,6 +276,37 @@ async function main() {
     allGroupRemisiones.push(...execRecords);
   }
 
+  // Remisiones de gestión directa a nombre del Director
+  const dirDirectRecords = cutoffRecords.filter((r) => {
+    // Si ya coincide con algún ejecutivo de los 4 grupos, no es directa
+    const matchesAnyExec = Object.values(DIRECTORES_CONFIG).some((d) =>
+      d.ejecutivos.some((e) => nameMatches(r.emp, e.nombre) || (e.archivo && nameMatches(r.emp, e.archivo)))
+    );
+    if (matchesAnyExec) return false;
+    return nameMatches(r.emp, currentDirector.nombre);
+  });
+
+  if (dirDirectRecords.length > 0) {
+    const dCount = dirDirectRecords.length;
+    const dTotal = dirDirectRecords.reduce((s, r) => s + r.total, 0);
+    const dAvgAge = dCount > 0 ? Math.round(dirDirectRecords.reduce((s, r) => s + r.age, 0) / dCount) : 0;
+    const dMaxAge = dCount > 0 ? Math.max(...dirDirectRecords.map((r) => r.age)) : 0;
+    const sortedD = [...dirDirectRecords].sort((a, b) => b.age - a.age);
+
+    execSummaries.push({
+      name: `${currentDirector.nombre} (Gestión Directa)`,
+      email: currentDirector.email,
+      count: dCount,
+      total: dTotal,
+      avgAge: dAvgAge,
+      maxAge: dMaxAge,
+      criticalDoc: sortedD[0] || null,
+      records: dirDirectRecords,
+    });
+
+    allGroupRemisiones.push(...dirDirectRecords);
+  }
+
   // Ordenar ejecutivos: primero con remisiones (valor desc), luego los en 0
   execSummaries.sort((a, b) => {
     if (a.count === 0 && b.count > 0) return 1;
@@ -251,8 +317,8 @@ async function main() {
   const totalCount = allGroupRemisiones.length;
   const totalValue = allGroupRemisiones.reduce((s, r) => s + r.total, 0);
   const avgAge = totalCount > 0 ? Math.round(allGroupRemisiones.reduce((s, r) => s + r.age, 0) / totalCount) : 0;
-  const activeCount = execSummaries.filter((e) => e.count > 0).length;
-  const totalExecs = execSummaries.length;
+  const activeCount = execSummaries.filter((e) => e.count > 0 && !e.name.includes('(Gestión Directa)')).length;
+  const totalExecs = currentDirector.ejecutivos.length;
 
   // Top Oportunidades del Grupo
   const sortedByValue = [...allGroupRemisiones].sort((a, b) => b.total - a.total);
