@@ -576,7 +576,7 @@ export const EmailNotificationModal: React.FC<Props> = ({
               <span className="dispatch-card-badge purple">Maestro Corporativo</span>
             </div>
             <div className="dispatch-card-body">
-              <p>Rafael Novoa, Juan Novoa, Óscar Pérez, Cuentas Estratégicas</p>
+              <p>Rafael Novoa, Juan Novoa, Cuentas Estratégicas</p>
               <div className="dispatch-card-stat">
                 + Copia a Especialista Preventa
               </div>

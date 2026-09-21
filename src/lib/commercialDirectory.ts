@@ -336,7 +336,6 @@ export const LISTA_GERENCIA: GerenciaInfo[] = [
   { cargo: 'Director Comercial', nombre: 'Rafael Novoa', email: 'rafael.novoa@provexpress.com.co', genero: 'M' },
   { cargo: 'Gerente General / Comercial', nombre: 'Juan Novoa', email: 'juannovoa@provexpress.com.co', genero: 'M' },
   { cargo: 'Gerencia Estratégica', nombre: 'Cuentas Estratégicas', email: 'c.estrategica@provexpress.com.co', genero: 'M' },
-  { cargo: 'Gerencia General', nombre: 'Óscar Pérez', email: 'oscar.perez@provexpress.com.co', genero: 'M' },
   { cargo: 'Especialista Preventa', nombre: 'Especialista Preventa', email: 'especialista.preventa@provexpress.com.co', genero: 'M' },
 ];
 
