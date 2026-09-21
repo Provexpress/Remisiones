@@ -1,5 +1,5 @@
 import type { Remision } from '../types';
-import { getCommercialInfo } from './commercialDirectory';
+import { getCommercialInfo, resolveCommercialOrDirector, normalizeName, nameMatches } from './commercialDirectory';
 import { LOGO_PROVEXPRESS_DATA_URI, AVATAR_MAN_DATA_URI, AVATAR_WOMAN_DATA_URI } from './commercialEmailAssets';
 
 export interface CommercialEmailData {
@@ -32,6 +32,7 @@ export function buildCommercialEmailSummary(
   commercialName: string,
   records: Remision[],
   cutoffDate: string,
+  explicitRemisiones?: Remision[],
 ): {
   commercialName: string;
   commercialEmail: string;
@@ -49,20 +50,33 @@ export function buildCommercialEmailSummary(
   genero: 'M' | 'F';
 } {
   const info = getCommercialInfo(commercialName);
-  const targetTokens = commercialName.toLowerCase().split(/\s+/).filter(Boolean);
+  const resolvedRole = resolveCommercialOrDirector(commercialName);
+  const targetEmail = info.email || resolvedRole.email;
 
-  const userRemisiones = records.filter((r) => {
+  const userRemisiones = explicitRemisiones || records.filter((r) => {
     if (cutoffDate && r.cutoff !== cutoffDate) return false;
-    const emp = (r.employee || '').toLowerCase();
+    const emp = (r.employee || '').trim();
     if (!emp) return false;
-    if (emp === commercialName.toLowerCase() || emp.includes(commercialName.toLowerCase()) || commercialName.toLowerCase().includes(emp)) {
+
+    // 1. Coincidencia exacta del nombre SIS
+    if (normalizeName(emp) === normalizeName(commercialName)) {
       return true;
     }
-    if (info.nombre && (emp.includes(info.nombre.toLowerCase()) || info.nombre.toLowerCase().includes(emp))) {
+
+    // 2. Coincidencia estricta por correo corporativo resuelto (identificador único global)
+    if (targetEmail) {
+      const empRole = resolveCommercialOrDirector(emp);
+      if (empRole.email && empRole.email.toLowerCase() === targetEmail.toLowerCase()) {
+        return true;
+      }
+    }
+
+    // 3. Coincidencia protegida de nombres con validación estricta de apellidos (nameMatches)
+    if (nameMatches(emp, commercialName) || (info.nombre && nameMatches(emp, info.nombre))) {
       return true;
     }
-    const matchCount = targetTokens.filter((t) => emp.includes(t)).length;
-    return matchCount >= Math.min(2, targetTokens.length);
+
+    return false;
   });
 
   const totalCount = userRemisiones.length;

@@ -33,7 +33,7 @@ import {
   generateGerenciaEmailHtml,
 } from '../lib/gerenciaEmailTemplate';
 import { generateGerenciaExcelBase64 } from '../lib/gerenciaExcelGenerator';
-import { LISTA_DIRECTORES, LISTA_GERENCIA } from '../lib/commercialDirectory';
+import { LISTA_DIRECTORES, LISTA_GERENCIA, resolveCommercialOrDirector } from '../lib/commercialDirectory';
 import {
   sendMailViaGraph,
   type SendEmailPayload,
@@ -102,27 +102,39 @@ export const EmailNotificationModal: React.FC<Props> = ({
     const currentRecords = records.filter((r) => r.cutoff === cutoffDate);
 
     // 1. Comerciales con remisiones en este corte
-    const byEmployee = new Map<string, Remision[]>();
+    // Agrupación precisa por asesor comercial (rol ejecutivo) evitando cualquier colisión entre nombres similares
+    const byAdvisor = new Map<string, { officialName: string; sisName: string; records: Remision[] }>();
     currentRecords.forEach((r) => {
       const emp = r.employee?.trim();
       if (!emp) return;
-      const list = byEmployee.get(emp) || [];
-      list.push(r);
-      byEmployee.set(emp, list);
+      const role = resolveCommercialOrDirector(emp);
+      // Solo ejecutivos comerciales reciben el paquete de correo individual
+      // (la gestión directa de directores se consolida en el correo de su respectiva dirección de grupo)
+      if (role.type === 'ejecutivo' && role.email) {
+        const entry = byAdvisor.get(role.email) || {
+          officialName: role.nombre,
+          sisName: emp,
+          records: [],
+        };
+        entry.records.push(r);
+        byAdvisor.set(role.email, entry);
+      }
     });
 
-    const cList: { name: string; email: string; count: number; value: number }[] = [];
+    const cList: { name: string; sisName: string; email: string; count: number; value: number; records: Remision[] }[] = [];
     let totVal = 0;
     let totRem = 0;
 
-    byEmployee.forEach((empRecords, empName) => {
-      const summary = buildCommercialEmailSummary(empName, records, cutoffDate);
+    byAdvisor.forEach((advisorData, email) => {
+      const summary = buildCommercialEmailSummary(advisorData.sisName, records, cutoffDate, advisorData.records);
       if (summary.totalCount > 0) {
         cList.push({
-          name: empName,
-          email: summary.commercialEmail,
+          name: advisorData.officialName,
+          sisName: advisorData.sisName,
+          email,
           count: summary.totalCount,
           value: summary.totalValue,
+          records: advisorData.records,
         });
         totVal += summary.totalValue;
         totRem += summary.totalCount;
@@ -258,8 +270,7 @@ export const EmailNotificationModal: React.FC<Props> = ({
       // 1. DESPACHO A COMERCIALES
       if (includeCommercials) {
         for (const c of commercialList) {
-          if (!c.email) continue;
-          const summary = buildCommercialEmailSummary(c.name, records, cutoffDate);
+          const summary = buildCommercialEmailSummary(c.sisName, records, cutoffDate, c.records);
 
           let excelAttachment;
           try {

@@ -9,22 +9,23 @@ const corporateWorkbookPath = fileURLToPath(new URL('../../Remisiones.xlsx', imp
 const hasRealWorkbook = existsSync(corporateWorkbookPath);
 const describeWorkbook = hasRealWorkbook ? describe : describe.skip;
 
-describeWorkbook('check groups on 2026-09-16', () => {
-  it('analyzes parsed records for 2026-09-16', async () => {
+describeWorkbook('check groups on latest cutoff', () => {
+  it('analyzes parsed records for latest cutoff', async () => {
     const file = await readFile(corporateWorkbookPath);
     const arrayBuffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
     const parsed = await parseRemisionesWorkbook(arrayBuffer);
-    const records16 = parsed.records.filter((r) => r.cutoff === '2026-09-16');
-    expect(records16.length).toBeGreaterThan(0);
+    const latestCutoff = parsed.cutoffs[parsed.cutoffs.length - 1];
+    const recordsCutoff = parsed.records.filter((r) => r.cutoff === latestCutoff);
+    expect(recordsCutoff.length).toBeGreaterThan(0);
 
     console.log('\n======================================================');
-    console.log(`TOTAL RECORDS 2026-09-16: ${records16.length}`);
-    const totalCompanyValue = records16.reduce((s, r) => s + r.total, 0);
+    console.log(`TOTAL RECORDS ${latestCutoff}: ${recordsCutoff.length}`);
+    const totalCompanyValue = recordsCutoff.reduce((s, r) => s + r.total, 0);
     console.log(`TOTAL COMPANY VALUE: $${Math.round(totalCompanyValue).toLocaleString('es-CO')}`);
 
     // Group distribution
     for (let g = 1; g <= 4; g++) {
-      const gRecords = records16.filter((r) => r.group === g);
+      const gRecords = recordsCutoff.filter((r) => r.group === g);
       const gTotal = gRecords.reduce((s, r) => s + r.total, 0);
       const uniqueEmployees = [...new Set(gRecords.map((r) => r.employee))];
       console.log(`\n--- GRUPO ${g} ---`);
@@ -33,7 +34,7 @@ describeWorkbook('check groups on 2026-09-16', () => {
       console.log(`Empleados en el grupo (${uniqueEmployees.length}):`, uniqueEmployees);
     }
 
-    const unassigned = records16.filter((r) => !r.group);
+    const unassigned = recordsCutoff.filter((r) => !r.group);
     const unassignedTotal = unassigned.reduce((s, r) => s + r.total, 0);
     const unassignedEmps = [...new Set(unassigned.map((r) => r.employee))];
     console.log(`\n--- SIN ASIGNAR (${unassigned.length} remisiones, $${Math.round(unassignedTotal).toLocaleString('es-CO')}) ---`);

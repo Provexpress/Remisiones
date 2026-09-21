@@ -16,12 +16,11 @@ export interface CommercialEntry {
 
 export const ESTRUCTURA_COMERCIAL_2026: {
   gerencia: string[];
-  directores: Record<string, { grupo: number; nombre: string; carpeta: string; genero: 'M' | 'F' }>;
-  ejecutivos: Record<string, { grupo: number; nombre: string; archivo: string; genero: 'M' | 'F' }>;
+  directores: Record<string, { grupo: number; nombre: string; carpeta: string; genero: 'M' | 'F'; aliases?: string[] }>;
+  ejecutivos: Record<string, { grupo: number; nombre: string; archivo: string; genero: 'M' | 'F'; aliases?: string[] }>;
 } = {
   gerencia: [
     'juannovoa@provexpress.com.co',
-    'oscar.beltran@provexpress.com.co',
     'rafael.novoa@provexpress.com.co',
     'rafaelnovoa@provexpress.com.co',
     'c.estrategica@provexpress.com.co',
@@ -29,7 +28,6 @@ export const ESTRUCTURA_COMERCIAL_2026: {
     'maribel.virguez@provexpress.com.co',
     'especialista.preventa@provexpress.com.co',
     'preventa.software@provexpress.com.co',
-    'oscar.perez@provexpress.com.co',
   ],
   directores: {
     'rafael.novoa@provexpress.com.co': {
@@ -37,78 +35,83 @@ export const ESTRUCTURA_COMERCIAL_2026: {
       nombre: 'Rafael Novoa',
       carpeta: 'Grupo Rafael Novoa',
       genero: 'M',
+      aliases: ['Rafael Francisco Nov', 'Rafael Francisco Novoa'],
     },
     'rafaelnovoa@provexpress.com.co': {
       grupo: 1,
       nombre: 'Rafael Novoa',
       carpeta: 'Grupo Rafael Novoa',
       genero: 'M',
+      aliases: ['Rafael Francisco Nov', 'Rafael Francisco Novoa'],
     },
     'angelica.caballero@provexpress.com.co': {
       grupo: 2,
       nombre: 'Angélica Caballero',
       carpeta: 'Grupo Maria Angelica caballero',
       genero: 'F',
+      aliases: ['Maria Angelica Cabal', 'Maria Angelica Caballero', 'María Angélica Caballero'],
     },
     'oscar.beltran@provexpress.com.co': {
       grupo: 3,
       nombre: 'Óscar Beltrán',
       carpeta: 'Grupo Oscar Beltran',
       genero: 'M',
+      aliases: ['Oscar Alejandro Belt', 'Oscar Alejandro Beltrán'],
     },
     'miller.romero@provexpress.com.co': {
       grupo: 4,
       nombre: 'Miller Romero',
       carpeta: 'Grupo Miller Romero',
       genero: 'M',
+      aliases: ['Miller Leonardo Rome', 'Miller Leonardo Romero'],
     },
   },
   ejecutivos: {
     // Grupo 1: Novoa
-    'rosmira.rojas@provexpress.com.co': { grupo: 1, nombre: 'Rosmira Rojas', archivo: 'Rosmira Rojas.xlsx', genero: 'F' },
-    'mario.reyes@provexpress.com.co': { grupo: 1, nombre: 'Mario Reyes', archivo: 'Mario Reyes.xlsx', genero: 'M' },
-    'wilson.sanchez@provexpress.com.co': { grupo: 1, nombre: 'Wilson Sánchez', archivo: 'Wilson Fernando Sánchez.xlsx', genero: 'M' },
-    'maria.cruz@provexpress.com.co': { grupo: 1, nombre: 'María Eugenia Cruz', archivo: 'Maria Eugenia Cruz.xlsx', genero: 'F' },
-    'javier.cortes@provexpress.com.co': { grupo: 1, nombre: 'Javier Cortés', archivo: 'Javier Cortés.xlsx', genero: 'M' },
-    'rosa.mendoza@provexpress.com.co': { grupo: 1, nombre: 'Rosa Mendoza', archivo: 'Rosa María Mendoza.xlsx', genero: 'F' },
-    'mariela.ramirez@provexpress.com.co': { grupo: 1, nombre: 'Mariela Ramírez', archivo: 'Mariela Ramírez.xlsx', genero: 'F' },
-    'jenny.gonzalez@provexpress.com.co': { grupo: 1, nombre: 'Jenny Gónzalez', archivo: 'Jenny Gónzalez.xlsx', genero: 'F' },
-    'julieth.galindo@provexpress.com.co': { grupo: 1, nombre: 'Julieth Galindo', archivo: 'Julieth Galindo.xlsx', genero: 'F' },
+    'rosmira.rojas@provexpress.com.co': { grupo: 1, nombre: 'Rosmira Rojas', archivo: 'Rosmira Rojas.xlsx', genero: 'F', aliases: ['Rosmira Rojas Puente'] },
+    'mario.reyes@provexpress.com.co': { grupo: 1, nombre: 'Mario Reyes', archivo: 'Mario Reyes.xlsx', genero: 'M', aliases: ['Mario Reyes Gutierre'] },
+    'wilson.sanchez@provexpress.com.co': { grupo: 1, nombre: 'Wilson Sánchez', archivo: 'Wilson Fernando Sánchez.xlsx', genero: 'M', aliases: ['Wilson Fernando Sanc', 'Wilson Fernando Sánchez'] },
+    'maria.cruz@provexpress.com.co': { grupo: 1, nombre: 'María Eugenia Cruz', archivo: 'Maria Eugenia Cruz.xlsx', genero: 'F', aliases: ['Maria Eugenia Cruz H', 'Maria Eugenia Cruz'] },
+    'javier.cortes@provexpress.com.co': { grupo: 1, nombre: 'Javier Cortés', archivo: 'Javier Cortés.xlsx', genero: 'M', aliases: ['Javier Antonio Corte', 'Javier Antonio Cortés'] },
+    'rosa.mendoza@provexpress.com.co': { grupo: 1, nombre: 'Rosa Mendoza', archivo: 'Rosa María Mendoza.xlsx', genero: 'F', aliases: ['Rosa Maria Mendoza M', 'Rosa María Mendoza'] },
+    'mariela.ramirez@provexpress.com.co': { grupo: 1, nombre: 'Mariela Ramírez', archivo: 'Mariela Ramírez.xlsx', genero: 'F', aliases: ['Mariela Ramírez Cast', 'Mariela Ramírez'] },
+    'jenny.gonzalez@provexpress.com.co': { grupo: 1, nombre: 'Jenny Gónzalez', archivo: 'Jenny Gónzalez.xlsx', genero: 'F', aliases: ['Jenny Alexandra Gonz', 'Jenny Alexandra González'] },
+    'julieth.galindo@provexpress.com.co': { grupo: 1, nombre: 'Julieth Galindo', archivo: 'Julieth Galindo.xlsx', genero: 'F', aliases: ['Julieth Milena Galin', 'Julieth Milena Galindo'] },
 
     // Grupo 2: Caballero
-    'angela.torres@provexpress.com.co': { grupo: 2, nombre: 'Ángela Torres', archivo: 'Ángela Torres.xlsx', genero: 'F' },
-    'andrea.vargas@provexpress.com.co': { grupo: 2, nombre: 'Yurany Andrea Vargas', archivo: 'Yurany Andrea Vargas.xlsx', genero: 'F' },
-    'alejandra.velasquez@provexpress.com.co': { grupo: 2, nombre: 'Alejandra Velásquez', archivo: 'Alejandra Velásquez.xlsx', genero: 'F' },
-    'fernando.quinonez@provexpress.com.co': { grupo: 2, nombre: 'Fernando Quiñonez', archivo: 'Fernando Quiñonez.xlsx', genero: 'M' },
-    'johana.mojica@provexpress.com.co': { grupo: 2, nombre: 'Jasbleidy Mójica', archivo: 'Jasbleidy Mójica.xlsx', genero: 'F' },
-    'johanna.jaime@provexpress.com.co': { grupo: 2, nombre: 'Johanna Jaime', archivo: 'Johanna Jaime.xlsx', genero: 'F' },
-    'dayana.chala@provexpress.com.co': { grupo: 2, nombre: 'Dayana Chala', archivo: 'Dayana Chala.xlsx', genero: 'F' },
-    'yovanny.herrera@provexpress.com.co': { grupo: 2, nombre: 'Yovanny Herrera', archivo: 'Yovanny Herrera.xlsx', genero: 'M' },
-    'cesar.cespedes@provexpress.com.co': { grupo: 2, nombre: 'César Céspedes', archivo: 'César Cespedes.xlsx', genero: 'M' },
-    'daniel.galindo@provexpress.com.co': { grupo: 2, nombre: 'Daniel Galindo', archivo: 'Daniel Galindo.xlsx', genero: 'M' },
-    'adriana.cucaita@provexpress.com.co': { grupo: 2, nombre: 'Adriana Cucaita', archivo: 'Adriana Cucaita.xlsx', genero: 'F' },
+    'angela.torres@provexpress.com.co': { grupo: 2, nombre: 'Ángela Torres', archivo: 'Ángela Torres.xlsx', genero: 'F', aliases: ['Angela Rocio Torres', 'Ángela Rocío Torres'] },
+    'andrea.vargas@provexpress.com.co': { grupo: 2, nombre: 'Yurany Andrea Vargas', archivo: 'Yurany Andrea Vargas.xlsx', genero: 'F', aliases: ['Yurany Andrea Vargas'] },
+    'alejandra.velasquez@provexpress.com.co': { grupo: 2, nombre: 'Alejandra Velásquez', archivo: 'Alejandra Velásquez.xlsx', genero: 'F', aliases: ['Maria Alejandra Velá', 'María Alejandra Velásquez'] },
+    'fernando.quinonez@provexpress.com.co': { grupo: 2, nombre: 'Fernando Quiñonez', archivo: 'Fernando Quiñonez.xlsx', genero: 'M', aliases: ['Fernando Alberto Qui', 'Fernando Alberto Quiñonez'] },
+    'johana.mojica@provexpress.com.co': { grupo: 2, nombre: 'Jasbleidy Mójica', archivo: 'Jasbleidy Mójica.xlsx', genero: 'F', aliases: ['Jasbleidy Johana Moj', 'Jasbleidy Johana Mójica'] },
+    'johanna.jaime@provexpress.com.co': { grupo: 2, nombre: 'Johanna Jaime', archivo: 'Johanna Jaime.xlsx', genero: 'F', aliases: ['Johanna Jaime Murcia'] },
+    'dayana.chala@provexpress.com.co': { grupo: 2, nombre: 'Dayana Chala', archivo: 'Dayana Chala.xlsx', genero: 'F', aliases: ['Dayana Marcela Chala'] },
+    'yovanny.herrera@provexpress.com.co': { grupo: 2, nombre: 'Yovanny Herrera', archivo: 'Yovanny Herrera.xlsx', genero: 'M', aliases: ['Jair Yovanny Herrea', 'Jair Yovanny Herrera'] },
+    'cesar.cespedes@provexpress.com.co': { grupo: 2, nombre: 'César Céspedes', archivo: 'César Cespedes.xlsx', genero: 'M', aliases: ['Cesar Augusto Cesped', 'César Augusto Céspedes'] },
+    'daniel.galindo@provexpress.com.co': { grupo: 2, nombre: 'Daniel Galindo', archivo: 'Daniel Galindo.xlsx', genero: 'M', aliases: ['Daniel Galindo Giron', 'Daniel Galindo Girón'] },
+    'adriana.cucaita@provexpress.com.co': { grupo: 2, nombre: 'Adriana Cucaita', archivo: 'Adriana Cucaita.xlsx', genero: 'F', aliases: ['Adriana Cucaita Boni', 'Adriana Cucaita Bonilla'] },
 
     // Grupo 3: Beltrán
-    'paola.garcia@provexpress.com.co': { grupo: 3, nombre: 'Gina García', archivo: 'Gina García.xlsx', genero: 'F' },
-    'karen.carrillo@provexpress.com.co': { grupo: 3, nombre: 'Karent Carrillo', archivo: 'Karent Carrillo.xlsx', genero: 'F' },
-    'lington.linares@provexpress.com.co': { grupo: 3, nombre: 'Lington Linares', archivo: 'Lington Linares.xlsx', genero: 'M' },
-    'angelica.alvarez@provexpress.com.co': { grupo: 3, nombre: 'Angélica Álvarez', archivo: 'Angélica Álvarez.xlsx', genero: 'F' },
-    'andres.pena@provexpress.com.co': { grupo: 3, nombre: 'Andrés Peña', archivo: 'Andrés Peña.xlsx', genero: 'M' },
-    'tatiana.parra@provexpress.com.co': { grupo: 3, nombre: 'Tatiana Parra', archivo: 'Tatiana Parra.xlsx', genero: 'F' },
-    'claudia.triana@provexpress.com.co': { grupo: 3, nombre: 'Claudia Triana', archivo: 'Claudia Triana.xlsx', genero: 'F' },
-    'dilma.cuesta@provexpress.com.co': { grupo: 3, nombre: 'Dilma Cuesta', archivo: 'Dilma Cuesta.xlsx', genero: 'F' },
-    'juan.martinez@provexpress.com.co': { grupo: 3, nombre: 'Juan Martínez', archivo: 'Juan Martínez.xlsx', genero: 'M' },
-    'deisy.mogollon@provexpress.com.co': { grupo: 3, nombre: 'Deisy Mogollón', archivo: 'Deisy Mogollón.xlsx', genero: 'F' },
+    'paola.garcia@provexpress.com.co': { grupo: 3, nombre: 'Gina García', archivo: 'Gina García.xlsx', genero: 'F', aliases: ['Gina Paola Garcia Qu', 'Gina Paola García'] },
+    'karen.carrillo@provexpress.com.co': { grupo: 3, nombre: 'Karent Carrillo', archivo: 'Karent Carrillo.xlsx', genero: 'F', aliases: ['Karent Carrillo Mari', 'Karent Carrillo'] },
+    'lington.linares@provexpress.com.co': { grupo: 3, nombre: 'Lington Linares', archivo: 'Lington Linares.xlsx', genero: 'M', aliases: ['Lington Linares Lina'] },
+    'angelica.alvarez@provexpress.com.co': { grupo: 3, nombre: 'Angélica Álvarez', archivo: 'Angélica Álvarez.xlsx', genero: 'F', aliases: ['Maria Angelica Alvar', 'Maria Angelica Alvarez Morales', 'María Angélica Álvarez Morales'] },
+    'andres.pena@provexpress.com.co': { grupo: 3, nombre: 'Andrés Peña', archivo: 'Andrés Peña.xlsx', genero: 'M', aliases: ['Freddy Andres Peña S', 'Freddy Andrés Peña'] },
+    'tatiana.parra@provexpress.com.co': { grupo: 3, nombre: 'Tatiana Parra', archivo: 'Tatiana Parra.xlsx', genero: 'F', aliases: ['Angie Tatiana Parra'] },
+    'claudia.triana@provexpress.com.co': { grupo: 3, nombre: 'Claudia Triana', archivo: 'Claudia Triana.xlsx', genero: 'F', aliases: ['Claudia Patricia Tri', 'Claudia Patricia Triana'] },
+    'dilma.cuesta@provexpress.com.co': { grupo: 3, nombre: 'Dilma Cuesta', archivo: 'Dilma Cuesta.xlsx', genero: 'F', aliases: ['Dilma Constanza Cues', 'Dilma Constanza Cuesta'] },
+    'juan.martinez@provexpress.com.co': { grupo: 3, nombre: 'Juan Martínez', archivo: 'Juan Martínez.xlsx', genero: 'M', aliases: ['Juan David Martínez', 'Juan David Martinez'] },
+    'deisy.mogollon@provexpress.com.co': { grupo: 3, nombre: 'Deisy Mogollón', archivo: 'Deisy Mogollón.xlsx', genero: 'F', aliases: ['Deisy Mogollón', 'Deisy Mogollon'] },
 
     // Grupo 4: Romero
-    'astrid.jimenez@provexpress.com.co': { grupo: 4, nombre: 'Astrid Jiménez', archivo: 'Astrid Jiménez.xlsx', genero: 'F' },
-    'maria.briceno@provexpress.com.co': { grupo: 4, nombre: 'María Paola Briceño', archivo: 'María Paola Briceño.xlsx', genero: 'F' },
-    'dafne.ruiz@provexpress.com.co': { grupo: 4, nombre: 'Dafne Ruiz', archivo: 'Dafne Lizeth Ruiz.xlsx', genero: 'F' },
-    'jessica.valencia@provexpress.com.co': { grupo: 4, nombre: 'Jessica Valencia', archivo: 'Jessica Valencia.xlsx', genero: 'F' },
-    'jhonatan.acevedo@provexpress.com.co': { grupo: 4, nombre: 'Jhonatan Acevedo', archivo: 'Jhonatan Acevedo.xlsx', genero: 'M' },
-    'camilo.hernandez@provexpress.com.co': { grupo: 4, nombre: 'Camilo Hernández', archivo: 'Jhonatan Camilo Hernández.xlsx', genero: 'M' },
-    'yeison.urrego@provexpress.com.co': { grupo: 4, nombre: 'Yeison Urrego', archivo: 'Yeison Urrego.xlsx', genero: 'M' },
-    'diana.castro@provexpress.com.co': { grupo: 4, nombre: 'Diana Castro', archivo: 'Diana Catalina Castro.xlsx', genero: 'F' },
+    'astrid.jimenez@provexpress.com.co': { grupo: 4, nombre: 'Astrid Jiménez', archivo: 'Astrid Jiménez.xlsx', genero: 'F', aliases: ['Leidy Astrid Jimenez', 'Leidy Astrid Jiménez'] },
+    'maria.briceno@provexpress.com.co': { grupo: 4, nombre: 'María Paola Briceño', archivo: 'María Paola Briceño.xlsx', genero: 'F', aliases: ['Maria Paola Briceño', 'María Paola Briceño'] },
+    'dafne.ruiz@provexpress.com.co': { grupo: 4, nombre: 'Dafne Ruiz', archivo: 'Dafne Lizeth Ruiz.xlsx', genero: 'F', aliases: ['Dafne Lizeth Ruiz Be', 'Dafne Lizeth Ruiz'] },
+    'jessica.valencia@provexpress.com.co': { grupo: 4, nombre: 'Jessica Valencia', archivo: 'Jessica Valencia.xlsx', genero: 'F', aliases: ['Jessica Lorena Valen', 'Jessica Lorena Valencia'] },
+    'jhonatan.acevedo@provexpress.com.co': { grupo: 4, nombre: 'Jhonatan Acevedo', archivo: 'Jhonatan Acevedo.xlsx', genero: 'M', aliases: ['Jhonatan Steven Acev', 'Jhonatan Steven Acevedo'] },
+    'camilo.hernandez@provexpress.com.co': { grupo: 4, nombre: 'Camilo Hernández', archivo: 'Jhonatan Camilo Hernández.xlsx', genero: 'M', aliases: ['Jhonatan Camilo Hern', 'Jhonatan Camilo Hernández'] },
+    'yeison.urrego@provexpress.com.co': { grupo: 4, nombre: 'Yeison Urrego', archivo: 'Yeison Urrego.xlsx', genero: 'M', aliases: ['Yeison Alonso Urrego'] },
+    'diana.castro@provexpress.com.co': { grupo: 4, nombre: 'Diana Castro', archivo: 'Diana Catalina Castro.xlsx', genero: 'F', aliases: ['Diana Catalina Castr', 'Diana Catalina Castro'] },
   },
 };
 
@@ -167,14 +170,41 @@ function tokenMatches(token: string, candidateList: string[]): boolean {
   });
 }
 
+/**
+ * Comparación segura de nombres con protección contra colisiones de apellidos.
+ * Dos personas con nombres de pila idénticos (p. ej. María Angélica) pero apellidos
+ * distintos (Álvarez vs Caballero) NUNCA coincidirán.
+ */
 export function nameMatches(fullName: string, targetName: string): boolean {
   const normFull = normalizeName(fullName);
   const normTarget = normalizeName(targetName);
   if (!normFull || !normTarget) return false;
-  if (normFull === normTarget || normFull.includes(normTarget) || normTarget.includes(normFull)) return true;
+  if (normFull === normTarget) return true;
 
   const fullTokens = normFull.split(' ').filter((t) => t.length >= 3);
   const targetTokens = normTarget.split(' ').filter((t) => t.length >= 3);
+
+  if (!fullTokens.length || !targetTokens.length) return false;
+
+  // Si uno está completamente contenido como subcadena continua del otro
+  if (normFull.includes(normTarget) || normTarget.includes(normFull)) {
+    return true;
+  }
+
+  // PROTECCIÓN ESTRICTA DE APELLIDOS:
+  // En nombres hispanos, el último token (o token truncado en ERP) corresponde al apellido.
+  // Si el último token de target no coincide con ningún token de full,
+  // Y el último token de full no coincide con ningún token de target,
+  // los apellidos están en conflicto directo -> NUNCA deben emparejarse.
+  const lastTarget = targetTokens[targetTokens.length - 1];
+  const lastFull = fullTokens[fullTokens.length - 1];
+
+  const lastTargetMatched = tokenMatches(lastTarget, fullTokens);
+  const lastFullMatched = tokenMatches(lastFull, targetTokens);
+
+  if (!lastTargetMatched && !lastFullMatched) {
+    return false; // Conflicto de apellidos
+  }
 
   const matched = targetTokens.filter((t) => tokenMatches(t, fullTokens));
   return matched.length >= 2 || (targetTokens.length === 1 && matched.length === 1);
@@ -186,19 +216,24 @@ export function getExecutiveEmailByName(name: string): string {
 
   const entries = Object.entries(ESTRUCTURA_COMERCIAL_2026.ejecutivos);
 
-  // 1. Coincidencia exacta de nombre o archivo
+  // 1. Coincidencia exacta de nombre, archivo o alias
   for (const [email, data] of entries) {
     if (
       normalizeName(data.nombre) === target ||
-      normalizeName(data.archivo) === target
+      normalizeName(data.archivo) === target ||
+      (data.aliases && data.aliases.some((a) => normalizeName(a) === target))
     ) {
       return email;
     }
   }
 
-  // 2. Coincidencia por nameMatches (tokens con prefijo y levenshtein)
+  // 2. Coincidencia por nameMatches seguro
   for (const [email, data] of entries) {
-    if (nameMatches(name, data.nombre) || nameMatches(name, data.archivo)) {
+    if (
+      nameMatches(name, data.nombre) ||
+      nameMatches(name, data.archivo) ||
+      (data.aliases && data.aliases.some((a) => nameMatches(name, a)))
+    ) {
       return email;
     }
   }
@@ -217,10 +252,27 @@ export interface ResolvedCommercialRole {
 }
 
 export function resolveCommercialOrDirector(name: string): ResolvedCommercialRole {
-  // 1. Probar contra ejecutivos comerciales
+  const target = normalizeName(name);
+  if (!target) {
+    return {
+      type: 'unassigned',
+      email: '',
+      nombre: name || 'Cuentas Especiales',
+      grupo: 0,
+      directorNombre: 'Otras Áreas / Especiales',
+      directorEmail: '',
+      genero: getCommercialGender(name),
+    };
+  }
+
+  // 1. Probar contra ejecutivos comerciales (coincidencia exacta de nombre, archivo o alias)
   const execEntries = Object.entries(ESTRUCTURA_COMERCIAL_2026.ejecutivos);
   for (const [email, exec] of execEntries) {
-    if (nameMatches(name, exec.nombre) || nameMatches(name, exec.archivo)) {
+    if (
+      normalizeName(exec.nombre) === target ||
+      normalizeName(exec.archivo) === target ||
+      (exec.aliases && exec.aliases.some((a) => normalizeName(a) === target))
+    ) {
       const dir = DIRECTORES_BY_GRUPO[exec.grupo] || { nombre: 'Dirección Comercial', email: '', genero: 'M' as const };
       return {
         type: 'ejecutivo',
@@ -234,13 +286,17 @@ export function resolveCommercialOrDirector(name: string): ResolvedCommercialRol
     }
   }
 
-  // 2. Probar contra directores (Gestión Directa)
+  // 2. Probar contra directores (coincidencia exacta de nombre, carpeta o alias)
   for (const dir of LISTA_DIRECTORES) {
-    if (nameMatches(name, dir.nombre)) {
+    if (
+      normalizeName(dir.nombre) === target ||
+      normalizeName(dir.carpeta) === target ||
+      (dir.aliases && dir.aliases.some((a) => normalizeName(a) === target))
+    ) {
       return {
         type: 'director_directa',
         email: dir.email,
-        nombre: `${dir.nombre} (Gestión Directa)`,
+        nombre: dir.nombre,
         grupo: dir.grupo,
         directorNombre: dir.nombre,
         directorEmail: dir.email,
@@ -249,7 +305,45 @@ export function resolveCommercialOrDirector(name: string): ResolvedCommercialRol
     }
   }
 
-  // 3. Sin asignar a la fuerza comercial (Cuentas Especiales / Otras Áreas)
+  // 3. Probar contra ejecutivos comerciales por nameMatches seguro (protección de apellidos)
+  for (const [email, exec] of execEntries) {
+    if (
+      nameMatches(name, exec.nombre) ||
+      nameMatches(name, exec.archivo) ||
+      (exec.aliases && exec.aliases.some((a) => nameMatches(name, a)))
+    ) {
+      const dir = DIRECTORES_BY_GRUPO[exec.grupo] || { nombre: 'Dirección Comercial', email: '', genero: 'M' as const };
+      return {
+        type: 'ejecutivo',
+        email,
+        nombre: exec.nombre,
+        grupo: exec.grupo,
+        directorNombre: dir.nombre,
+        directorEmail: dir.email,
+        genero: exec.genero,
+      };
+    }
+  }
+
+  // 4. Probar contra directores por nameMatches seguro
+  for (const dir of LISTA_DIRECTORES) {
+    if (
+      nameMatches(name, dir.nombre) ||
+      (dir.aliases && dir.aliases.some((a) => nameMatches(name, a)))
+    ) {
+      return {
+        type: 'director_directa',
+        email: dir.email,
+        nombre: dir.nombre,
+        grupo: dir.grupo,
+        directorNombre: dir.nombre,
+        directorEmail: dir.email,
+        genero: dir.genero,
+      };
+    }
+  }
+
+  // 5. Sin asignar a la fuerza comercial (Cuentas Especiales / Otras Áreas)
   return {
     type: 'unassigned',
     email: '',
@@ -316,13 +410,14 @@ export interface DirectorInfo {
   email: string;
   carpeta: string;
   genero: 'M' | 'F';
+  aliases?: string[];
 }
 
 export const LISTA_DIRECTORES: DirectorInfo[] = [
-  { grupo: 1, nombre: 'Rafael Novoa', email: 'rafael.novoa@provexpress.com.co', carpeta: 'Grupo Rafael Novoa', genero: 'M' },
-  { grupo: 2, nombre: 'Angélica Caballero', email: 'angelica.caballero@provexpress.com.co', carpeta: 'Grupo Maria Angelica caballero', genero: 'F' },
-  { grupo: 3, nombre: 'Óscar Beltrán', email: 'oscar.beltran@provexpress.com.co', carpeta: 'Grupo Oscar Beltran', genero: 'M' },
-  { grupo: 4, nombre: 'Miller Romero', email: 'miller.romero@provexpress.com.co', carpeta: 'Grupo Miller Romero', genero: 'M' },
+  { grupo: 1, nombre: 'Rafael Novoa', email: 'rafael.novoa@provexpress.com.co', carpeta: 'Grupo Rafael Novoa', genero: 'M', aliases: ['Rafael Francisco Nov', 'Rafael Francisco Novoa'] },
+  { grupo: 2, nombre: 'Angélica Caballero', email: 'angelica.caballero@provexpress.com.co', carpeta: 'Grupo Maria Angelica caballero', genero: 'F', aliases: ['Maria Angelica Cabal', 'Maria Angelica Caballero', 'María Angélica Caballero'] },
+  { grupo: 3, nombre: 'Óscar Beltrán', email: 'oscar.beltran@provexpress.com.co', carpeta: 'Grupo Oscar Beltran', genero: 'M', aliases: ['Oscar Alejandro Belt', 'Oscar Alejandro Beltrán'] },
+  { grupo: 4, nombre: 'Miller Romero', email: 'miller.romero@provexpress.com.co', carpeta: 'Grupo Miller Romero', genero: 'M', aliases: ['Miller Leonardo Rome', 'Miller Leonardo Romero'] },
 ];
 
 export interface GerenciaInfo {
