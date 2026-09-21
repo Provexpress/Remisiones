@@ -45,6 +45,7 @@ import {
 } from '../lib/gerenciaExcelGenerator';
 import { LISTA_DIRECTORES, LISTA_GERENCIA } from '../lib/commercialDirectory';
 import { sendBatchEmails, sendMailViaGraph, type SendEmailPayload, type SendResult } from '../lib/emailSender';
+import { formatCutoff } from '../lib/remisiones';
 
 interface Props {
   isOpen: boolean;
@@ -352,7 +353,7 @@ export const EmailNotificationModal: React.FC<Props> = ({
 
       if (recipientType === 'gerencia') {
         if (!activeGerenciaSummary) return;
-        const subject = `[PRUEBA] Consolidado General de Gestión Comercial · Dirección & Gerencia · ${cutoffDate}`;
+        const subject = `[PRUEBA] Consolidado General de Gestión Comercial · Dirección & Gerencia · Corte ${formatCutoff(cutoffDate)}`;
 
         let excelAttachment;
         try {
@@ -383,7 +384,7 @@ export const EmailNotificationModal: React.FC<Props> = ({
         }
       } else if (recipientType === 'directors') {
         if (!activeDirectorSummary) return;
-        const subject = `[PRUEBA] Consolidado de Remisiones · ${activeDirectorSummary.directorName} (Grupo ${activeDirectorSummary.directorGroup}) · ${cutoffDate}`;
+        const subject = `[PRUEBA] Consolidado de Remisiones · ${activeDirectorSummary.directorName} (Grupo ${activeDirectorSummary.directorGroup}) · Corte ${formatCutoff(cutoffDate)}`;
 
         let excelAttachment;
         try {
@@ -414,7 +415,7 @@ export const EmailNotificationModal: React.FC<Props> = ({
         }
       } else {
         if (!activeCommercialSummary) return;
-        const subject = `[PRUEBA] Oportunidades de Facturación · ${activeCommercialSummary.commercialName} · ${cutoffDate}`;
+        const subject = `[PRUEBA] Oportunidades de Facturación · ${activeCommercialSummary.commercialName} · Corte ${formatCutoff(cutoffDate)}`;
 
         let excelAttachment;
         try {
@@ -494,7 +495,7 @@ export const EmailNotificationModal: React.FC<Props> = ({
             return {
               toEmail: t.email,
               toName: t.name,
-              subject: `📊 Consolidado General de Gestión Comercial · Dirección & Gerencia · ${t.name} · ${cutoffDate}`,
+              subject: `📊 Consolidado General de Gestión Comercial · Dirección & Gerencia · ${t.name} · Corte ${formatCutoff(cutoffDate)}`,
               htmlBody: generateGerenciaEmailHtml(sum),
               excelAttachment,
             };
@@ -566,7 +567,7 @@ export const EmailNotificationModal: React.FC<Props> = ({
             return {
               toEmail: t.email,
               toName: t.name,
-              subject: `📊 Reporte Consolidado de Remisiones · Dirección Grupo ${t.grupo} · ${t.name} · ${cutoffDate}`,
+              subject: `📊 Reporte Consolidado de Remisiones · Dirección Grupo ${t.grupo} · ${t.name} · Corte ${formatCutoff(cutoffDate)}`,
               htmlBody: generateDirectorEmailHtml(sum),
               excelAttachment,
             };
@@ -647,7 +648,7 @@ export const EmailNotificationModal: React.FC<Props> = ({
             return {
               toEmail: t.email,
               toName: t.name,
-              subject: `Oportunidades de Facturación · ${t.name} · Corte ${cutoffDate}`,
+              subject: `Oportunidades de Facturación · ${t.name} · Corte ${formatCutoff(cutoffDate)}`,
               htmlBody: generateCommercialEmailHtml(sum),
               excelAttachment,
             };
@@ -709,7 +710,7 @@ export const EmailNotificationModal: React.FC<Props> = ({
                 Notificaciones Corporativas de Remisiones por Correo
               </div>
               <div className="email-modal-subtitle">
-                Corte activo: <strong>{cutoffDate}</strong> · Formato oficial Provexpress SAS
+                Corte activo: <strong>{formatCutoff(cutoffDate)}</strong> · Formato oficial Provexpress SAS
               </div>
             </div>
           </div>
