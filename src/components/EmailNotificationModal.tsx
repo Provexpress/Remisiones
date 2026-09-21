@@ -34,7 +34,16 @@ import {
   downloadDirectorExcel,
   generateDirectorExcelBase64,
 } from '../lib/directorExcelGenerator';
-import { LISTA_DIRECTORES } from '../lib/commercialDirectory';
+import {
+  buildGerenciaEmailSummary,
+  generateGerenciaEmailHtml,
+  type GerenciaEmailSummary,
+} from '../lib/gerenciaEmailTemplate';
+import {
+  downloadGerenciaExcel,
+  generateGerenciaExcelBase64,
+} from '../lib/gerenciaExcelGenerator';
+import { LISTA_DIRECTORES, LISTA_GERENCIA } from '../lib/commercialDirectory';
 import { sendBatchEmails, sendMailViaGraph, type SendEmailPayload, type SendResult } from '../lib/emailSender';
 
 interface Props {
@@ -71,6 +80,15 @@ interface DirectorTarget {
   errorMessage?: string;
 }
 
+interface GerenciaTarget {
+  cargo: string;
+  name: string;
+  email: string;
+  selected: boolean;
+  status: 'idle' | 'sending' | 'success' | 'error';
+  errorMessage?: string;
+}
+
 export const EmailNotificationModal: React.FC<Props> = ({
   isOpen,
   onClose,
@@ -78,12 +96,14 @@ export const EmailNotificationModal: React.FC<Props> = ({
   cutoffDate,
   currentUserEmail,
 }) => {
-  const [recipientType, setRecipientType] = useState<'commercials' | 'directors'>('commercials');
+  const [recipientType, setRecipientType] = useState<'commercials' | 'directors' | 'gerencia'>('commercials');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCommercialName, setSelectedCommercialName] = useState<string>('');
   const [selectedDirectorGroup, setSelectedDirectorGroup] = useState<number>(2);
+  const [selectedGerenciaEmail, setSelectedGerenciaEmail] = useState<string>('rafael.novoa@provexpress.com.co');
   const [commercialTargets, setCommercialTargets] = useState<CommercialTarget[]>([]);
   const [directorTargets, setDirectorTargets] = useState<DirectorTarget[]>([]);
+  const [gerenciaTargets, setGerenciaTargets] = useState<GerenciaTarget[]>([]);
   const [isSendingBatch, setIsSendingBatch] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
@@ -145,6 +165,16 @@ export const EmailNotificationModal: React.FC<Props> = ({
     });
 
     setDirectorTargets(dTargets);
+
+    // 3. Dirección y Gerencia Comercial
+    const gTargets: GerenciaTarget[] = LISTA_GERENCIA.map((g) => ({
+      cargo: g.cargo,
+      name: g.nombre,
+      email: g.email,
+      selected: Boolean(g.email),
+      status: 'idle',
+    }));
+    setGerenciaTargets(gTargets);
   }, [records, cutoffDate]);
 
   // Resumen del comercial seleccionado
@@ -159,15 +189,30 @@ export const EmailNotificationModal: React.FC<Props> = ({
     return buildDirectorEmailSummary(selectedDirectorGroup, records, cutoffDate);
   }, [recipientType, selectedDirectorGroup, records, cutoffDate]);
 
+  // Resumen de gerencia seleccionado
+  const activeGerenciaSummary = useMemo(() => {
+    if (recipientType !== 'gerencia') return null;
+    const target = gerenciaTargets.find((g) => g.email === selectedGerenciaEmail) || gerenciaTargets[0];
+    return buildGerenciaEmailSummary(records, cutoffDate, {
+      name: target?.name,
+      cargo: target?.cargo,
+      email: target?.email,
+    });
+  }, [recipientType, selectedGerenciaEmail, gerenciaTargets, records, cutoffDate]);
+
   // HTML activo para visualización
   const activeHtml = useMemo(() => {
+    if (recipientType === 'gerencia') {
+      if (!activeGerenciaSummary) return '';
+      return generateGerenciaEmailHtml(activeGerenciaSummary, { forWebPreview: true });
+    }
     if (recipientType === 'directors') {
       if (!activeDirectorSummary) return '';
       return generateDirectorEmailHtml(activeDirectorSummary, { forWebPreview: true });
     }
     if (!activeCommercialSummary) return '';
     return generateCommercialEmailHtml(activeCommercialSummary, { forWebPreview: true });
-  }, [recipientType, activeDirectorSummary, activeCommercialSummary]);
+  }, [recipientType, activeGerenciaSummary, activeDirectorSummary, activeCommercialSummary]);
 
   if (!isOpen) return null;
 
@@ -185,17 +230,33 @@ export const EmailNotificationModal: React.FC<Props> = ({
     `grupo ${t.grupo}`.includes(searchTerm.toLowerCase()),
   );
 
+  // Filtrado de gerencia
+  const filteredGerencia = gerenciaTargets.filter((t) =>
+    t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    t.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    t.cargo.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
   // Conteos de selección
-  const selectedCount = recipientType === 'directors'
+  const selectedCount = recipientType === 'gerencia'
+    ? gerenciaTargets.filter((t) => t.selected).length
+    : recipientType === 'directors'
     ? directorTargets.filter((t) => t.selected).length
     : commercialTargets.filter((t) => t.selected).length;
 
-  const totalValueSelected = recipientType === 'directors'
+  const totalValueSelected = recipientType === 'gerencia'
+    ? (activeGerenciaSummary?.totalValue || 0)
+    : recipientType === 'directors'
     ? directorTargets.filter((t) => t.selected).reduce((sum, t) => sum + t.value, 0)
     : commercialTargets.filter((t) => t.selected).reduce((sum, t) => sum + t.value, 0);
 
   const toggleSelectAll = () => {
-    if (recipientType === 'directors') {
+    if (recipientType === 'gerencia') {
+      const allSelected = filteredGerencia.every((t) => t.selected);
+      setGerenciaTargets((prev) =>
+        prev.map((t) => (filteredGerencia.some((fg) => fg.email === t.email) ? { ...t, selected: !allSelected } : t)),
+      );
+    } else if (recipientType === 'directors') {
       const allSelected = filteredDirectors.every((t) => t.selected);
       setDirectorTargets((prev) =>
         prev.map((t) => (filteredDirectors.some((fd) => fd.grupo === t.grupo) ? { ...t, selected: !allSelected } : t)),
@@ -209,7 +270,11 @@ export const EmailNotificationModal: React.FC<Props> = ({
   };
 
   const toggleTarget = (key: string | number) => {
-    if (recipientType === 'directors') {
+    if (recipientType === 'gerencia') {
+      setGerenciaTargets((prev) =>
+        prev.map((t) => (t.email === key ? { ...t, selected: !t.selected } : t)),
+      );
+    } else if (recipientType === 'directors') {
       setDirectorTargets((prev) =>
         prev.map((t) => (t.grupo === key ? { ...t, selected: !t.selected } : t)),
       );
@@ -233,7 +298,14 @@ export const EmailNotificationModal: React.FC<Props> = ({
 
   const handleDownloadExcel = async () => {
     try {
-      if (recipientType === 'directors') {
+      if (recipientType === 'gerencia') {
+        if (!activeGerenciaSummary) return;
+        await downloadGerenciaExcel(activeGerenciaSummary);
+        setAlertMessage({
+          type: 'success',
+          text: `¡Libro Excel maestro de Gerencia descargado exitosamente!`,
+        });
+      } else if (recipientType === 'directors') {
         if (!activeDirectorSummary) return;
         await downloadDirectorExcel(activeDirectorSummary);
         setAlertMessage({
@@ -261,7 +333,13 @@ export const EmailNotificationModal: React.FC<Props> = ({
   };
 
   const handleSendTest = async () => {
-    const testRecipient = currentUserEmail || (recipientType === 'directors' ? activeDirectorSummary?.directorEmail : activeCommercialSummary?.commercialEmail);
+    const testRecipient = currentUserEmail || (
+      recipientType === 'gerencia'
+        ? activeGerenciaSummary?.recipientEmail
+        : recipientType === 'directors'
+        ? activeDirectorSummary?.directorEmail
+        : activeCommercialSummary?.commercialEmail
+    );
     if (!testRecipient) {
       setAlertMessage({ type: 'error', text: 'No se detectó un correo de destino para la prueba.' });
       return;
@@ -272,7 +350,38 @@ export const EmailNotificationModal: React.FC<Props> = ({
       setAlertMessage(null);
       const token = await acquireMailToken();
 
-      if (recipientType === 'directors') {
+      if (recipientType === 'gerencia') {
+        if (!activeGerenciaSummary) return;
+        const subject = `[PRUEBA] Consolidado General de Gestión Comercial · Dirección & Gerencia · ${cutoffDate}`;
+
+        let excelAttachment;
+        try {
+          const { filename, base64 } = await generateGerenciaExcelBase64(activeGerenciaSummary);
+          excelAttachment = { filename, base64 };
+        } catch (e) {
+          console.warn('No se pudo generar adjunto Excel de gerencia:', e);
+        }
+
+        const res = await sendMailViaGraph(token, {
+          toEmail: testRecipient,
+          toName: activeGerenciaSummary.recipientName,
+          subject,
+          htmlBody: generateGerenciaEmailHtml(activeGerenciaSummary),
+          excelAttachment,
+        });
+
+        if (res.success) {
+          setAlertMessage({
+            type: 'success',
+            text: `¡Correo de prueba de Gerencia enviado con éxito a ${testRecipient}! Incluye el libro Excel maestro adjunto con 3 hojas.`,
+          });
+        } else {
+          setAlertMessage({
+            type: 'error',
+            text: `Error al enviar prueba: ${res.error || 'Verifica permisos de Microsoft 365'}`,
+          });
+        }
+      } else if (recipientType === 'directors') {
         if (!activeDirectorSummary) return;
         const subject = `[PRUEBA] Consolidado de Remisiones · ${activeDirectorSummary.directorName} (Grupo ${activeDirectorSummary.directorGroup}) · ${cutoffDate}`;
 
@@ -354,7 +463,83 @@ export const EmailNotificationModal: React.FC<Props> = ({
   };
 
   const handleSendBatch = async () => {
-    if (recipientType === 'directors') {
+    if (recipientType === 'gerencia') {
+      const toSend = gerenciaTargets.filter((t) => t.selected && t.email);
+      if (toSend.length === 0) {
+        setAlertMessage({ type: 'error', text: 'Selecciona al menos un miembro de Gerencia con correo válido.' });
+        return;
+      }
+
+      try {
+        setIsSendingBatch(true);
+        setAlertMessage(null);
+        setBatchProgress({ current: 0, total: toSend.length });
+
+        const token = await acquireMailToken();
+
+        const items: SendEmailPayload[] = await Promise.all(
+          toSend.map(async (t) => {
+            const sum = buildGerenciaEmailSummary(records, cutoffDate, {
+              name: t.name,
+              cargo: t.cargo,
+              email: t.email,
+            });
+            let excelAttachment;
+            try {
+              const { filename, base64 } = await generateGerenciaExcelBase64(sum);
+              excelAttachment = { filename, base64 };
+            } catch (e) {
+              console.warn('No se pudo generar adjunto Excel para gerencia', t.name, e);
+            }
+            return {
+              toEmail: t.email,
+              toName: t.name,
+              subject: `📊 Consolidado General de Gestión Comercial · Dirección & Gerencia · ${t.name} · ${cutoffDate}`,
+              htmlBody: generateGerenciaEmailHtml(sum),
+              excelAttachment,
+            };
+          }),
+        );
+
+        setGerenciaTargets((prev) =>
+          prev.map((t) => (t.selected && t.email ? { ...t, status: 'sending', errorMessage: undefined } : t)),
+        );
+
+        await sendBatchEmails(
+          token,
+          items,
+          (sent, total, lastResult) => {
+            setBatchProgress({ current: sent, total });
+            setGerenciaTargets((prev) =>
+              prev.map((t) => {
+                if (t.email === lastResult.toEmail) {
+                  return {
+                    ...t,
+                    status: lastResult.success ? 'success' : 'error',
+                    errorMessage: lastResult.error,
+                  };
+                }
+                return t;
+              }),
+            );
+          },
+          500,
+        );
+
+        setAlertMessage({
+          type: 'success',
+          text: `Envío completado: se despachó el informe consolidado a ${toSend.length} miembros de Dirección y Gerencia.`,
+        });
+      } catch (err: any) {
+        setAlertMessage({
+          type: 'error',
+          text: `Error durante el envío a gerencia: ${err?.message || 'Verifica tu conexión y permisos'}`,
+        });
+      } finally {
+        setIsSendingBatch(false);
+        setBatchProgress(null);
+      }
+    } else if (recipientType === 'directors') {
       const toSend = directorTargets.filter((t) => t.selected && t.email);
       if (toSend.length === 0) {
         setAlertMessage({ type: 'error', text: 'Selecciona al menos un Director con correo válido.' });
@@ -533,7 +718,7 @@ export const EmailNotificationModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* SELECTOR DE PESTAÑAS (COMERCIALES / DIRECTORES) */}
+        {/* SELECTOR DE PESTAÑAS (COMERCIALES / DIRECTORES / GERENCIA) */}
         <div className="email-modal-tabs">
           <button
             type="button"
@@ -550,6 +735,14 @@ export const EmailNotificationModal: React.FC<Props> = ({
           >
             <Briefcase size={14} />
             <span>👔 Directores de Grupo ({directorTargets.length})</span>
+          </button>
+          <button
+            type="button"
+            className={`email-tab-btn ${recipientType === 'gerencia' ? 'active' : ''}`}
+            onClick={() => setRecipientType('gerencia')}
+          >
+            <Sparkles size={14} />
+            <span>👑 Dirección & Gerencia ({gerenciaTargets.length})</span>
           </button>
         </div>
 
@@ -569,7 +762,9 @@ export const EmailNotificationModal: React.FC<Props> = ({
             <div className="email-sidebar-header">
               <div className="email-sidebar-title-row">
                 <span className="email-sidebar-title">
-                  {recipientType === 'directors'
+                  {recipientType === 'gerencia'
+                    ? `Dirección y Gerencia (${gerenciaTargets.length})`
+                    : recipientType === 'directors'
                     ? `Directores de Grupo (${directorTargets.length})`
                     : `Comerciales con saldo (${commercialTargets.length})`}
                 </span>
@@ -578,7 +773,12 @@ export const EmailNotificationModal: React.FC<Props> = ({
                   className="email-select-all-btn"
                   onClick={toggleSelectAll}
                 >
-                  {(recipientType === 'directors' ? filteredDirectors : filteredCommercials).every((t) => t.selected)
+                  {(recipientType === 'gerencia'
+                    ? filteredGerencia
+                    : recipientType === 'directors'
+                    ? filteredDirectors
+                    : filteredCommercials
+                  ).every((t) => t.selected)
                     ? 'Deseleccionar'
                     : 'Seleccionar todo'}
                 </button>
@@ -587,19 +787,75 @@ export const EmailNotificationModal: React.FC<Props> = ({
               <input
                 type="text"
                 className="email-search-input"
-                placeholder={recipientType === 'directors' ? 'Buscar director o grupo...' : 'Buscar comercial o director...'}
+                placeholder={
+                  recipientType === 'gerencia'
+                    ? 'Buscar cargo o directivo...'
+                    : recipientType === 'directors'
+                    ? 'Buscar director o grupo...'
+                    : 'Buscar comercial o director...'
+                }
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
 
               <div className="email-selected-summary">
-                Seleccionados: <strong>{selectedCount} de {recipientType === 'directors' ? directorTargets.length : commercialTargets.length}</strong> · {formatCOP(totalValueSelected)}
+                Seleccionados: <strong>{selectedCount} de {recipientType === 'gerencia' ? gerenciaTargets.length : recipientType === 'directors' ? directorTargets.length : commercialTargets.length}</strong> · {formatCOP(totalValueSelected)}
               </div>
             </div>
 
             {/* LISTADO SEGÚN PESTAÑA ACTIVA */}
             <div className="email-targets-list">
-              {recipientType === 'directors' ? (
+              {recipientType === 'gerencia' ? (
+                filteredGerencia.length === 0 ? (
+                  <div className="email-empty-search">No se encontraron miembros de gerencia</div>
+                ) : (
+                  filteredGerencia.map((target) => {
+                    const isSelectedForPreview = selectedGerenciaEmail === target.email;
+                    return (
+                      <div
+                        key={target.email}
+                        className={`email-target-item ${isSelectedForPreview ? 'active-preview' : ''}`}
+                        onClick={() => setSelectedGerenciaEmail(target.email)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={target.selected}
+                          disabled={isSendingBatch}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            toggleTarget(target.email);
+                          }}
+                          className="email-target-checkbox"
+                        />
+                        <div className="email-target-info">
+                          <div className="email-target-top">
+                            <strong className="email-target-name">{target.name}</strong>
+                            {target.status === 'success' && (
+                              <span className="email-status-pill success"><CheckCircle2 size={11} /> Enviado</span>
+                            )}
+                            {target.status === 'sending' && (
+                              <span className="email-status-pill sending"><RefreshCw size={11} className="spin" /> Enviando</span>
+                            )}
+                            {target.status === 'error' && (
+                              <span className="email-status-pill error" title={target.errorMessage}><AlertCircle size={11} /> Falló</span>
+                            )}
+                          </div>
+                          <div className="email-target-meta">
+                            <span style={{ fontWeight: 700, color: '#1E3A8A' }}>{target.cargo}</span>
+                            <span>·</span>
+                            <span>{target.email}</span>
+                          </div>
+                          <div className="email-target-numbers">
+                            <span className="email-target-count">{activeGerenciaSummary?.totalCount || 0} rem. empresa</span>
+                            <span className="email-target-val">{formatCOP(activeGerenciaSummary?.totalValue || 0)}</span>
+                            <span className="email-target-age">🏛 Todos los grupos</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )
+              ) : recipientType === 'directors' ? (
                 filteredDirectors.length === 0 ? (
                   <div className="email-empty-search">No se encontraron directores</div>
                 ) : (
@@ -711,14 +967,18 @@ export const EmailNotificationModal: React.FC<Props> = ({
                 <span>
                   Vista previa:{' '}
                   <strong>
-                    {recipientType === 'directors'
+                    {recipientType === 'gerencia'
+                      ? `${activeGerenciaSummary?.recipientName || 'Ninguno'} (${activeGerenciaSummary?.recipientCargo})`
+                      : recipientType === 'directors'
                       ? `${activeDirectorSummary?.directorName || 'Ninguno'} (Grupo ${activeDirectorSummary?.directorGroup})`
                       : selectedCommercialName || 'Ninguno'}
                   </strong>
                 </span>
                 <small>
                   (
-                  {recipientType === 'directors'
+                  {recipientType === 'gerencia'
+                    ? activeGerenciaSummary?.recipientEmail
+                    : recipientType === 'directors'
                     ? activeDirectorSummary?.directorEmail
                     : activeCommercialSummary?.commercialEmail}
                   )
@@ -759,7 +1019,9 @@ export const EmailNotificationModal: React.FC<Props> = ({
                 >
                   <Download size={13} />
                   <span>
-                    {recipientType === 'directors'
+                    {recipientType === 'gerencia'
+                      ? `Descargar Excel Maestro Gerencial (${activeGerenciaSummary?.totalCount || 0})`
+                      : recipientType === 'directors'
                       ? `Descargar Excel Consolidado (${activeDirectorSummary?.totalCount || 0})`
                       : `Descargar Excel (${activeCommercialSummary?.totalCount || 0})`}
                   </span>
@@ -815,7 +1077,9 @@ export const EmailNotificationModal: React.FC<Props> = ({
               <div className="email-footer-info">
                 <Sparkles size={14} color="#15803D" />
                 <span>
-                  {recipientType === 'directors'
+                  {recipientType === 'gerencia'
+                    ? 'Se enviará el informe general con libro Excel maestro de 3 pestañas a los líderes de gerencia seleccionados.'
+                    : recipientType === 'directors'
                     ? 'Se enviará el reporte consolidado con archivo Excel de 2 pestañas a cada Director seleccionado.'
                     : 'Se enviará un correo personalizado a cada comercial con su logo y remisiones.'}
                 </span>
@@ -842,6 +1106,8 @@ export const EmailNotificationModal: React.FC<Props> = ({
               <span>
                 {isSendingBatch
                   ? 'Enviando...'
+                  : recipientType === 'gerencia'
+                  ? `Enviar a ${selectedCount} líderes de Gerencia seleccionados`
                   : recipientType === 'directors'
                   ? `Enviar a los ${selectedCount} Directores seleccionados`
                   : `Enviar a los ${selectedCount} comerciales seleccionados`}

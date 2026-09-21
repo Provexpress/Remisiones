@@ -100,14 +100,16 @@ async function main() {
   await wb.xlsx.readFile(path.join(__dirname, '../Remisiones.xlsx'));
   const sis = wb.getWorksheet('Base-SIS');
 
-  const cutoffDate = '2026-09-16';
+  const dataSourceCutoff = '2026-09-16';
+  const TODAY_CUTOFF = '2026-09-21';
+  const TODAY_FORMATTED = '21 de septiembre de 2026';
   const cutoffRecords = [];
 
   for (let r = 2; r <= sis.rowCount; r++) {
     const row = sis.getRow(r);
     const dVal = row.getCell(1).value;
     const iso = dVal instanceof Date ? dVal.toISOString().slice(0, 10) : String(dVal || '').trim();
-    if (iso === cutoffDate) {
+    if (iso === dataSourceCutoff) {
       cutoffRecords.push({
         emp: String(row.getCell(2).value || '').trim(),
         nit: String(row.getCell(3).value || '').trim(),
@@ -213,7 +215,7 @@ async function main() {
 
   wsSum.getCell('D2').value = 'Fecha de Corte:';
   wsSum.getCell('D2').font = { bold: true, size: 10, color: { argb: 'FF475569' } };
-  wsSum.getCell('E2').value = cutoffDate;
+  wsSum.getCell('E2').value = TODAY_FORMATTED;
   wsSum.getCell('E2').font = { bold: true, size: 11, color: { argb: 'FF0F172A' } };
 
   wsSum.getCell('G2').value = 'Total Remisiones:';
@@ -432,7 +434,7 @@ async function main() {
 
   const excelBuffer = await excelWb.xlsx.writeBuffer();
   const excelBase64 = excelBuffer.toString('base64');
-  const excelFilename = 'Remisiones_Consolidado_Grupo_2_Angelica_Caballero_2026-09-16.xlsx';
+  const excelFilename = `Remisiones_Consolidado_Grupo_2_Angelica_Caballero_${TODAY_CUTOFF}.xlsx`;
   console.log(`✓ Archivo Excel consolidado generado: ${excelFilename} (${excelBuffer.length} bytes)`);
 
   // 4. Generar HTML del correo
@@ -933,7 +935,7 @@ async function main() {
 
   const mailPayload = {
     message: {
-      subject: `📊 Reporte Consolidado de Remisiones · Dirección Grupo 2 · Angélica Caballero · 16 Sep 2026`,
+      subject: `[PRUEBA] Reporte Consolidado de Remisiones · Dirección Grupo 2 · Angélica Caballero · Corte ${TODAY_FORMATTED}`,
       body: {
         contentType: 'HTML',
         content: htmlContent,

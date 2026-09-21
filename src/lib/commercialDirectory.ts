@@ -239,6 +239,20 @@ export const LISTA_DIRECTORES: DirectorInfo[] = [
   { grupo: 4, nombre: 'Miller Romero', email: 'miller.romero@provexpress.com.co', carpeta: 'Grupo Miller Romero', genero: 'M' },
 ];
 
+export interface GerenciaInfo {
+  cargo: string;
+  nombre: string;
+  email: string;
+  genero: 'M' | 'F';
+}
+
+export const LISTA_GERENCIA: GerenciaInfo[] = [
+  { cargo: 'Director Comercial', nombre: 'Rafael Novoa', email: 'rafael.novoa@provexpress.com.co', genero: 'M' },
+  { cargo: 'Gerente General / Comercial', nombre: 'Juan Novoa', email: 'juannovoa@provexpress.com.co', genero: 'M' },
+  { cargo: 'Gerencia Estratégica', nombre: 'Cuentas Estratégicas', email: 'c.estrategica@provexpress.com.co', genero: 'M' },
+  { cargo: 'Gerencia General', nombre: 'Óscar Pérez', email: 'oscar.perez@provexpress.com.co', genero: 'M' },
+];
+
 export function getDirectorInfo(emailOrGroup: string | number): DirectorInfo | null {
   if (typeof emailOrGroup === 'number') {
     return LISTA_DIRECTORES.find((d) => d.grupo === emailOrGroup) || null;
