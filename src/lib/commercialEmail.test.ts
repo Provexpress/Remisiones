@@ -109,11 +109,11 @@ describe('generador de plantilla HTML corporativa de notificación', () => {
     expect(html).toContain('ventas facturadas');
     expect(html).toContain('Tu gestión hace la diferencia.');
 
-    // Tarjetas KPI
+    // Tarjetas KPI (3 tarjetas)
     expect(html).toContain('para gestionar');
     expect(html).toContain('Valor por facturar');
     expect(html).toContain('Antigüedad');
-    expect(html).toContain('por reconocer');
+    expect(html).not.toContain('por reconocer');
 
     // Tabla de remisiones
     expect(html).toContain('Tus remisiones destacadas');

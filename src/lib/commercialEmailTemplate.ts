@@ -319,11 +319,11 @@ export function generateCommercialEmailHtml(
             <!-- ── COLUMNA IZQUIERDA (71%) ── -->
             <td width="71%" valign="top" style="padding-right: 18px;" class="stack-col">
 
-              <!-- FILA DE 4 TARJETAS KPI -->
+              <!-- FILA DE 3 TARJETAS KPI -->
               <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 16px;">
                 <tr>
                   <!-- KPI 1: Remisiones listas para gestionar -->
-                  <td width="24%" valign="top" class="kpi-cell" style="padding-right: 6px;">
+                  <td width="31%" valign="top" class="kpi-cell" style="padding-right: 8px;">
                     <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 12px 10px; height: 95px;">
                       <tr>
                         <td width="32" valign="top">
@@ -355,7 +355,7 @@ export function generateCommercialEmailHtml(
                   </td>
 
                   <!-- KPI 2: Valor por facturar -->
-                  <td width="26%" valign="top" class="kpi-cell" style="padding-right: 6px;">
+                  <td width="38%" valign="top" class="kpi-cell" style="padding-right: 8px;">
                     <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 12px 10px; height: 95px;">
                       <tr>
                         <td width="32" valign="top">
@@ -373,7 +373,7 @@ export function generateCommercialEmailHtml(
                         <td colspan="2" valign="bottom" style="padding-top: 6px;">
                           <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
                             <tr>
-                              <td valign="bottom" style="font-size: 17px; font-weight: 900; color: #15803D; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1;">
+                              <td valign="bottom" style="font-size: 18px; font-weight: 900; color: #15803D; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1;">
                                 ${formatCOP(totalValue)}
                               </td>
                               <td align="right" valign="bottom" style="font-size: 17px; color: #86EFAC; opacity: 0.75;">
@@ -387,7 +387,7 @@ export function generateCommercialEmailHtml(
                   </td>
 
                   <!-- KPI 3: Antigüedad promedio -->
-                  <td width="23%" valign="top" class="kpi-cell" style="padding-right: 6px;">
+                  <td width="31%" valign="top" class="kpi-cell">
                     <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 12px 10px; height: 95px;">
                       <tr>
                         <td width="32" valign="top">
@@ -405,43 +405,11 @@ export function generateCommercialEmailHtml(
                         <td colspan="2" valign="bottom" style="padding-top: 6px;">
                           <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
                             <tr>
-                              <td valign="bottom" style="font-size: 20px; font-weight: 900; color: #D97706; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1;">
+                              <td valign="bottom" style="font-size: 22px; font-weight: 900; color: #D97706; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1;">
                                 ${avgAge} días
                               </td>
                               <td align="right" valign="bottom" style="font-size: 17px; color: #FDBA74; opacity: 0.75;">
                                 📅
-                              </td>
-                            </tr>
-                          </table>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-
-                  <!-- KPI 4: Potencial de ventas por reconocer -->
-                  <td width="27%" valign="top" class="kpi-cell">
-                    <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 12px 10px; height: 95px;">
-                      <tr>
-                        <td width="32" valign="top">
-                          <div style="background-color: #1E40AF; width: 30px; height: 30px; border-radius: 50%; text-align: center; line-height: 30px; font-size: 15px; color: #FFFFFF;">
-                            📊
-                          </div>
-                        </td>
-                        <td valign="top" style="padding-left: 6px;">
-                          <div style="font-size: 10.5px; color: #475569; font-weight: 600; line-height: 1.2; font-family: 'Segoe UI', Arial, sans-serif;">
-                            Potencial de ventas<br>por reconocer
-                          </div>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td colspan="2" valign="bottom" style="padding-top: 6px;">
-                          <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
-                            <tr>
-                              <td valign="bottom" style="font-size: 17px; font-weight: 900; color: #1E40AF; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1;">
-                                ${formatCOP(totalValue)}
-                              </td>
-                              <td align="right" valign="bottom" style="font-size: 17px; color: #93C5FD; opacity: 0.75;">
-                                🏆
                               </td>
                             </tr>
                           </table>
