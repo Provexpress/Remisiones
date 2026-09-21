@@ -1,16 +1,21 @@
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { describe, it } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { parseRemisionesWorkbook } from './remisiones';
 import { ESTRUCTURA_COMERCIAL_2026, LISTA_DIRECTORES } from './commercialDirectory';
 
-describe('check groups on 2026-09-16', () => {
+const corporateWorkbookPath = fileURLToPath(new URL('../../Remisiones.xlsx', import.meta.url));
+const hasRealWorkbook = existsSync(corporateWorkbookPath);
+const describeWorkbook = hasRealWorkbook ? describe : describe.skip;
+
+describeWorkbook('check groups on 2026-09-16', () => {
   it('analyzes parsed records for 2026-09-16', async () => {
-    const corporateWorkbookPath = fileURLToPath(new URL('../../Remisiones.xlsx', import.meta.url));
     const file = await readFile(corporateWorkbookPath);
     const arrayBuffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
     const parsed = await parseRemisionesWorkbook(arrayBuffer);
     const records16 = parsed.records.filter((r) => r.cutoff === '2026-09-16');
+    expect(records16.length).toBeGreaterThan(0);
 
     console.log('\n======================================================');
     console.log(`TOTAL RECORDS 2026-09-16: ${records16.length}`);
