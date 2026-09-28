@@ -6,3 +6,5 @@ dist/
 *.log
 Remisiones.xlsx
 *.tsbuildinfo
+*.ps1
+scripts/

@@ -35,6 +35,7 @@ import {
   Upload,
   UsersRound,
   X,
+  Zap,
 } from 'lucide-react';
 import {
   Area,
@@ -75,9 +76,11 @@ import {
 } from './lib/remisiones';
 import type { AgeBreakdownItem, DailyPoint, DataSource, FileMetadata, InitialCohortPoint, ParsedWorkbook, Remision, Summary, UserProfile, WithdrawnRemisionDetail } from './types';
 import { EmailNotificationModal } from './components/EmailNotificationModal';
+import { LiveMonitorView } from './components/LiveMonitorView';
+import { syncLiveRemisiones, buildWorkbookFromSupabase, type LiveProduct } from './lib/remisionesApi';
 
 type Phase = 'welcome' | 'loading' | 'ready' | 'error';
-type View = 'evolucion' | 'gestion' | 'detail';
+type View = 'evolucion' | 'gestion' | 'live' | 'detail';
 
 const currency = new Intl.NumberFormat('es-CO', {
   style: 'currency',
@@ -99,10 +102,10 @@ function App() {
   const [phase, setPhase] = useState<Phase>('welcome');
   const [user, setUser] = useState<UserProfile | null>(null);
   const [workbook, setWorkbook] = useState<ParsedWorkbook | null>(null);
-  const [source, setSource] = useState<DataSource>('sharepoint');
+  const [source, setSource] = useState<DataSource>('supabase');
   const [metadata, setMetadata] = useState<FileMetadata | null>(null);
   const [error, setError] = useState('');
-  const [loadingMessage, setLoadingMessage] = useState('Conectando con Microsoft 365…');
+  const [loadingMessage, setLoadingMessage] = useState('Cargando cortes y tablero en tiempo real…');
   const fileInput = useRef<HTMLInputElement>(null);
 
   const parseAndShow = async (buffer: ArrayBuffer, nextSource: DataSource, nextMetadata: FileMetadata) => {
@@ -117,6 +120,25 @@ function App() {
     setSource(nextSource);
     setMetadata(nextMetadata);
     setPhase('ready');
+  };
+
+  const loadFromSupabase = async () => {
+    setError('');
+    setPhase('loading');
+    setLoadingMessage('Cargando cortes y tablero en tiempo real…');
+    try {
+      const parsed = await buildWorkbookFromSupabase();
+      setWorkbook(parsed);
+      setSource('supabase');
+      setMetadata({
+        name: 'Supabase Cloud (Tiempo Real)',
+        lastModifiedDateTime: parsed.cutoffDateTime,
+      });
+      setPhase('ready');
+    } catch (err) {
+      console.warn('Supabase no disponible, intentando SharePoint como respaldo:', err);
+      void loadRemote();
+    }
   };
 
   const loadRemote = async (profile?: UserProfile) => {
@@ -136,18 +158,39 @@ function App() {
     }
   };
 
+  const handleMicrosoftSignIn = async () => {
+    setError('');
+    setPhase('loading');
+    setLoadingMessage('Conectando con Microsoft 365…');
+    try {
+      const activeProfile = await signIn();
+      setUser(activeProfile);
+      await loadFromSupabase();
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'No fue posible iniciar sesión con Microsoft.';
+      setError(message);
+      setPhase('error');
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
-    getExistingProfile()
-      .then((profile) => {
+    const initialize = async () => {
+      try {
+        const profile = await getExistingProfile();
         if (mounted && profile) {
           setUser(profile);
-          void loadRemote(profile);
         }
-      })
-      .catch(() => undefined);
+      } catch {
+        // Sesión de Microsoft opcional al inicio
+      }
+      if (mounted) {
+        void loadFromSupabase();
+      }
+    };
+    void initialize();
     return () => { mounted = false; };
-    // La restauración de sesión solo se ejecuta al montar.
+    // La carga inicial solo se ejecuta al montar
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -172,7 +215,8 @@ function App() {
   };
 
   const refresh = async () => {
-    if (source === 'sharepoint') await loadRemote(user || undefined);
+    if (source === 'supabase') await loadFromSupabase();
+    else if (source === 'sharepoint') await loadRemote(user || undefined);
     else fileInput.current?.click();
   };
 
@@ -209,6 +253,7 @@ function App() {
           metadata={metadata}
           onRefresh={() => void refresh()}
           onLogout={() => void logout()}
+          onUpdateWorkbook={(updated) => setWorkbook(updated)}
         />
       )}
     </>
@@ -303,6 +348,7 @@ function Dashboard({
   metadata,
   onRefresh,
   onLogout,
+  onUpdateWorkbook,
 }: {
   data: ParsedWorkbook;
   user: UserProfile | null;
@@ -310,6 +356,7 @@ function Dashboard({
   metadata: FileMetadata | null;
   onRefresh: () => void;
   onLogout: () => void;
+  onUpdateWorkbook?: (newWorkbook: ParsedWorkbook) => void;
 }) {
   const EVOLUCION_CUTOFF = '2026-09-03';
   const latestCutoff = data.cutoffs.at(-1) || '';
@@ -330,6 +377,57 @@ function Dashboard({
   const [gestionRightTab, setGestionRightTab] = useState<'remisiones' | 'pie'>('pie');
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const refreshRef = useRef(onRefresh);
+
+  // Estado y sincronización para el Monitor en Vivo (API)
+  const [liveRecords, setLiveRecords] = useState<Remision[]>([]);
+  const [liveEntrantes, setLiveEntrantes] = useState<Remision[]>([]);
+  const [liveSalientes, setLiveSalientes] = useState<Remision[]>([]);
+  const [liveSaldoAnterior, setLiveSaldoAnterior] = useState<number>(0);
+  const [liveSaldoAnteriorCount, setLiveSaldoAnteriorCount] = useState<number>(0);
+  const [liveCorteAnteriorFecha, setLiveCorteAnteriorFecha] = useState<string>('');
+  const [liveLastSync, setLiveLastSync] = useState<string>('');
+  const [liveIsSyncing, setLiveIsSyncing] = useState<boolean>(false);
+  const [liveProductsMap, setLiveProductsMap] = useState<Map<number, LiveProduct[]>>(new Map());
+
+  const handleSyncLiveApi = async () => {
+    try {
+      setLiveIsSyncing(true);
+      const res = await syncLiveRemisiones();
+      setLiveRecords(res.records);
+      setLiveEntrantes(res.entrantes);
+      setLiveSalientes(res.salientes);
+      setLiveSaldoAnterior(res.saldoAnterior);
+      setLiveSaldoAnteriorCount(res.saldoAnteriorCount || 0);
+      setLiveCorteAnteriorFecha(res.corteAnteriorFecha || '2026-09-25');
+      setLiveLastSync(`${res.cutoff} ${res.cutoffTime}`);
+
+      // Actualizar automáticamente los demás tableros (Gestión, Evolución, Detalle y correos)
+      if (onUpdateWorkbook) {
+        const nextCutoffs = Array.from(new Set([...data.cutoffs, res.cutoff])).sort();
+        const otherRecords = data.records.filter((r) => r.cutoff !== res.cutoff);
+        const updatedWorkbook: ParsedWorkbook = {
+          ...data,
+          cutoffs: nextCutoffs,
+          records: [...otherRecords, ...res.records],
+          cutoffDateTime: new Date().toISOString(),
+          cutoffTimeDisplay: res.cutoffTime,
+        };
+        onUpdateWorkbook(updatedWorkbook);
+        setCutoff(res.cutoff);
+      }
+    } catch (err: any) {
+      console.error('Error sincronizando API:', err);
+      alert(`Error al sincronizar con la API del ERP: ${err.message || err}`);
+    } finally {
+      setLiveIsSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (view === 'live' && liveRecords.length === 0 && !liveIsSyncing) {
+      handleSyncLiveApi();
+    }
+  }, [view]);
 
   const prevLatestCutoffRef = useRef(latestCutoff);
   useEffect(() => {
@@ -396,7 +494,7 @@ function Dashboard({
       if (simulatedEmail !== null && !canSendNotifications(simulatedEmail)) return false;
       return true;
     }
-    if (source === 'local') {
+    if (source === 'local' || source === 'supabase') {
       if (simulatedEmail !== null) return canSendNotifications(simulatedEmail);
       return true;
     }
@@ -882,7 +980,7 @@ function Dashboard({
   useEffect(() => setPage(1), [query, statusFilter, amountFilter, ageFilter, sortBy, cutoff, director, employee]);
   useEffect(() => { refreshRef.current = onRefresh; }, [onRefresh]);
   useEffect(() => {
-    if (source !== 'sharepoint') return undefined;
+    if (source !== 'sharepoint' && source !== 'supabase') return undefined;
     const interval = window.setInterval(() => refreshRef.current(), 10 * 60 * 1000);
     return () => window.clearInterval(interval);
   }, [source]);
@@ -1104,6 +1202,15 @@ function Dashboard({
               )}
             </button>
             <button
+              className={view === 'live' ? 'active' : ''}
+              onClick={() => handleSelectView('live')}
+              title="Monitor en tiempo real: Entradas y Salidas de remisiones directamente desde el ERP"
+            >
+              <Zap size={16} />
+              <span>En Vivo (API)</span>
+              <span className="nav-tab-badge green">LIVE</span>
+            </button>
+            <button
               className={view === 'detail' ? 'active' : ''}
               onClick={() => handleSelectView('detail')}
               title="Tabla detallada de remisiones"
@@ -1177,7 +1284,7 @@ function Dashboard({
               <span className="avatar">{initials(userAccess.name || user?.name || 'Local')}</span>
               <div>
                 <strong>{userAccess.name?.split(' ')[0] || user?.name?.split(' ')[0] || 'Vista local'}</strong>
-                <small>{userAccess.role === 'admin' ? (source === 'sharepoint' ? 'Microsoft 365' : 'Excel local') : userAccess.label}</small>
+                <small>{userAccess.role === 'admin' ? (source === 'supabase' ? 'Supabase Cloud' : source === 'sharepoint' ? 'Microsoft 365' : 'Excel local') : userAccess.label}</small>
               </div>
             </div>
             <button className="icon-button" onClick={onLogout} title="Salir"><LogOut size={18} /></button>
@@ -1277,6 +1384,15 @@ function Dashboard({
                   <span className="hero-time-tag"> · Fecha: <b>{formatCutoff(cutoff)}</b>{data.cutoffTimeDisplay ? ` (${data.cutoffTimeDisplay})` : ''}</span>
                 </p>
               </>
+            ) : view === 'live' ? (
+              <>
+                <div className="eyebrow green"><Zap size={16} /> Monitor en Tiempo Real</div>
+                <h1>En Vivo: Entradas y Salidas ERP</h1>
+                <p>
+                  Sincronización instantánea con el ERP. Consulta las remisiones que acaban de facturarse y las recién creadas.
+                  {liveLastSync && <span className="hero-time-tag"> · Última consulta: <b>{liveLastSync}</b></span>}
+                </p>
+              </>
             ) : (
               <>
                 <div className="eyebrow blue"><PackageCheck size={16} /> Listado Detallado</div>
@@ -1293,9 +1409,9 @@ function Dashboard({
             <div>
               <strong>{metadata?.name || 'Remisiones.xlsx'}</strong>
               <small>
-                {source === 'sharepoint' ? 'SharePoint' : 'Archivo local'}
+                {source === 'supabase' ? 'Supabase Cloud (Tiempo Real)' : source === 'sharepoint' ? 'SharePoint' : 'Archivo local'}
                 {data.cutoffTimeDisplay ? ` · Actualizado ${data.cutoffTimeDisplay}` : ''}
-                {data.activeSheetName ? ` · Hoja ${data.activeSheetName}` : ''}
+                {data.activeSheetName ? ` · ${data.activeSheetName}` : ''}
               </small>
             </div>
             <span className="source-status"><i /> Sincronizado</span>
@@ -2738,6 +2854,21 @@ function Dashboard({
               </div>
             </section>
           </>
+        )}
+
+        {view === 'live' && (
+          <LiveMonitorView
+            records={liveRecords}
+            entrantes={liveEntrantes}
+            salientes={liveSalientes}
+            lastSyncTime={liveLastSync}
+            isLoading={liveIsSyncing}
+            onSync={handleSyncLiveApi}
+            productsMap={liveProductsMap}
+            saldoAnterior={liveSaldoAnterior}
+            saldoAnteriorCount={liveSaldoAnteriorCount}
+            corteAnteriorFecha={liveCorteAnteriorFecha}
+          />
         )}
 
         {view === 'detail' && (

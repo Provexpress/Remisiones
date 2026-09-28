@@ -1,4 +1,4 @@
-export type DataSource = 'sharepoint' | 'local';
+export type DataSource = 'sharepoint' | 'local' | 'supabase' | 'api';
 
 export interface UserProfile {
   name: string;
