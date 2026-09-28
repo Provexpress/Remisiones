@@ -43,14 +43,17 @@ export interface LiveSyncResult {
   fromSupabase: boolean;
 }
 
-function getErpBaseUrl(): string {
+function getErpEndpointUrl(endpoint: string): string {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   if (typeof window !== 'undefined') {
+    // Si estamos en Vercel HTTPS, usamos el proxy serverless pasando el endpoint
     if (window.location.protocol === 'https:') {
-      return '/api/erp-proxy';
+      return `/api/erp-proxy?path=${encodeURIComponent(cleanEndpoint)}`;
     }
-    return '/erp-api';
+    // Si estamos en localhost HTTP, Vite proxea /erp-api
+    return `/erp-api${cleanEndpoint}`;
   }
-  return import.meta.env.VITE_REMISIONES_API_BASE || 'http://152.200.146.226:50010';
+  return `http://152.200.146.226:50010${cleanEndpoint}`;
 }
 
 function formatTodayIso(): string {
@@ -83,7 +86,7 @@ function makeStableKey(nit: string, doc: string, order: string, id: string): str
  * Obtiene el token JWT del backend del ERP
  */
 async function authenticateErp(): Promise<string> {
-  const baseUrl = getErpBaseUrl();
+  const url = getErpEndpointUrl('/api/getKey');
   const username = String(import.meta.env.VITE_REMISIONES_API_USER || 'powerbi').trim();
   let password = String(import.meta.env.VITE_REMISIONES_API_PASS || '3xpress#2025').trim();
   // Salvaguarda: si dotenv cortó la clave en el signo '#' por tratarlo como comentario
@@ -91,7 +94,7 @@ async function authenticateErp(): Promise<string> {
     password = '3xpress#2025';
   }
 
-  const res = await fetch(`${baseUrl}/api/getKey`, {
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -121,7 +124,6 @@ export async function fetchLiveRemisionesFromErp(): Promise<{
   cutoffTime: string;
 }> {
   const token = await authenticateErp();
-  const baseUrl = getErpBaseUrl();
   const headers = {
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
@@ -129,8 +131,8 @@ export async function fetchLiveRemisionesFromErp(): Promise<{
 
   // Consultar ambas APIs en paralelo
   const [resValores, resProductos] = await Promise.all([
-    fetch(`${baseUrl}/consultas/api/consultaDetalleEntregasMercanciaDashboardPBI`, { headers }),
-    fetch(`${baseUrl}/consultas/api/consultaEntregasMercanciaDashboardPBI`, { headers }),
+    fetch(getErpEndpointUrl('/consultas/api/consultaDetalleEntregasMercanciaDashboardPBI'), { headers }),
+    fetch(getErpEndpointUrl('/consultas/api/consultaEntregasMercanciaDashboardPBI'), { headers }),
   ]);
 
   if (!resValores.ok) {

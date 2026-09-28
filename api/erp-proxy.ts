@@ -1,5 +1,3 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
-
 const ERP_BASE = 'http://152.200.146.226:50010';
 
 export default async function handler(req: any, res: any) {
@@ -12,8 +10,20 @@ export default async function handler(req: any, res: any) {
     return res.status(200).end();
   }
 
-  const path = req.query.path || req.url?.replace(/^\/api\/erp-proxy/, '') || '';
-  const targetUrl = `${ERP_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+  // Resolver el path del endpoint de destino
+  let endpoint = '';
+  if (req.query?.path) {
+    endpoint = Array.isArray(req.query.path) ? req.query.path.join('/') : String(req.query.path);
+  } else if (req.query?.match) {
+    endpoint = Array.isArray(req.query.match) ? req.query.match.join('/') : String(req.query.match);
+  } else if (req.url) {
+    const rawPath = req.url.split('?')[0];
+    endpoint = rawPath.replace(/^\/api\/erp-proxy\/?/, '').replace(/^\/erp-api\/?/, '');
+  }
+
+  // Asegurar que comience con '/'
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const targetUrl = `${ERP_BASE}${cleanEndpoint}`;
 
   try {
     const fetchOptions: RequestInit = {
@@ -38,6 +48,7 @@ export default async function handler(req: any, res: any) {
     res.setHeader('Content-Type', response.headers.get('content-type') || 'application/json');
     return res.send(data);
   } catch (error: any) {
+    console.error('Error en erp-proxy hacia', targetUrl, error);
     return res.status(500).json({ error: error.message || 'Error proxying to ERP API' });
   }
 }

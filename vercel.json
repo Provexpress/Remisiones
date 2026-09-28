@@ -3,6 +3,21 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/erp-proxy.ts": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/erp-proxy/(.*)",
+      "destination": "/api/erp-proxy?path=/$1"
+    },
+    {
+      "source": "/erp-api/(.*)",
+      "destination": "/api/erp-proxy?path=/$1"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
