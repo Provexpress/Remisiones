@@ -13,6 +13,28 @@ import {
 } from 'lucide-react';
 import type { Remision } from '../types';
 import type { LiveProduct } from '../lib/remisionesApi';
+import { resolveCommercialOrDirector } from '../lib/commercialDirectory';
+
+const DIR_BY_GRUPO: Record<number, string> = {
+  1: 'Rafael Novoa',
+  2: 'Angélica Caballero',
+  3: 'Óscar Beltrán',
+  4: 'Miller Romero',
+};
+
+export function getRecordDirector(r: { director?: string; employee?: string; group?: number | null }): string {
+  if (r.director && r.director !== 'Sin asignar' && String(r.director).trim() !== '') {
+    return r.director;
+  }
+  const role = resolveCommercialOrDirector(r.employee || '');
+  if (role.directorNombre && role.directorNombre !== 'Otras Áreas / Especiales' && role.directorNombre !== 'Sin asignar') {
+    return role.directorNombre;
+  }
+  if (r.group && DIR_BY_GRUPO[r.group]) {
+    return DIR_BY_GRUPO[r.group];
+  }
+  return 'Sin asignar';
+}
 
 interface LiveMonitorViewProps {
   records: Remision[];
@@ -57,9 +79,10 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
   // Lista de directores para filtrar
   const directorsList = useMemo(() => {
     const set = new Set<string>();
-    salientes.forEach((r) => r.director && r.director !== 'Sin asignar' && set.add(r.director));
-    entrantes.forEach((r) => r.director && r.director !== 'Sin asignar' && set.add(r.director));
-    records.forEach((r) => r.director && r.director !== 'Sin asignar' && set.add(r.director));
+    [...salientes, ...entrantes, ...records].forEach((r) => {
+      const d = getRecordDirector(r);
+      if (d && d !== 'Sin asignar') set.add(d);
+    });
     return ['Todos', ...Array.from(set).sort()];
   }, [salientes, entrantes, records]);
 
@@ -68,7 +91,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
     let baseList = activeTab === 'salientes' ? salientes : activeTab === 'entrantes' ? entrantes : records;
 
     if (selectedDirector !== 'Todos') {
-      baseList = baseList.filter((r) => r.director === selectedDirector);
+      baseList = baseList.filter((r) => getRecordDirector(r) === selectedDirector);
     }
 
     if (!searchTerm.trim()) return baseList;
@@ -80,7 +103,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
         r.document?.toLowerCase().includes(q) ||
         r.order?.toLowerCase().includes(q) ||
         r.employee?.toLowerCase().includes(q) ||
-        r.director?.toLowerCase().includes(q),
+        getRecordDirector(r).toLowerCase().includes(q),
     );
   }, [activeTab, salientes, entrantes, records, selectedDirector, searchTerm]);
 
@@ -138,7 +161,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
           company: r.company,
           nit: r.nit,
           employee: r.employee,
-          director: r.director,
+          director: getRecordDirector(r),
           total: r.total || 0,
           issuedAt: r.issuedAt,
           age: r.age,
@@ -661,7 +684,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
                         {r.employee}
                       </td>
                       <td style={{ padding: '12px 16px', color: '#475569' }}>
-                        {r.director}
+                        {getRecordDirector(r)}
                       </td>
                       <td style={{ padding: '12px 16px', color: '#64748B', whiteSpace: 'nowrap' }}>
                         {r.issuedAt} ({r.age} d)

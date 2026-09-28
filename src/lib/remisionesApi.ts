@@ -201,15 +201,25 @@ export async function fetchLiveRemisionesFromErp(): Promise<{
     const age = issuedAt ? diffDays(cutoff, issuedAt) : 0;
 
     // Resolver director y grupo
+    const dirMap: Record<number, string> = {
+      1: 'Rafael Novoa',
+      2: 'Angélica Caballero',
+      3: 'Óscar Beltrán',
+      4: 'Miller Romero',
+    };
+
     const role = resolveCommercialOrDirector(employee);
     const grupoPersonalStr = String(raw.Grupo_Personal || '');
-    let director = role.directorNombre || 'Sin asignar';
     let groupNum: number | null = role.grupo > 0 ? role.grupo : null;
 
     if (!groupNum && grupoPersonalStr) {
       const match = grupoPersonalStr.match(/\d+/);
       if (match) groupNum = parseInt(match[0], 10);
     }
+
+    let director = (role.directorNombre && role.directorNombre !== 'Otras Áreas / Especiales' && role.directorNombre !== 'Sin asignar')
+      ? role.directorNombre
+      : (groupNum && dirMap[groupNum] ? dirMap[groupNum] : 'Sin asignar');
 
     const id = `ERP-LIVE-${cutoff}-${idx + 1}-${document || order}`;
     const stableKey = makeStableKey(nit, document, order, id);
@@ -269,7 +279,27 @@ export async function syncLiveRemisiones(): Promise<LiveSyncResult> {
     if (!error && latestCorte) {
       latestCorteData = latestCorte;
       if (latestCorte.records_json) {
-        prevRecords = latestCorte.records_json as Remision[];
+        const dirMap: Record<number, string> = {
+          1: 'Rafael Novoa',
+          2: 'Angélica Caballero',
+          3: 'Óscar Beltrán',
+          4: 'Miller Romero',
+        };
+        prevRecords = (latestCorte.records_json as any[]).map((r) => {
+          const role = resolveCommercialOrDirector(r.employee || '');
+          const group = typeof r.group === 'number' ? r.group : (role.grupo > 0 ? role.grupo : null);
+          const director = (r.director && r.director !== 'Sin asignar' && String(r.director).trim() !== '')
+            ? r.director
+            : (role.directorNombre && role.directorNombre !== 'Otras Áreas / Especiales' && role.directorNombre !== 'Sin asignar'
+              ? role.directorNombre
+              : (group && dirMap[group] ? dirMap[group] : 'Sin asignar'));
+          return {
+            ...r,
+            director,
+            group,
+            matchedGroup: group != null,
+          };
+        });
       }
     }
   } catch (err) {
@@ -295,10 +325,28 @@ export async function syncLiveRemisiones(): Promise<LiveSyncResult> {
   }
 
   // Salientes: estaban en el corte previo pero ya no en el vivo (fueron facturadas!)
+  const dirMap: Record<number, string> = {
+    1: 'Rafael Novoa',
+    2: 'Angélica Caballero',
+    3: 'Óscar Beltrán',
+    4: 'Miller Romero',
+  };
   const salientes: Remision[] = [];
   for (const [key, prevRem] of prevKeyMap.entries()) {
     if (!currentKeyMap.has(key)) {
-      salientes.push(prevRem);
+      const role = resolveCommercialOrDirector(prevRem.employee || '');
+      const group = typeof prevRem.group === 'number' ? prevRem.group : (role.grupo > 0 ? role.grupo : null);
+      const director = (prevRem.director && prevRem.director !== 'Sin asignar' && String(prevRem.director).trim() !== '')
+        ? prevRem.director
+        : (role.directorNombre && role.directorNombre !== 'Otras Áreas / Especiales' && role.directorNombre !== 'Sin asignar'
+          ? role.directorNombre
+          : (group && dirMap[group] ? dirMap[group] : 'Sin asignar'));
+      salientes.push({
+        ...prevRem,
+        director,
+        group,
+        matchedGroup: group != null,
+      });
     }
   }
 
