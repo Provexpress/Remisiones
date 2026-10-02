@@ -76,6 +76,15 @@ export const CORPORATE_DIRECTORY: DirectoryUser[] = [
     directorName: 'Gerencia General',
   },
   {
+    email: 'jefe.operaciones@provexpress.com.co',
+    name: 'Jefe de Operaciones',
+    role: 'admin',
+    group: 0,
+    groupName: 'Jefatura de Operaciones',
+    directorName: 'Gerencia General',
+    aliases: ['jefe.operaciones', 'Jefe de Operaciones', 'Jefe Operaciones'],
+  },
+  {
     email: 'preventa.software@provexpress.com.co',
     name: 'Preventa Software',
     role: 'admin',
@@ -687,6 +696,7 @@ export function resolveUserAccess(
  * Restringido estrictamente a:
  * 1. especialista.preventa@provexpress.com.co
  * 2. c.estrategica@provexpress.com.co
+ * 3. jefe.operaciones@provexpress.com.co
  */
 export function canSendNotifications(email?: string | null): boolean {
   if (!email) return false;
@@ -694,8 +704,10 @@ export function canSendNotifications(email?: string | null): boolean {
   return (
     clean === 'especialista.preventa@provexpress.com.co' ||
     clean === 'c.estrategica@provexpress.com.co' ||
+    clean === 'jefe.operaciones@provexpress.com.co' ||
     clean.startsWith('especialista.preventa') ||
-    clean.startsWith('c.estrategica')
+    clean.startsWith('c.estrategica') ||
+    clean.startsWith('jefe.operaciones')
   );
 }
 

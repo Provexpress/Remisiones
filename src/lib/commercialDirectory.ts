@@ -24,6 +24,7 @@ export const ESTRUCTURA_COMERCIAL_2026: {
     'rafael.novoa@provexpress.com.co',
     'rafaelnovoa@provexpress.com.co',
     'c.estrategica@provexpress.com.co',
+    'jefe.operaciones@provexpress.com.co',
     'nini.beltran@provexpress.com.co',
     'maribel.virguez@provexpress.com.co',
     'especialista.preventa@provexpress.com.co',
@@ -431,6 +432,7 @@ export const LISTA_GERENCIA: GerenciaInfo[] = [
   { cargo: 'Director Comercial', nombre: 'Rafael Novoa', email: 'rafael.novoa@provexpress.com.co', genero: 'M' },
   { cargo: 'Gerente General / Comercial', nombre: 'Juan Novoa', email: 'juannovoa@provexpress.com.co', genero: 'M' },
   { cargo: 'Gerencia Estratégica', nombre: 'Cuentas Estratégicas', email: 'c.estrategica@provexpress.com.co', genero: 'M' },
+  { cargo: 'Jefatura de Operaciones', nombre: 'Jefe de Operaciones', email: 'jefe.operaciones@provexpress.com.co', genero: 'M' },
   { cargo: 'Especialista Preventa', nombre: 'Especialista Preventa', email: 'especialista.preventa@provexpress.com.co', genero: 'M' },
 ];
 

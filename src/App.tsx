@@ -487,7 +487,7 @@ function Dashboard({
   const isRealAdmin = !user || realAccess.role === 'admin' || source === 'local';
 
   // Permiso exclusivo para el módulo de notificaciones comerciales por correo.
-  // Restringido estrictamente a: especialista.preventa@provexpress.com.co y c.estrategica@provexpress.com.co.
+  // Restringido estrictamente a: especialista.preventa@provexpress.com.co, c.estrategica@provexpress.com.co y jefe.operaciones@provexpress.com.co.
   const canNotify = useMemo(() => {
     if (user?.email) {
       if (!canSendNotifications(user.email)) return false;
@@ -1237,6 +1237,7 @@ function Dashboard({
                     <option value="oscar.perez@provexpress.com.co">Óscar Pérez — Gerencia General</option>
                     <option value="rafael.novoa@provexpress.com.co">Rafael Novoa — Gerencia / Grupo Novoa</option>
                     <option value="c.estrategica@provexpress.com.co">Cuentas Estratégicas — Gerencia</option>
+                    <option value="jefe.operaciones@provexpress.com.co">Jefe de Operaciones — Gerencia</option>
                     <option value="especialista.preventa@provexpress.com.co">Especialista Preventa — Gerencia</option>
                     <option value="preventa.software@provexpress.com.co">Preventa Software — Gerencia</option>
                   </optgroup>

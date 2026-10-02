@@ -56,14 +56,14 @@ const excelEmployeesMock = [
 ];
 
 describe('Sistema de permisos y control de acceso corporativo (RBAC)', () => {
-  it('valida que el directorio contenga 7 miembros de gerencia, 3 directores de grupo y 38 ejecutivos', () => {
+  it('valida que el directorio contenga 8 miembros de gerencia, 3 directores de grupo y 38 ejecutivos', () => {
     const gerencia = CORPORATE_DIRECTORY.filter((u) => u.role === 'admin');
     const directors = CORPORATE_DIRECTORY.filter((u) => u.role === 'director');
     const executives = CORPORATE_DIRECTORY.filter((u) => u.role === 'executive');
-    expect(gerencia.length).toBe(7);
+    expect(gerencia.length).toBe(8);
     expect(directors.length).toBe(3);
     expect(executives.length).toBe(38);
-    expect(CORPORATE_DIRECTORY.length).toBe(48);
+    expect(CORPORATE_DIRECTORY.length).toBe(49);
   });
 
   it('resuelve correctamente a los miembros de Gerencia con Acceso Total', () => {
@@ -93,6 +93,11 @@ describe('Sistema de permisos y control de acceso corporativo (RBAC)', () => {
     const preventa = resolveUserAccess('preventa.software@provexpress.com.co', excelDirectorsMock, excelEmployeesMock);
     expect(preventa.role).toBe('admin');
     expect(preventa.isRestricted).toBe(false);
+
+    // 6. Jefe de Operaciones (Gerencia)
+    const operaciones = resolveUserAccess('jefe.operaciones@provexpress.com.co', excelDirectorsMock, excelEmployeesMock);
+    expect(operaciones.role).toBe('admin');
+    expect(operaciones.isRestricted).toBe(false);
   });
 
   it('resuelve correctamente a los directores de grupo bloqueando su dirección', () => {
@@ -156,12 +161,14 @@ describe('Sistema de permisos y control de acceso corporativo (RBAC)', () => {
     expect(local.isRestricted).toBe(false);
   });
 
-  it('restringe el envío de notificaciones comerciales exclusivamente a especialista.preventa y c.estrategica', () => {
+  it('restringe el envío de notificaciones comerciales exclusivamente a especialista.preventa, c.estrategica y jefe.operaciones', () => {
     // Autorizados
     expect(canSendNotifications('especialista.preventa@provexpress.com.co')).toBe(true);
     expect(canSendNotifications('c.estrategica@provexpress.com.co')).toBe(true);
+    expect(canSendNotifications('jefe.operaciones@provexpress.com.co')).toBe(true);
     expect(canSendNotifications('ESPECIALISTA.PREVENTA@PROVEXPRESS.COM.CO')).toBe(true);
     expect(canSendNotifications('  c.estrategica@provexpress.com.co  ')).toBe(true);
+    expect(canSendNotifications('  jefe.operaciones@provexpress.com.co  ')).toBe(true);
 
     // No autorizados (otros administradores, directores, comerciales, nulos)
     expect(canSendNotifications('juannovoa@provexpress.com.co')).toBe(false);
