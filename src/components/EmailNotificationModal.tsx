@@ -371,6 +371,7 @@ export const EmailNotificationModal: React.FC<Props> = ({
             name: g.nombre,
             cargo: g.cargo,
             email: g.email,
+            genero: g.genero,
           });
 
           let excelAttachment;

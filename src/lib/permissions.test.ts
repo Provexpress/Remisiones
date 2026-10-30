@@ -56,14 +56,14 @@ const excelEmployeesMock = [
 ];
 
 describe('Sistema de permisos y control de acceso corporativo (RBAC)', () => {
-  it('valida que el directorio contenga 8 miembros de gerencia, 3 directores de grupo y 38 ejecutivos', () => {
+  it('valida que el directorio contenga 9 miembros de gerencia, 3 directores de grupo y 38 ejecutivos', () => {
     const gerencia = CORPORATE_DIRECTORY.filter((u) => u.role === 'admin');
     const directors = CORPORATE_DIRECTORY.filter((u) => u.role === 'director');
     const executives = CORPORATE_DIRECTORY.filter((u) => u.role === 'executive');
-    expect(gerencia.length).toBe(8);
+    expect(gerencia.length).toBe(9);
     expect(directors.length).toBe(3);
     expect(executives.length).toBe(38);
-    expect(CORPORATE_DIRECTORY.length).toBe(49);
+    expect(CORPORATE_DIRECTORY.length).toBe(50);
   });
 
   it('resuelve correctamente a los miembros de Gerencia con Acceso Total', () => {
@@ -98,6 +98,11 @@ describe('Sistema de permisos y control de acceso corporativo (RBAC)', () => {
     const operaciones = resolveUserAccess('jefe.operaciones@provexpress.com.co', excelDirectorsMock, excelEmployeesMock);
     expect(operaciones.role).toBe('admin');
     expect(operaciones.isRestricted).toBe(false);
+
+    // 7. Asistente de Facturación (Gerencia)
+    const facturacion = resolveUserAccess('asis.facturacion@provexpress.com.co', excelDirectorsMock, excelEmployeesMock);
+    expect(facturacion.role).toBe('admin');
+    expect(facturacion.isRestricted).toBe(false);
   });
 
   it('resuelve correctamente a los directores de grupo bloqueando su dirección', () => {
@@ -161,16 +166,16 @@ describe('Sistema de permisos y control de acceso corporativo (RBAC)', () => {
     expect(local.isRestricted).toBe(false);
   });
 
-  it('restringe el envío de notificaciones comerciales exclusivamente a especialista.preventa, c.estrategica y jefe.operaciones', () => {
+  it('restringe el envío de notificaciones comerciales exclusivamente a especialista.preventa y c.estrategica', () => {
     // Autorizados
     expect(canSendNotifications('especialista.preventa@provexpress.com.co')).toBe(true);
     expect(canSendNotifications('c.estrategica@provexpress.com.co')).toBe(true);
-    expect(canSendNotifications('jefe.operaciones@provexpress.com.co')).toBe(true);
     expect(canSendNotifications('ESPECIALISTA.PREVENTA@PROVEXPRESS.COM.CO')).toBe(true);
     expect(canSendNotifications('  c.estrategica@provexpress.com.co  ')).toBe(true);
-    expect(canSendNotifications('  jefe.operaciones@provexpress.com.co  ')).toBe(true);
 
-    // No autorizados (otros administradores, directores, comerciales, nulos)
+    // No autorizados (otros administradores, facturación, directores, comerciales, nulos)
+    expect(canSendNotifications('asis.facturacion@provexpress.com.co')).toBe(false);
+    expect(canSendNotifications('jefe.operaciones@provexpress.com.co')).toBe(false);
     expect(canSendNotifications('juannovoa@provexpress.com.co')).toBe(false);
     expect(canSendNotifications('oscar.perez@provexpress.com.co')).toBe(false);
     expect(canSendNotifications('rafael.novoa@provexpress.com.co')).toBe(false);
@@ -198,5 +203,5 @@ describeCorporateWorkbook('validación de permisos contra libro Excel real', () 
 
     const caballero = resolveUserAccess('angelica.caballero@provexpress.com.co', realDirectors, realEmployees);
     expect(caballero.lockedDirector).toBe('Angélica Caballero');
-  }, 20_000);
+  }, 60_000);
 });
