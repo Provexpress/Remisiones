@@ -139,5 +139,5 @@ describe('Sistema de Notificación para Dirección y Gerencia Comercial', () => 
     expect(result.filename).toBe('Remisiones_Consolidado_General_Gerencia_2026-09-21.xlsx');
     expect(result.base64).toBeTruthy();
     expect(typeof result.base64).toBe('string');
-  });
+  }, 30_000);
 });

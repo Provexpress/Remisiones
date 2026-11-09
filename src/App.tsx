@@ -78,6 +78,14 @@ import type { AgeBreakdownItem, DailyPoint, DataSource, FileMetadata, InitialCoh
 import { EmailNotificationModal } from './components/EmailNotificationModal';
 import { LiveMonitorView } from './components/LiveMonitorView';
 import { syncLiveRemisiones, buildWorkbookFromSupabase, type LiveProduct } from './lib/remisionesApi';
+import {
+  extractPeriodStructure,
+  filterCutoffsByPeriod,
+  getPeriodDescription,
+  type PeriodFilterState,
+  type PeriodStructure,
+} from './lib/periodFilter';
+import { PeriodFilterControl } from './components/PeriodFilterControl';
 
 type Phase = 'welcome' | 'loading' | 'ready' | 'error';
 type View = 'evolucion' | 'gestion' | 'live' | 'detail';
@@ -645,8 +653,29 @@ function Dashboard({
     [daily, cutoff],
   );
 
+  // ── Filtro de Periodos (Mes & Semana) para Trazabilidad y Desmonte ──
+  const periodStructure = useMemo(
+    () => extractPeriodStructure(data.cutoffs),
+    [data.cutoffs],
+  );
+
+  const [managementPeriodFilter, setManagementPeriodFilter] = useState<PeriodFilterState>({
+    mode: 'current-week',
+    monthKey: 'all',
+    weekKey: 'all',
+  });
+
+  const filteredDaily = useMemo(() => {
+    const matchingCutoffs = new Set(
+      filterCutoffsByPeriod(data.cutoffs, managementPeriodFilter, periodStructure),
+    );
+    const matched = daily.filter((d) => matchingCutoffs.has(d.cutoff));
+    return matched.length > 0 ? matched : daily;
+  }, [daily, data.cutoffs, managementPeriodFilter, periodStructure]);
+
   const managementTimelineTotals = useMemo(() => {
-    const operationalDays = daily.filter((d) => d.cutoff !== EVOLUCION_CUTOFF);
+    const targetDaily = filteredDaily.length > 0 ? filteredDaily : daily;
+    const operationalDays = targetDaily.filter((d) => d.cutoff !== EVOLUCION_CUTOFF);
     const totalMoneyEntered = operationalDays.reduce((sum, d) => sum + (d.newValue || 0), 0);
     const totalDocsEntered = operationalDays.reduce((sum, d) => sum + (d.newCount || 0), 0);
     const totalMoneyExited = operationalDays.reduce((sum, d) => sum + (d.withdrawn || 0), 0);
@@ -664,7 +693,7 @@ function Dashboard({
       netPeriodDelta,
       isNetPeriodDown: netPeriodDelta < 0,
     };
-  }, [daily, EVOLUCION_CUTOFF]);
+  }, [filteredDaily, daily, EVOLUCION_CUTOFF]);
 
   const initialCohortSeries = useMemo(
     () => buildInitialCohortSeries(periodRecords, initialCutoffDate),
@@ -1615,6 +1644,8 @@ function Dashboard({
               withdrawnCount={filteredWithdrawnDetails.length}
               onDownloadExcel={handleDownloadWithdrawnExcel}
               isExportingExcel={isExportingWithdrawn}
+              cutoffs={data.cutoffs}
+              periodStructure={periodStructure}
             />
 
             {/* 4 Módulos de análisis aplicados a la BASE INICIAL */}
@@ -2233,7 +2264,7 @@ function Dashboard({
                           <CheckCircle2 size={13} />
                           <span>Trazabilidad Operativa Día a Día</span>
                         </div>
-                        <h3>Seguimiento Cronológico: Desde 04/09/2026 al día de hoy</h3>
+                        <h3>Seguimiento Cronológico: {getPeriodDescription(managementPeriodFilter, periodStructure, filteredDaily.length)}</h3>
                         <small>Cada fila muestra cuántas remisiones entraron, cuántas salieron y si el saldo del portafolio activo subió o bajó.</small>
                       </div>
                       <div className="mgmt-legend-row">
@@ -2243,6 +2274,17 @@ function Dashboard({
                         <span className="mgmt-legend-item out-legend">⬇ Salieron</span>
                       </div>
                     </div>
+
+                    {/* Filtro agradable por Mes y Semana */}
+                    <PeriodFilterControl
+                      filter={managementPeriodFilter}
+                      onChangeFilter={setManagementPeriodFilter}
+                      structure={periodStructure}
+                      visibleDaysCount={filteredDaily.length}
+                      totalDaysCount={daily.length}
+                      theme="green"
+                      title="Filtrar Trazabilidad Operativa"
+                    />
 
                     {/* Tarjetas de Resumen Operativo: Total Dinero Entrado y Total Dinero Salido */}
                     <div className="timeline-summary-cards">
@@ -2296,7 +2338,7 @@ function Dashboard({
                     </div>
 
                     <div className="mgmt-day-cards-list">
-                      {daily.map((pt, idx, arr) => {
+                      {filteredDaily.map((pt, idx, arr) => {
                         const isSelected = pt.cutoff === cutoff;
                         const isLatest = idx === arr.length - 1 && arr.length > 1;
                         const isInitial = pt.cutoff === EVOLUCION_CUTOFF;
@@ -2870,6 +2912,9 @@ function Dashboard({
             saldoAnterior={liveSaldoAnterior}
             saldoAnteriorCount={liveSaldoAnteriorCount}
             corteAnteriorFecha={liveCorteAnteriorFecha}
+            daily={daily}
+            allRecords={data.records}
+            cutoffs={data.cutoffs}
           />
         )}
 
@@ -3295,6 +3340,8 @@ function InitialCohortEvolutionSection({
   withdrawnCount,
   onDownloadExcel,
   isExportingExcel,
+  cutoffs,
+  periodStructure,
 }: {
   cohort: InitialCohortPoint[];
   currentCutoff: string;
@@ -3302,12 +3349,39 @@ function InitialCohortEvolutionSection({
   withdrawnCount?: number;
   onDownloadExcel?: () => void;
   isExportingExcel?: boolean;
+  cutoffs?: string[];
+  periodStructure?: PeriodStructure;
 }) {
   const [chartMode, setChartMode] = useState<'both' | 'money' | 'docs'>('both');
   const initialPoint = cohort[0];
   const currentCohortPoint = cohort.find((c) => c.cutoff === currentCutoff) || cohort.at(-1);
   const latestCohortPoint = cohort[cohort.length - 1] || initialPoint;
   const isMultipleDays = cohort.length > 1;
+
+  // ── Filtro de Periodos (Mes & Semana) para Desmonte ──
+  const [desmontePeriodFilter, setDesmontePeriodFilter] = useState<PeriodFilterState>({
+    mode: 'current-week',
+    monthKey: 'all',
+    weekKey: 'all',
+  });
+
+  const effectiveStructure = useMemo(
+    () => periodStructure || extractPeriodStructure(cohort.map((c) => c.cutoff)),
+    [periodStructure, cohort],
+  );
+
+  const effectiveCutoffs = useMemo(
+    () => cutoffs || cohort.map((c) => c.cutoff),
+    [cutoffs, cohort],
+  );
+
+  const filteredCohort = useMemo(() => {
+    const matchingCutoffs = new Set(
+      filterCutoffsByPeriod(effectiveCutoffs, desmontePeriodFilter, effectiveStructure),
+    );
+    const matched = cohort.filter((pt) => matchingCutoffs.has(pt.cutoff));
+    return matched.length > 0 ? matched : cohort;
+  }, [cohort, effectiveCutoffs, desmontePeriodFilter, effectiveStructure]);
 
   const yDomainCohortValue = useMemo(() => {
     const vals = cohort.map((d) => d.stillOpenPending).filter((v) => Number.isFinite(v) && v > 0);
@@ -3614,7 +3688,7 @@ function InitialCohortEvolutionSection({
                 <CalendarRange size={13} />
                 <span>Desmonte de la Base Inicial Día a Día</span>
               </div>
-              <h3>Seguimiento Cronológico del Desmonte ({formatCutoff(initialPoint.cutoff)})</h3>
+              <h3>Seguimiento Cronológico del Desmonte: {getPeriodDescription(desmontePeriodFilter, effectiveStructure, filteredCohort.length)}</h3>
               <small>Evolución corte a corte de las remisiones entregadas inicialmente: saldo restante y remisiones salientes.</small>
             </div>
             <div className="mgmt-header-actions-row">
@@ -3636,6 +3710,23 @@ function InitialCohortEvolutionSection({
               )}
             </div>
           </div>
+
+          {/* Filtro agradable por Mes y Semana para Desmonte */}
+          <PeriodFilterControl
+            filter={desmontePeriodFilter}
+            onChangeFilter={setDesmontePeriodFilter}
+            structure={effectiveStructure}
+            visibleDaysCount={filteredCohort.length}
+            totalDaysCount={cohort.length}
+            theme="purple"
+            title="Filtrar Desmonte de la Base Inicial"
+          />
+
+          {filteredCohort.length > 0 && !filteredCohort.some((p) => p.cutoff === initialPoint.cutoff) && (
+            <div className="desmonte-baseline-reminder">
+              <span>📌 <b>Base Inicial Entregada:</b> {formatCutoff(initialPoint.cutoff)} · Saldo de arranque <b>{currency.format(initialPoint.initialPending)}</b> ({number.format(initialPoint.initialCount)} remisiones abiertas iniciales)</span>
+            </div>
+          )}
 
           {/* Tarjetas de Resumen del Desmonte: Cuántas han salido y total de dinero bajado */}
           <div className="timeline-summary-cards">
@@ -3680,7 +3771,7 @@ function InitialCohortEvolutionSection({
           </div>
 
           <div className="mgmt-day-cards-list">
-            {cohort.map((pt, idx, arr) => {
+            {filteredCohort.map((pt, idx, arr) => {
               const isSelected = pt.cutoff === currentCutoff;
               const isInitial = pt.cutoff === initialPoint.cutoff;
               const isLatest = idx === arr.length - 1 && arr.length > 1;

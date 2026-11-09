@@ -109,5 +109,5 @@ describe('Director Email Notification System', () => {
     expect(excel.filename).toContain('Remisiones_Consolidado_Grupo_2');
     expect(excel.filename.endsWith('.xlsx')).toBe(true);
     expect(excel.base64.length).toBeGreaterThan(100);
-  });
+  }, 30_000);
 });

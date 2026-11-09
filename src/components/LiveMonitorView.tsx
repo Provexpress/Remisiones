@@ -10,10 +10,21 @@ import {
   Building2,
   Download,
   CheckCircle2,
+  Calendar,
+  DollarSign,
 } from 'lucide-react';
-import type { Remision } from '../types';
+import type { Remision, DailyPoint } from '../types';
 import type { LiveProduct } from '../lib/remisionesApi';
 import { resolveCommercialOrDirector } from '../lib/commercialDirectory';
+import { formatCutoff } from '../lib/remisiones';
+import {
+  extractPeriodStructure,
+  filterCutoffsByPeriod,
+  extractWithdrawnRecordsForCutoffs,
+  getPeriodDescription,
+  type PeriodFilterState,
+} from '../lib/periodFilter';
+import { PeriodFilterControl } from './PeriodFilterControl';
 
 const DIR_BY_GRUPO: Record<number, string> = {
   1: 'Rafael Novoa',
@@ -48,6 +59,9 @@ interface LiveMonitorViewProps {
   saldoAnterior?: number;
   saldoAnteriorCount?: number;
   corteAnteriorFecha?: string;
+  daily?: DailyPoint[];
+  allRecords?: Remision[];
+  cutoffs?: string[];
 }
 
 const currencyFmt = new Intl.NumberFormat('es-CO', {
@@ -55,6 +69,27 @@ const currencyFmt = new Intl.NumberFormat('es-CO', {
   currency: 'COP',
   maximumFractionDigits: 0,
 });
+
+const numberFormat = new Intl.NumberFormat('es-CO');
+
+export interface LiveListItem {
+  document: string;
+  order: string;
+  company: string;
+  nit: string;
+  employee: string;
+  director: string;
+  group?: number | null;
+  total: number;
+  merchandise?: number;
+  tax?: number;
+  issuedAt: string;
+  age?: number;
+  status?: string;
+  alert?: string;
+  exitCutoff?: string;
+  id?: string;
+}
 
 export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
   records,
@@ -64,31 +99,103 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
   isLoading,
   onSync,
   productsMap,
+  daily = [],
+  allRecords = [],
+  cutoffs = [],
 }) => {
   const [activeTab, setActiveTab] = useState<'salientes' | 'entrantes' | 'vivas'>('salientes');
   const [selectedDirector, setSelectedDirector] = useState<string>('Todos');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedProductRemision, setSelectedProductRemision] = useState<Remision | null>(null);
+  const [selectedProductRemision, setSelectedProductRemision] = useState<LiveListItem | null>(null);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
-  // Totales
+  // ── Filtro de Periodos (Mes & Semana) ──
+  const periodStructure = useMemo(
+    () => extractPeriodStructure(cutoffs),
+    [cutoffs],
+  );
+
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilterState>({
+    mode: 'current-week',
+    monthKey: 'all',
+    weekKey: 'all',
+  });
+
+  const targetCutoffs = useMemo(() => {
+    return filterCutoffsByPeriod(cutoffs, periodFilter, periodStructure);
+  }, [cutoffs, periodFilter, periodStructure]);
+
+  // Totales inmediatos del corte en vivo
   const totalSalientesValor = useMemo(() => salientes.reduce((s, r) => s + (r.total || 0), 0), [salientes]);
   const totalEntrantesValor = useMemo(() => entrantes.reduce((s, r) => s + (r.total || 0), 0), [entrantes]);
   const totalVivasValor = useMemo(() => records.reduce((s, r) => s + (r.total || 0), 0), [records]);
 
+  // 1. Total Salido acumulado en el MES ACTUAL (la vista/métrica solicitada por el usuario)
+  const currentMonthSalientes = useMemo(() => {
+    const mKey = periodStructure.currentMonthKey;
+    const monthDays = (daily || []).filter((d) => d.cutoff.startsWith(mKey));
+    const totalFromDaily = monthDays.reduce((sum, d) => sum + (d.withdrawn || 0), 0);
+    const countFromDaily = monthDays.reduce((sum, d) => sum + (d.withdrawnCount || 0), 0);
+    const todayCutoff = cutoffs.at(-1) || '';
+    const alreadyInDaily = monthDays.some((d) => d.cutoff === todayCutoff);
+    const liveExtraValor = alreadyInDaily ? 0 : totalSalientesValor;
+    const liveExtraCount = alreadyInDaily ? 0 : salientes.length;
+    return {
+      totalMoney: totalFromDaily + liveExtraValor,
+      totalCount: countFromDaily + liveExtraCount,
+      monthLabel: periodStructure.currentMonthLabel,
+    };
+  }, [daily, periodStructure, cutoffs, totalSalientesValor, salientes.length]);
+
+  // 2. Total Salido en el periodo seleccionado (semana, mes o personalizado)
+  const periodSalientesTotals = useMemo(() => {
+    const targetSet = new Set(targetCutoffs);
+    const matchingDays = (daily || []).filter((d) => targetSet.has(d.cutoff));
+    const totalFromDaily = matchingDays.reduce((sum, d) => sum + (d.withdrawn || 0), 0);
+    const countFromDaily = matchingDays.reduce((sum, d) => sum + (d.withdrawnCount || 0), 0);
+    const todayCutoff = cutoffs.at(-1) || '';
+    const includesToday = targetSet.has(todayCutoff);
+    const alreadyInDaily = matchingDays.some((d) => d.cutoff === todayCutoff);
+    const extraMoney = (includesToday && !alreadyInDaily) ? totalSalientesValor : 0;
+    const extraCount = (includesToday && !alreadyInDaily) ? salientes.length : 0;
+    return {
+      totalMoney: totalFromDaily + extraMoney,
+      totalCount: countFromDaily + extraCount,
+    };
+  }, [daily, targetCutoffs, cutoffs, totalSalientesValor, salientes.length]);
+
+  // 3. Remisiones salientes que corresponden al periodo filtrado
+  const periodWithdrawnRecords = useMemo<LiveListItem[]>(() => {
+    if (!allRecords.length || !cutoffs.length) return salientes;
+    const historical = extractWithdrawnRecordsForCutoffs(allRecords, cutoffs, targetCutoffs);
+    const todayCutoff = cutoffs.at(-1) || '';
+    const targetSet = new Set(targetCutoffs);
+    if (targetSet.has(todayCutoff) && salientes.length > 0) {
+      const histDocs = new Set(historical.map((r) => r.document));
+      const todayExtra: LiveListItem[] = salientes
+        .filter((r) => !histDocs.has(r.document))
+        .map((r) => ({
+          ...r,
+          exitCutoff: todayCutoff,
+        }));
+      return [...todayExtra, ...historical];
+    }
+    return historical.length > 0 ? historical : salientes;
+  }, [allRecords, cutoffs, targetCutoffs, salientes]);
+
   // Lista de directores para filtrar
   const directorsList = useMemo(() => {
     const set = new Set<string>();
-    [...salientes, ...entrantes, ...records].forEach((r) => {
+    [...periodWithdrawnRecords, ...entrantes, ...records].forEach((r) => {
       const d = getRecordDirector(r);
       if (d && d !== 'Sin asignar') set.add(d);
     });
     return ['Todos', ...Array.from(set).sort()];
-  }, [salientes, entrantes, records]);
+  }, [periodWithdrawnRecords, entrantes, records]);
 
   // Filtrado de la lista activa
-  const currentList = useMemo(() => {
-    let baseList = activeTab === 'salientes' ? salientes : activeTab === 'entrantes' ? entrantes : records;
+  const currentList = useMemo<LiveListItem[]>(() => {
+    let baseList: LiveListItem[] = activeTab === 'salientes' ? periodWithdrawnRecords : activeTab === 'entrantes' ? entrantes : records;
 
     if (selectedDirector !== 'Todos') {
       baseList = baseList.filter((r) => getRecordDirector(r) === selectedDirector);
@@ -105,7 +212,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
         r.employee?.toLowerCase().includes(q) ||
         getRecordDirector(r).toLowerCase().includes(q),
     );
-  }, [activeTab, salientes, entrantes, records, selectedDirector, searchTerm]);
+  }, [activeTab, periodWithdrawnRecords, entrantes, records, selectedDirector, searchTerm]);
 
   const activeProducts = useMemo(() => {
     if (!selectedProductRemision || !productsMap) return [];
@@ -144,6 +251,9 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
         { header: 'Vr. Total', key: 'total', width: 18 },
         { header: 'Fecha Emisión', key: 'issuedAt', width: 16 },
         { header: 'Días', key: 'age', width: 12 },
+        ...(activeTab === 'salientes'
+          ? [{ header: 'Fecha Salida', key: 'exitCutoff', width: 16 }]
+          : []),
         { header: 'Movimiento', key: 'tipo', width: 22 },
       ];
 
@@ -154,6 +264,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
       headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
 
       currentList.forEach((r, idx) => {
+        const exitDate = (r as any).exitCutoff;
         const row = worksheet.addRow({
           rank: idx + 1,
           document: r.document,
@@ -165,6 +276,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
           total: r.total || 0,
           issuedAt: r.issuedAt,
           age: r.age,
+          exitCutoff: exitDate ? formatCutoff(exitDate) : 'Hoy (En Vivo)',
           tipo:
             activeTab === 'salientes'
               ? 'SALIÓ (FACTURADA)'
@@ -181,6 +293,9 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
         row.getCell('order').alignment = { horizontal: 'center' };
         row.getCell('issuedAt').alignment = { horizontal: 'center' };
         row.getCell('age').alignment = { horizontal: 'center' };
+        if (activeTab === 'salientes') {
+          row.getCell('exitCutoff').alignment = { horizontal: 'center' };
+        }
         row.getCell('tipo').alignment = { horizontal: 'center' };
       });
 
@@ -269,16 +384,27 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
         </button>
       </div>
 
-      {/* 2. Tarjetas Operativas Directas (Solo Qué Salió, Qué Entró y Qué Hay) */}
+      {/* 2. Filtro agradable por Mes y Semana para el Monitor en Vivo */}
+      <PeriodFilterControl
+        filter={periodFilter}
+        onChangeFilter={setPeriodFilter}
+        structure={periodStructure}
+        visibleDaysCount={targetCutoffs.length}
+        totalDaysCount={cutoffs.length}
+        theme="blue"
+        title="Filtrar movimientos En Vivo"
+      />
+
+      {/* 3. Tarjetas Operativas (Lo que Salió en el Periodo, Total Salido en el Mes, Lo que Entró y Qué Hay) */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
           gap: '16px',
           marginBottom: '20px',
         }}
       >
-        {/* Tarjeta 1: LO QUE SALIÓ */}
+        {/* Tarjeta 1: LO QUE SALIÓ EN EL PERIODO FILTRADO */}
         <div
           onClick={() => setActiveTab('salientes')}
           style={{
@@ -292,13 +418,13 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#15803D', textTransform: 'uppercase' }}>
-              🟢 Lo que Salió (Facturadas)
+            <span style={{ fontSize: '12px', fontWeight: 800, color: '#15803D', textTransform: 'uppercase' }}>
+              🟢 Lo que Salió ({periodFilter.mode === 'current-week' ? 'Esta Semana' : periodFilter.mode === 'current-month' ? 'En el Mes' : periodFilter.mode === 'all' ? 'Histórico' : 'Periodo'})
             </span>
             <div
               style={{
-                width: '34px',
-                height: '34px',
+                width: '32px',
+                height: '32px',
                 borderRadius: '8px',
                 backgroundColor: '#DCFCE7',
                 display: 'flex',
@@ -307,21 +433,67 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
                 color: '#16A34A',
               }}
             >
-              <ArrowUpRight size={20} />
+              <ArrowUpRight size={18} />
             </div>
           </div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#166534', marginBottom: '4px' }}>
-            {currencyFmt.format(totalSalientesValor)}
+          <div style={{ fontSize: '24px', fontWeight: 800, color: '#166534', marginBottom: '4px' }}>
+            {currencyFmt.format(periodSalientesTotals.totalMoney > 0 ? periodSalientesTotals.totalMoney : totalSalientesValor)}
           </div>
           <div style={{ fontSize: '13px', fontWeight: 700, color: '#15803D' }}>
-            {salientes.length} remisiones que salieron
+            {periodWithdrawnRecords.length} remisiones que salieron
           </div>
           <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
             Ya no están pendientes (fueron facturadas/cobradas)
           </div>
         </div>
 
-        {/* Tarjeta 2: LO QUE ENTRÓ */}
+        {/* Tarjeta 2: VISTA TOTAL QUE HA SALIDO EN EL MES (Acumulado Mensual Solicitado) */}
+        <div
+          onClick={() => {
+            setPeriodFilter({ mode: 'current-month', monthKey: periodStructure.currentMonthKey, weekKey: 'all' });
+            setActiveTab('salientes');
+          }}
+          style={{
+            backgroundColor: (activeTab === 'salientes' && periodFilter.mode === 'current-month') ? '#F0FDF4' : '#FFFFFF',
+            border: (activeTab === 'salientes' && periodFilter.mode === 'current-month') ? '2px solid #16A34A' : '1px solid #E2E8F0',
+            borderRadius: '14px',
+            padding: '18px 20px',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+          }}
+          title={`Ver todas las remisiones que han salido en ${currentMonthSalientes.monthLabel}`}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 800, color: '#047857', textTransform: 'uppercase' }}>
+              💰 Total Salido en el Mes
+            </span>
+            <span
+              style={{
+                fontSize: '10.5px',
+                fontWeight: 750,
+                backgroundColor: '#ECFDF5',
+                color: '#065F46',
+                border: '1px solid #A7F3D0',
+                padding: '2px 8px',
+                borderRadius: '999px',
+              }}
+            >
+              {currentMonthSalientes.monthLabel}
+            </span>
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: '#065F46', marginBottom: '4px' }}>
+            {currencyFmt.format(currentMonthSalientes.totalMoney)}
+          </div>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#047857' }}>
+            {numberFormat.format(currentMonthSalientes.totalCount)} remisiones facturadas
+          </div>
+          <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
+            Facturación acumulada en {currentMonthSalientes.monthLabel}
+          </div>
+        </div>
+
+        {/* Tarjeta 3: LO QUE ENTRÓ */}
         <div
           onClick={() => setActiveTab('entrantes')}
           style={{
@@ -335,13 +507,13 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#1D4ED8', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '12px', fontWeight: 800, color: '#1D4ED8', textTransform: 'uppercase' }}>
               🔵 Lo que Entró (Nuevas)
             </span>
             <div
               style={{
-                width: '34px',
-                height: '34px',
+                width: '32px',
+                height: '32px',
                 borderRadius: '8px',
                 backgroundColor: '#DBEAFE',
                 display: 'flex',
@@ -350,10 +522,10 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
                 color: '#2563EB',
               }}
             >
-              <ArrowDownLeft size={20} />
+              <ArrowDownLeft size={18} />
             </div>
           </div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#1E40AF', marginBottom: '4px' }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: '#1E40AF', marginBottom: '4px' }}>
             {currencyFmt.format(totalEntrantesValor)}
           </div>
           <div style={{ fontSize: '13px', fontWeight: 700, color: '#1D4ED8' }}>
@@ -364,7 +536,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
           </div>
         </div>
 
-        {/* Tarjeta 3: TODAS LAS ACTIVAS */}
+        {/* Tarjeta 4: TODAS LAS ACTIVAS */}
         <div
           onClick={() => setActiveTab('vivas')}
           style={{
@@ -378,13 +550,13 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '12px', fontWeight: 800, color: '#0F172A', textTransform: 'uppercase' }}>
               📋 Todas las Activas en ERP
             </span>
             <div
               style={{
-                width: '34px',
-                height: '34px',
+                width: '32px',
+                height: '32px',
                 borderRadius: '8px',
                 backgroundColor: '#F1F5F9',
                 display: 'flex',
@@ -393,10 +565,10 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
                 color: '#334155',
               }}
             >
-              <Package size={20} />
+              <Package size={18} />
             </div>
           </div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>
             {currencyFmt.format(totalVivasValor)}
           </div>
           <div style={{ fontSize: '13px', fontWeight: 700, color: '#475569' }}>
@@ -408,7 +580,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
         </div>
       </div>
 
-      {/* 3. Barra de Controles: Selector de Pestaña + Filtro Director + Buscador + Excel */}
+      {/* 4. Barra de Controles: Selector de Pestaña + Filtro Director + Buscador + Excel */}
       <div
         style={{
           display: 'flex',
@@ -439,7 +611,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
               transition: 'all 0.15s ease',
             }}
           >
-            🟢 Lo que Salió ({salientes.length})
+            🟢 Lo que Salió ({periodWithdrawnRecords.length})
           </button>
           <button
             onClick={() => setActiveTab('entrantes')}
@@ -601,6 +773,9 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
                 <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Comercial</th>
                 <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Director</th>
                 <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Fecha Emisión</th>
+                {activeTab === 'salientes' && (
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#166534' }}>Fecha Salida</th>
+                )}
                 <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569', textAlign: 'right' }}>
                   Valor ($)
                 </th>
@@ -612,7 +787,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
             <tbody>
               {currentList.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#94A3B8' }}>
+                  <td colSpan={activeTab === 'salientes' ? 9 : 8} style={{ padding: '40px', textAlign: 'center', color: '#94A3B8' }}>
                     No hay remisiones para mostrar con los filtros aplicados.
                   </td>
                 </tr>
@@ -620,6 +795,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
                 currentList.map((r, i) => {
                   const num = parseInt(r.document.replace(/\D/g, ''), 10);
                   const prods = productsMap?.get(num) || [];
+                  const exitDate = (r as any).exitCutoff;
 
                   return (
                     <tr
@@ -689,6 +865,11 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
                       <td style={{ padding: '12px 16px', color: '#64748B', whiteSpace: 'nowrap' }}>
                         {r.issuedAt} ({r.age} d)
                       </td>
+                      {activeTab === 'salientes' && (
+                        <td style={{ padding: '12px 16px', color: '#166534', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          {exitDate ? formatCutoff(exitDate) : 'Hoy (En Vivo)'}
+                        </td>
+                      )}
                       <td
                         style={{
                           padding: '12px 16px',

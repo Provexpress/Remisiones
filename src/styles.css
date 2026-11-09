@@ -3950,3 +3950,173 @@ th.numeric, td.numeric { text-align: right; }
   color: #2563eb;
   flex-shrink: 0;
 }
+
+/* ─── BARRA DE FILTRADO DE PERIODOS (MES & SEMANA) ─── */
+.period-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-top: 10px;
+  margin-bottom: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.period-filter-bar.theme-green {
+  border-left: 3px solid #22c55e;
+}
+
+.period-filter-bar.theme-purple {
+  border-left: 3px solid #8b5cf6;
+}
+
+.period-filter-bar.theme-blue {
+  border-left: 3px solid #2563eb;
+}
+
+.period-filter-pills-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.period-filter-label-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #64748b;
+  margin-right: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.period-filter-icon {
+  color: #64748b;
+}
+
+.period-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.period-pill-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.theme-green .period-pill-btn.active {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+  font-weight: 750;
+  box-shadow: 0 1px 2px rgba(22, 163, 74, 0.12);
+}
+
+.theme-purple .period-pill-btn.active {
+  background: #f3e8ff;
+  border-color: #d8b4fe;
+  color: #7e22ce;
+  font-weight: 750;
+  box-shadow: 0 1px 2px rgba(126, 34, 206, 0.12);
+}
+
+.theme-blue .period-pill-btn.active {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  font-weight: 750;
+  box-shadow: 0 1px 2px rgba(29, 78, 216, 0.12);
+}
+
+.period-filter-selects-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px dashed #edf2f7;
+}
+
+.period-select-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.period-select-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.period-select-box {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.period-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  padding: 4px 26px 4px 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  height: 28px;
+  transition: all 0.15s;
+}
+
+.period-select:hover {
+  background: #ffffff;
+  border-color: #94a3b8;
+}
+
+.period-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.period-select-chevron {
+  position: absolute;
+  right: 8px;
+  pointer-events: none;
+  color: #64748b;
+}
+
+.period-counter-badge {
+  margin-left: auto;
+  font-size: 11px;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.period-counter-badge b {
+  color: #0f172a;
+}
