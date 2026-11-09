@@ -12,19 +12,13 @@ import {
   CheckCircle2,
   Calendar,
   DollarSign,
+  ChevronDown,
 } from 'lucide-react';
 import type { Remision, DailyPoint } from '../types';
 import type { LiveProduct } from '../lib/remisionesApi';
 import { resolveCommercialOrDirector } from '../lib/commercialDirectory';
 import { formatCutoff } from '../lib/remisiones';
-import {
-  extractPeriodStructure,
-  filterCutoffsByPeriod,
-  extractWithdrawnRecordsForCutoffs,
-  getPeriodDescription,
-  type PeriodFilterState,
-} from '../lib/periodFilter';
-import { PeriodFilterControl } from './PeriodFilterControl';
+import { extractPeriodStructure } from '../lib/periodFilter';
 
 const DIR_BY_GRUPO: Record<number, string> = {
   1: 'Rafael Novoa',
@@ -109,93 +103,66 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
   const [selectedProductRemision, setSelectedProductRemision] = useState<LiveListItem | null>(null);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
-  // ── Filtro de Periodos (Mes & Semana) ──
+  // ── Selección del Mes para métricas consolidadas ──
   const periodStructure = useMemo(
     () => extractPeriodStructure(cutoffs),
     [cutoffs],
   );
 
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilterState>({
-    mode: 'current-week',
-    monthKey: 'all',
-    weekKey: 'all',
-  });
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>('');
+  const activeMonthKey = selectedMonthKey || periodStructure.currentMonthKey;
 
-  const targetCutoffs = useMemo(() => {
-    return filterCutoffsByPeriod(cutoffs, periodFilter, periodStructure);
-  }, [cutoffs, periodFilter, periodStructure]);
-
-  // Totales inmediatos del corte en vivo
+  // Totales inmediatos del corte en vivo (Hoy)
   const totalSalientesValor = useMemo(() => salientes.reduce((s, r) => s + (r.total || 0), 0), [salientes]);
   const totalEntrantesValor = useMemo(() => entrantes.reduce((s, r) => s + (r.total || 0), 0), [entrantes]);
   const totalVivasValor = useMemo(() => records.reduce((s, r) => s + (r.total || 0), 0), [records]);
 
-  // 1. Total Salido acumulado en el MES ACTUAL (la vista/métrica solicitada por el usuario)
-  const currentMonthSalientes = useMemo(() => {
-    const mKey = periodStructure.currentMonthKey;
+  // Métricas acumuladas del mes seleccionado (Salidas y Entradas del Mes)
+  const monthlyMetrics = useMemo(() => {
+    const mKey = activeMonthKey;
+    const monthOption = periodStructure.months.find((m) => m.key === mKey) || periodStructure.months[0];
+    const monthLabel = monthOption?.label || 'Mes Actual';
+
     const monthDays = (daily || []).filter((d) => d.cutoff.startsWith(mKey));
-    const totalFromDaily = monthDays.reduce((sum, d) => sum + (d.withdrawn || 0), 0);
-    const countFromDaily = monthDays.reduce((sum, d) => sum + (d.withdrawnCount || 0), 0);
+    const totalSalidoFromDaily = monthDays.reduce((sum, d) => sum + (d.withdrawn || 0), 0);
+    const countSalidoFromDaily = monthDays.reduce((sum, d) => sum + (d.withdrawnCount || 0), 0);
+    const totalEntradoFromDaily = monthDays.reduce((sum, d) => sum + (d.newValue || 0), 0);
+    const countEntradoFromDaily = monthDays.reduce((sum, d) => sum + (d.newCount || 0), 0);
+
     const todayCutoff = cutoffs.at(-1) || '';
+    const isCurrentMonth = mKey === periodStructure.currentMonthKey;
     const alreadyInDaily = monthDays.some((d) => d.cutoff === todayCutoff);
-    const liveExtraValor = alreadyInDaily ? 0 : totalSalientesValor;
-    const liveExtraCount = alreadyInDaily ? 0 : salientes.length;
-    return {
-      totalMoney: totalFromDaily + liveExtraValor,
-      totalCount: countFromDaily + liveExtraCount,
-      monthLabel: periodStructure.currentMonthLabel,
-    };
-  }, [daily, periodStructure, cutoffs, totalSalientesValor, salientes.length]);
 
-  // 2. Total Salido en el periodo seleccionado (semana, mes o personalizado)
-  const periodSalientesTotals = useMemo(() => {
-    const targetSet = new Set(targetCutoffs);
-    const matchingDays = (daily || []).filter((d) => targetSet.has(d.cutoff));
-    const totalFromDaily = matchingDays.reduce((sum, d) => sum + (d.withdrawn || 0), 0);
-    const countFromDaily = matchingDays.reduce((sum, d) => sum + (d.withdrawnCount || 0), 0);
-    const todayCutoff = cutoffs.at(-1) || '';
-    const includesToday = targetSet.has(todayCutoff);
-    const alreadyInDaily = matchingDays.some((d) => d.cutoff === todayCutoff);
-    const extraMoney = (includesToday && !alreadyInDaily) ? totalSalientesValor : 0;
-    const extraCount = (includesToday && !alreadyInDaily) ? salientes.length : 0;
-    return {
-      totalMoney: totalFromDaily + extraMoney,
-      totalCount: countFromDaily + extraCount,
-    };
-  }, [daily, targetCutoffs, cutoffs, totalSalientesValor, salientes.length]);
+    const liveExtraSalidoValor = (isCurrentMonth && !alreadyInDaily) ? totalSalientesValor : 0;
+    const liveExtraSalidoCount = (isCurrentMonth && !alreadyInDaily) ? salientes.length : 0;
+    const liveExtraEntradoValor = (isCurrentMonth && !alreadyInDaily) ? totalEntrantesValor : 0;
+    const liveExtraEntradoCount = (isCurrentMonth && !alreadyInDaily) ? entrantes.length : 0;
 
-  // 3. Remisiones salientes que corresponden al periodo filtrado
-  const periodWithdrawnRecords = useMemo<LiveListItem[]>(() => {
-    if (!allRecords.length || !cutoffs.length) return salientes;
-    const historical = extractWithdrawnRecordsForCutoffs(allRecords, cutoffs, targetCutoffs);
-    const todayCutoff = cutoffs.at(-1) || '';
-    const targetSet = new Set(targetCutoffs);
-    if (targetSet.has(todayCutoff) && salientes.length > 0) {
-      const histDocs = new Set(historical.map((r) => r.document));
-      const todayExtra: LiveListItem[] = salientes
-        .filter((r) => !histDocs.has(r.document))
-        .map((r) => ({
-          ...r,
-          exitCutoff: todayCutoff,
-        }));
-      return [...todayExtra, ...historical];
-    }
-    return historical.length > 0 ? historical : salientes;
-  }, [allRecords, cutoffs, targetCutoffs, salientes]);
+    return {
+      monthKey: mKey,
+      monthLabel,
+      totalSalidoMoney: totalSalidoFromDaily + liveExtraSalidoValor,
+      totalSalidoCount: countSalidoFromDaily + liveExtraSalidoCount,
+      totalEntradoMoney: totalEntradoFromDaily + liveExtraEntradoValor,
+      totalEntradoCount: countEntradoFromDaily + liveExtraEntradoCount,
+      daysCount: monthDays.length + (isCurrentMonth && !alreadyInDaily ? 1 : 0),
+    };
+  }, [activeMonthKey, periodStructure, daily, cutoffs, totalSalientesValor, salientes.length, totalEntrantesValor, entrantes.length]);
 
   // Lista de directores para filtrar
   const directorsList = useMemo(() => {
     const set = new Set<string>();
-    [...periodWithdrawnRecords, ...entrantes, ...records].forEach((r) => {
+    [...salientes, ...entrantes, ...records].forEach((r) => {
       const d = getRecordDirector(r);
       if (d && d !== 'Sin asignar') set.add(d);
     });
     return ['Todos', ...Array.from(set).sort()];
-  }, [periodWithdrawnRecords, entrantes, records]);
+  }, [salientes, entrantes, records]);
 
-  // Filtrado de la lista activa
+  // Filtrado de la lista activa en vivo
   const currentList = useMemo<LiveListItem[]>(() => {
-    let baseList: LiveListItem[] = activeTab === 'salientes' ? periodWithdrawnRecords : activeTab === 'entrantes' ? entrantes : records;
+    let baseList: LiveListItem[] =
+      activeTab === 'salientes' ? salientes : activeTab === 'entrantes' ? entrantes : records;
 
     if (selectedDirector !== 'Todos') {
       baseList = baseList.filter((r) => getRecordDirector(r) === selectedDirector);
@@ -212,7 +179,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
         r.employee?.toLowerCase().includes(q) ||
         getRecordDirector(r).toLowerCase().includes(q),
     );
-  }, [activeTab, periodWithdrawnRecords, entrantes, records, selectedDirector, searchTerm]);
+  }, [activeTab, salientes, entrantes, records, selectedDirector, searchTerm]);
 
   const activeProducts = useMemo(() => {
     if (!selectedProductRemision || !productsMap) return [];
@@ -251,9 +218,6 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
         { header: 'Vr. Total', key: 'total', width: 18 },
         { header: 'Fecha Emisión', key: 'issuedAt', width: 16 },
         { header: 'Días', key: 'age', width: 12 },
-        ...(activeTab === 'salientes'
-          ? [{ header: 'Fecha Salida', key: 'exitCutoff', width: 16 }]
-          : []),
         { header: 'Movimiento', key: 'tipo', width: 22 },
       ];
 
@@ -264,7 +228,6 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
       headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
 
       currentList.forEach((r, idx) => {
-        const exitDate = (r as any).exitCutoff;
         const row = worksheet.addRow({
           rank: idx + 1,
           document: r.document,
@@ -276,7 +239,6 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
           total: r.total || 0,
           issuedAt: r.issuedAt,
           age: r.age,
-          exitCutoff: exitDate ? formatCutoff(exitDate) : 'Hoy (En Vivo)',
           tipo:
             activeTab === 'salientes'
               ? 'SALIÓ (FACTURADA)'
@@ -293,9 +255,6 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
         row.getCell('order').alignment = { horizontal: 'center' };
         row.getCell('issuedAt').alignment = { horizontal: 'center' };
         row.getCell('age').alignment = { horizontal: 'center' };
-        if (activeTab === 'salientes') {
-          row.getCell('exitCutoff').alignment = { horizontal: 'center' };
-        }
         row.getCell('tipo').alignment = { horizontal: 'center' };
       });
 
@@ -384,18 +343,196 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
         </button>
       </div>
 
-      {/* 2. Filtro agradable por Mes y Semana para el Monitor en Vivo */}
-      <PeriodFilterControl
-        filter={periodFilter}
-        onChangeFilter={setPeriodFilter}
-        structure={periodStructure}
-        visibleDaysCount={targetCutoffs.length}
-        totalDaysCount={cutoffs.length}
-        theme="blue"
-        title="Filtrar movimientos En Vivo"
-      />
+      {/* 2. Resumen Mensual: Entradas y Salidas Acumuladas en el Mes */}
+      <div
+        style={{
+          background: '#FFFFFF',
+          borderRadius: '16px',
+          border: '1px solid #E2E8F0',
+          padding: '16px 20px',
+          marginBottom: '20px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            marginBottom: '14px',
+            paddingBottom: '12px',
+            borderBottom: '1px solid #F1F5F9',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div
+              style={{
+                width: '30px',
+                height: '30px',
+                borderRadius: '8px',
+                background: '#EEF2FF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#4F46E5',
+              }}
+            >
+              <Calendar size={16} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>
+                Consolidado Acumulado del Mes
+              </h3>
+              <span style={{ fontSize: '12px', color: '#64748B' }}>
+                Resumen de remisiones que salieron y entraron durante el mes seleccionado
+              </span>
+            </div>
+          </div>
 
-      {/* 3. Tarjetas Operativas (Lo que Salió en el Periodo, Total Salido en el Mes, Lo que Entró y Qué Hay) */}
+          {/* Selector de Mes */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>
+              Seleccionar Mes:
+            </span>
+            <div style={{ position: 'relative' }}>
+              <select
+                value={activeMonthKey}
+                onChange={(e) => setSelectedMonthKey(e.target.value)}
+                style={{
+                  appearance: 'none',
+                  WebkitAppearance: 'none',
+                  backgroundColor: '#F8FAFC',
+                  border: '1.5px solid #CBD5E1',
+                  borderRadius: '8px',
+                  padding: '6px 32px 6px 12px',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  color: '#1E293B',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                }}
+              >
+                {periodStructure.months.map((m) => (
+                  <option key={m.key} value={m.key}>
+                    {m.label} {m.key === periodStructure.currentMonthKey ? '(Mes Actual)' : ''}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={14}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                  color: '#64748B',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Las 2 Tarjetas del Mes: Salidas del Mes y Entradas del Mes */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '14px',
+          }}
+        >
+          {/* Tarjeta 1: Total Salido en el Mes */}
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)',
+              border: '1.5px solid #86EFAC',
+              borderRadius: '12px',
+              padding: '16px 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                🟢 Lo que Salió en el Mes
+              </span>
+              <span
+                style={{
+                  fontSize: '10.5px',
+                  fontWeight: 750,
+                  backgroundColor: '#FFFFFF',
+                  color: '#15803D',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  border: '1px solid #BBF7D0',
+                }}
+              >
+                {monthlyMetrics.monthLabel}
+              </span>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 850, color: '#14532D', marginTop: '4px' }}>
+              {currencyFmt.format(monthlyMetrics.totalSalidoMoney)}
+            </div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#166534' }}>
+              {numberFormat.format(monthlyMetrics.totalSalidoCount)} remisiones facturadas / salidas
+            </div>
+            <div style={{ fontSize: '11px', color: '#15803D', opacity: 0.85, marginTop: '2px' }}>
+              Total facturado y cerrado en la operación durante {monthlyMetrics.monthLabel}
+            </div>
+          </div>
+
+          {/* Tarjeta 2: Total Entrado en el Mes */}
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+              border: '1.5px solid #93C5FD',
+              borderRadius: '12px',
+              padding: '16px 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#1E40AF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                🔵 Lo que Entró en el Mes
+              </span>
+              <span
+                style={{
+                  fontSize: '10.5px',
+                  fontWeight: 750,
+                  backgroundColor: '#FFFFFF',
+                  color: '#1D4ED8',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  border: '1px solid #BFDBFE',
+                }}
+              >
+                {monthlyMetrics.monthLabel}
+              </span>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 850, color: '#1E3A8A', marginTop: '4px' }}>
+              +{currencyFmt.format(monthlyMetrics.totalEntradoMoney)}
+            </div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#1E40AF' }}>
+              +{numberFormat.format(monthlyMetrics.totalEntradoCount)} remisiones nuevas emitidas
+            </div>
+            <div style={{ fontSize: '11px', color: '#1D4ED8', opacity: 0.85, marginTop: '2px' }}>
+              Nuevos despachos ingresados a la base activa durante {monthlyMetrics.monthLabel}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Tarjetas Operativas en Tiempo Real (En Vivo Hoy) */}
       <div
         style={{
           display: 'grid',
@@ -404,7 +541,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
           marginBottom: '20px',
         }}
       >
-        {/* Tarjeta 1: LO QUE SALIÓ EN EL PERIODO FILTRADO */}
+        {/* Tarjeta 1: LO QUE SALIÓ (EN VIVO HOY) */}
         <div
           onClick={() => setActiveTab('salientes')}
           style={{
@@ -419,7 +556,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <span style={{ fontSize: '12px', fontWeight: 800, color: '#15803D', textTransform: 'uppercase' }}>
-              🟢 Lo que Salió ({periodFilter.mode === 'current-week' ? 'Esta Semana' : periodFilter.mode === 'current-month' ? 'En el Mes' : periodFilter.mode === 'all' ? 'Histórico' : 'Periodo'})
+              🟢 Lo que Salió (Facturadas)
             </span>
             <div
               style={{
@@ -437,63 +574,17 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
             </div>
           </div>
           <div style={{ fontSize: '24px', fontWeight: 800, color: '#166534', marginBottom: '4px' }}>
-            {currencyFmt.format(periodSalientesTotals.totalMoney > 0 ? periodSalientesTotals.totalMoney : totalSalientesValor)}
+            {currencyFmt.format(totalSalientesValor)}
           </div>
           <div style={{ fontSize: '13px', fontWeight: 700, color: '#15803D' }}>
-            {periodWithdrawnRecords.length} remisiones que salieron
+            {salientes.length} remisiones que salieron
           </div>
           <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
             Ya no están pendientes (fueron facturadas/cobradas)
           </div>
         </div>
 
-        {/* Tarjeta 2: VISTA TOTAL QUE HA SALIDO EN EL MES (Acumulado Mensual Solicitado) */}
-        <div
-          onClick={() => {
-            setPeriodFilter({ mode: 'current-month', monthKey: periodStructure.currentMonthKey, weekKey: 'all' });
-            setActiveTab('salientes');
-          }}
-          style={{
-            backgroundColor: (activeTab === 'salientes' && periodFilter.mode === 'current-month') ? '#F0FDF4' : '#FFFFFF',
-            border: (activeTab === 'salientes' && periodFilter.mode === 'current-month') ? '2px solid #16A34A' : '1px solid #E2E8F0',
-            borderRadius: '14px',
-            padding: '18px 20px',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-          }}
-          title={`Ver todas las remisiones que han salido en ${currentMonthSalientes.monthLabel}`}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 800, color: '#047857', textTransform: 'uppercase' }}>
-              💰 Total Salido en el Mes
-            </span>
-            <span
-              style={{
-                fontSize: '10.5px',
-                fontWeight: 750,
-                backgroundColor: '#ECFDF5',
-                color: '#065F46',
-                border: '1px solid #A7F3D0',
-                padding: '2px 8px',
-                borderRadius: '999px',
-              }}
-            >
-              {currentMonthSalientes.monthLabel}
-            </span>
-          </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#065F46', marginBottom: '4px' }}>
-            {currencyFmt.format(currentMonthSalientes.totalMoney)}
-          </div>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#047857' }}>
-            {numberFormat.format(currentMonthSalientes.totalCount)} remisiones facturadas
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
-            Facturación acumulada en {currentMonthSalientes.monthLabel}
-          </div>
-        </div>
-
-        {/* Tarjeta 3: LO QUE ENTRÓ */}
+        {/* Tarjeta 2: LO QUE ENTRÓ (EN VIVO HOY) */}
         <div
           onClick={() => setActiveTab('entrantes')}
           style={{
@@ -536,7 +627,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
           </div>
         </div>
 
-        {/* Tarjeta 4: TODAS LAS ACTIVAS */}
+        {/* Tarjeta 3: TODAS LAS ACTIVAS */}
         <div
           onClick={() => setActiveTab('vivas')}
           style={{
@@ -611,7 +702,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
               transition: 'all 0.15s ease',
             }}
           >
-            🟢 Lo que Salió ({periodWithdrawnRecords.length})
+            🟢 Lo que Salió ({salientes.length})
           </button>
           <button
             onClick={() => setActiveTab('entrantes')}
@@ -773,9 +864,6 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
                 <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Comercial</th>
                 <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Director</th>
                 <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Fecha Emisión</th>
-                {activeTab === 'salientes' && (
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#166534' }}>Fecha Salida</th>
-                )}
                 <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569', textAlign: 'right' }}>
                   Valor ($)
                 </th>
@@ -787,7 +875,7 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
             <tbody>
               {currentList.length === 0 ? (
                 <tr>
-                  <td colSpan={activeTab === 'salientes' ? 9 : 8} style={{ padding: '40px', textAlign: 'center', color: '#94A3B8' }}>
+                  <td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#94A3B8' }}>
                     No hay remisiones para mostrar con los filtros aplicados.
                   </td>
                 </tr>
@@ -795,7 +883,6 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
                 currentList.map((r, i) => {
                   const num = parseInt(r.document.replace(/\D/g, ''), 10);
                   const prods = productsMap?.get(num) || [];
-                  const exitDate = (r as any).exitCutoff;
 
                   return (
                     <tr
@@ -865,11 +952,6 @@ export const LiveMonitorView: React.FC<LiveMonitorViewProps> = ({
                       <td style={{ padding: '12px 16px', color: '#64748B', whiteSpace: 'nowrap' }}>
                         {r.issuedAt} ({r.age} d)
                       </td>
-                      {activeTab === 'salientes' && (
-                        <td style={{ padding: '12px 16px', color: '#166534', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                          {exitDate ? formatCutoff(exitDate) : 'Hoy (En Vivo)'}
-                        </td>
-                      )}
                       <td
                         style={{
                           padding: '12px 16px',
