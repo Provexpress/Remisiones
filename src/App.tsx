@@ -408,6 +408,9 @@ function Dashboard({
       setLiveSaldoAnteriorCount(res.saldoAnteriorCount || 0);
       setLiveCorteAnteriorFecha(res.corteAnteriorFecha || '2026-09-25');
       setLiveLastSync(`${res.cutoff} ${res.cutoffTime}`);
+      if (res.productsMap) {
+        setLiveProductsMap(res.productsMap);
+      }
 
       // Actualizar automáticamente los demás tableros (Gestión, Evolución, Detalle y correos)
       if (onUpdateWorkbook) {

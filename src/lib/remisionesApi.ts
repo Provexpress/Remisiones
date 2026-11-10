@@ -41,6 +41,7 @@ export interface LiveSyncResult {
   corteAnteriorFecha?: string;
   gestionNeta: number;
   fromSupabase: boolean;
+  productsMap?: Map<number, LiveProduct[]>;
 }
 
 function getErpEndpointUrl(endpoint: string): string {
@@ -122,6 +123,7 @@ export async function fetchLiveRemisionesFromErp(): Promise<{
   records: Remision[];
   cutoff: string;
   cutoffTime: string;
+  productsMap: Map<number, LiveProduct[]>;
 }> {
   const token = await authenticateErp();
   const headers = {
@@ -251,7 +253,7 @@ export async function fetchLiveRemisionesFromErp(): Promise<{
     });
   }
 
-  return { records, cutoff, cutoffTime };
+  return { records, cutoff, cutoffTime, productsMap };
 }
 
 /**
@@ -262,7 +264,7 @@ export async function fetchLiveRemisionesFromErp(): Promise<{
  * 4. Guarda la foto de hoy y los movimientos en Supabase.
  */
 export async function syncLiveRemisiones(): Promise<LiveSyncResult> {
-  const { records, cutoff, cutoffTime } = await fetchLiveRemisionesFromErp();
+  const { records, cutoff, cutoffTime, productsMap } = await fetchLiveRemisionesFromErp();
 
   // 1. Obtener el corte anterior más reciente desde Supabase (fecha < hoy)
   let prevRecords: Remision[] = [];
@@ -434,6 +436,7 @@ export async function syncLiveRemisiones(): Promise<LiveSyncResult> {
     corteAnteriorFecha: latestCorteData?.fecha || '2026-09-25',
     gestionNeta,
     fromSupabase: true,
+    productsMap,
   };
 }
 
