@@ -57,12 +57,13 @@ function getErpEndpointUrl(endpoint: string): string {
   return `http://152.200.146.226:50010${cleanEndpoint}`;
 }
 
-function formatTodayIso(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+export function formatTodayIso(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 }
 
 function formatCurrentTime(): string {
@@ -417,6 +418,7 @@ export async function syncLiveRemisiones(): Promise<LiveSyncResult> {
     ];
 
     if (movimientosRows.length > 0) {
+      await supabase.from('remisiones_movimientos').delete().eq('fecha_corte', cutoff);
       await supabase.from('remisiones_movimientos').insert(movimientosRows);
     }
   } catch (err) {
@@ -564,6 +566,11 @@ export async function buildWorkbookFromSupabase(): Promise<ParsedWorkbook> {
   const unmatchedEmployees = [...new Set(allRecords.filter((r) => !r.matchedGroup).map((r) => r.employee))]
     .sort((a, b) => a.localeCompare(b, 'es'));
 
+  const latestCorte = data[data.length - 1];
+  const latestRawRecords = (latestCorte?.records_json || []) as any[];
+  const sampleRecord = latestRawRecords[0];
+  const cutoffTime = sampleRecord?.cutoffTime || (latestCorte?.created_at ? new Date(latestCorte.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Tiempo Real');
+
   return {
     records: allRecords,
     groups,
@@ -571,7 +578,7 @@ export async function buildWorkbookFromSupabase(): Promise<ParsedWorkbook> {
     cutoffs: uniqueCutoffs,
     unmatchedEmployees,
     activeSheetName: 'Base (Supabase Cloud)',
-    cutoffDateTime: `${latestCutoff}T12:00:00Z`,
-    cutoffTimeDisplay: 'Tiempo Real',
+    cutoffDateTime: latestCorte?.created_at || `${latestCutoff}T12:00:00Z`,
+    cutoffTimeDisplay: cutoffTime,
   };
 }

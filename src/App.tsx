@@ -77,7 +77,7 @@ import {
 import type { AgeBreakdownItem, DailyPoint, DataSource, FileMetadata, InitialCohortPoint, ParsedWorkbook, Remision, Summary, UserProfile, WithdrawnRemisionDetail } from './types';
 import { EmailNotificationModal } from './components/EmailNotificationModal';
 import { LiveMonitorView } from './components/LiveMonitorView';
-import { syncLiveRemisiones, buildWorkbookFromSupabase, type LiveProduct } from './lib/remisionesApi';
+import { syncLiveRemisiones, buildWorkbookFromSupabase, formatTodayIso, type LiveProduct } from './lib/remisionesApi';
 import {
   extractPeriodStructure,
   filterCutoffsByPeriod,
@@ -143,6 +143,25 @@ function App() {
         lastModifiedDateTime: parsed.cutoffDateTime,
       });
       setPhase('ready');
+
+      // Auto-detección matutina: si el corte de hoy (en hora Colombia) aún no existe en Supabase,
+      // sincronizar en segundo plano con el ERP para que el día de hoy aparezca automáticamente.
+      const today = formatTodayIso();
+      if (!parsed.cutoffs.includes(today)) {
+        void (async () => {
+          try {
+            await syncLiveRemisiones();
+            const fresh = await buildWorkbookFromSupabase();
+            setWorkbook(fresh);
+            setMetadata({
+              name: 'Supabase Cloud (Tiempo Real)',
+              lastModifiedDateTime: fresh.cutoffDateTime,
+            });
+          } catch (syncErr) {
+            console.warn('Auto-sync matutino con ERP omitido o fallido:', syncErr);
+          }
+        })();
+      }
     } catch (err) {
       console.warn('Supabase no disponible, intentando SharePoint como respaldo:', err);
       void loadRemote();
@@ -223,7 +242,16 @@ function App() {
   };
 
   const refresh = async () => {
-    if (source === 'supabase') await loadFromSupabase();
+    if (source === 'supabase') {
+      setPhase('loading');
+      setLoadingMessage('Sincronizando con ERP en vivo y Supabase…');
+      try {
+        await syncLiveRemisiones();
+      } catch (syncErr) {
+        console.warn('Error sincronizando con ERP en vivo, recargando Supabase:', syncErr);
+      }
+      await loadFromSupabase();
+    }
     else if (source === 'sharepoint') await loadRemote(user || undefined);
     else fileInput.current?.click();
   };
@@ -435,7 +463,7 @@ function Dashboard({
   };
 
   useEffect(() => {
-    if (view === 'live' && liveRecords.length === 0 && !liveIsSyncing) {
+    if (view === 'live' && !liveIsSyncing) {
       handleSyncLiveApi();
     }
   }, [view]);
